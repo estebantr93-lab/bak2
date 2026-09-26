@@ -55,6 +55,16 @@ def es_usuario_sin_restriccion(user):
     return get_rol(user) in (ROL_SUPERADMIN, ROL_VERIFICADOR)
 
 
+def filtrar_por_delegacion(queryset, user, campo='delegacion'):
+    """Scoping para vistas fuera del Admin: mismo criterio que ScopedModelAdmin."""
+    if es_usuario_sin_restriccion(user):
+        return queryset
+    delegacion = get_usuario_delegacion(user)
+    if delegacion is None:
+        return queryset.none()
+    return queryset.filter(**{campo: delegacion.pk})
+
+
 class ScopedModelAdmin:
     scope_by = 'delegacion'
 

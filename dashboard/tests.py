@@ -56,11 +56,11 @@ class DashboardTests(TestCase):
 
     def _ingresar(self, username, password):
         self.assertTrue(self.client.login(username=username, password=password))
-        return self.client.get(reverse('monitoreo:dashboard'))
+        return self.client.get(reverse('dashboard'))
 
     def test_dashboard_requiere_login(self):
-        response = self.client.get(reverse('monitoreo:dashboard'))
-        self.assertRedirects(response, reverse('login') + '?next=' + reverse('monitoreo:dashboard'))
+        response = self.client.get(reverse('dashboard'))
+        self.assertRedirects(response, reverse('login') + '?next=' + reverse('dashboard'))
 
     def test_admin_centro_solo_ve_su_delegacion(self):
         response = self._ingresar('admin_centro', 'AdminCentro#2026SGR')
@@ -109,12 +109,29 @@ class DashboardTests(TestCase):
         self.assertEqual(nombres, ['Delegación Centro', 'Delegación Norte'])
         self.assertEqual(response.context['totales']['funcionarios'], 4)
 
-    def test_usuario_sin_rol_no_ve_datos(self):
+    def test_usuario_sin_rol_recibe_403(self):
         User.objects.create_user(username='sin_rol', password='x')
         response = self._ingresar('sin_rol', 'x')
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context['secciones'], [])
-        self.assertContains(response, 'no tiene un rol asignado')
+        self.assertEqual(response.status_code, 403)
+
+    def test_funcionario_sin_perfil_recibe_403(self):
+        from django.contrib.auth.models import Group
+
+        user = User.objects.create_user(username='sin_perfil', password='x')
+        user.groups.add(Group.objects.get(name='Funcionarios'))
+        response = self._ingresar('sin_perfil', 'x')
+        self.assertEqual(response.status_code, 403)
+
+    def test_periodo_elegido_se_recuerda_en_la_sesion(self):
+        from core.models import Periodo
+
+        cerrado = Periodo.objects.get(cerrado=True)
+        self.client.login(username='admin_centro', password='AdminCentro#2026SGR')
+        self.client.get(reverse('dashboard'), {'periodo': cerrado.pk})
+        self.assertEqual(self.client.session['dashboard_periodo_id'], cerrado.pk)
+        # Sin parámetro, la siguiente visita usa el período recordado.
+        response = self.client.get(reverse('dashboard'))
+        self.assertEqual(response.context['periodo'], cerrado)
 
 
 class AislamientoAdminPorDelegacionTests(TestCase):

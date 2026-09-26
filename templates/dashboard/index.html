@@ -22,11 +22,7 @@
     </form>
 </div>
 
-{% if not rol %}
-    <div class="alert alert-warning">Su usuario no tiene un rol asignado. Contacte al administrador del sistema.</div>
-{% elif not secciones %}
-    <div class="alert alert-warning">Su usuario no tiene una delegación asociada, por lo que no hay datos para mostrar.</div>
-{% else %}
+
 
 <div class="row g-3 mb-4">
     <div class="col-6 col-md-4 col-xl-2"><div class="card kpi h-100"><div class="card-body">
@@ -118,5 +114,4 @@
 </section>
 {% endfor %}
 
-{% endif %}
 {% endblock %}

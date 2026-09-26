@@ -36,18 +36,19 @@ Cada módulo del dominio SGR es una app Django independiente:
 
 ```
 Proyecto_Integrado_SGR/
-├── config/          # Proyecto Django (settings, urls con login/logout, wsgi, asgi) + vista de la página de inicio
+├── config/          # Proyecto Django (settings, urls con django.contrib.auth.urls, wsgi, asgi) + portada
 ├── core/            # Delegacion, Cargo, TipoActividad, Periodo, Parametro + admin_utils (scoping) + seed_data
-├── funcionarios/    # Funcionario (perfil), grupos/permisos (security.py)
-├── actividades/     # Actividad, AtencionSocial
-├── evidencias/      # Evidencia, Validacion + acción "Aprobar evidencias seleccionadas"
+├── funcionarios/    # Funcionario (perfil), grupos/permisos (security.py), recuperación de contraseña con código
+├── actividades/     # Actividad, AtencionSocial + CRUD web protegido (ListView/CreateView/UpdateView/DeleteView + modal)
+├── evidencias/      # Evidencia, Validacion + acción "Aprobar evidencias seleccionadas" + carga de archivos validada
 ├── agenda/          # Compromiso, SeguimientoCompromiso
 ├── medicion/        # Meta, Ponderacion, Indicador + fórmulas de cálculo (services.py)
-├── monitoreo/       # TableroPanel + Dashboard de resumen por funcionario y rol (services.py)
+├── monitoreo/       # TableroPanel
+├── dashboard/       # Dashboard de resumen por funcionario y rol (services.py)
 ├── reportes/        # Servicios de exportación (sin modelos propios)
 ├── colaboracion/    # Comentario, Alerta, TrazaAuditoria
-├── templates/       # landing, base, registration/login, monitoreo/dashboard y override del admin
-├── static/          # CSS del sitio (static/css/style.css)
+├── templates/       # landing, base, registration/ (login y recuperación), dashboard/, actividades/, evidencias/
+├── static/          # static/css/style.css y static/js/confirmar.js (SweetAlert2)
 ├── .env.example
 ├── .gitignore
 ├── manage.py
@@ -127,8 +128,11 @@ El proyecto expone estas rutas:
 | URL | Contenido |
 | --- | --- |
 | **http://127.0.0.1:8000/** | Portada pública. El botón **Ingresar al sistema** lleva al login. |
-| **http://127.0.0.1:8000/login/** | Login del sistema (`LoginView` de Django, definido en `config/urls.py`). Tras ingresar redirige al dashboard (o a `?next=`). |
-| **http://127.0.0.1:8000/logout/** | Cierre de sesión (solo `POST`, botón en la barra superior). |
+| **http://127.0.0.1:8000/accounts/login/** | Login (`django.contrib.auth.urls`). Tras ingresar redirige al dashboard (o a `?next=`). |
+| **http://127.0.0.1:8000/accounts/logout/** | Cierre de sesión (solo `POST`, botón en la barra superior). |
+| **http://127.0.0.1:8000/accounts/recuperar/** | Recuperación de contraseña con código temporal de 6 dígitos. |
+| **http://127.0.0.1:8000/actividades/** | CRUD protegido de actividades (modal para crear/editar, eliminar por POST). |
+| **http://127.0.0.1:8000/evidencias/actividad/&lt;id&gt;/** | Evidencias de una actividad: carga de archivos JPG/PNG/PDF y eliminación. |
 | **http://127.0.0.1:8000/dashboard/** | Dashboard: resumen por funcionario agrupado por rol, acotado a lo que el usuario puede ver. |
 | **http://127.0.0.1:8000/admin/** | Django Admin. `/admin/login/` redirige al login propio. |
 
@@ -142,6 +146,32 @@ Por cada funcionario visible muestra, para el período elegido: actividades (tot
 | Administrador de delegación (grupo `Administradores`) | Solo los funcionarios de **su** delegación |
 | Verificador (grupo `Verificadores`) | Ambas delegaciones (revisa evidencias de todas) |
 | Funcionario (grupo `Funcionarios`) | Solo su propio resumen |
+
+### Autenticación y sesiones (Clase 6)
+
+- Rutas de `django.contrib.auth.urls` en `config/urls.py`; `LOGIN_URL = 'login'`, `LOGIN_REDIRECT_URL = 'dashboard'`, `LOGOUT_REDIRECT_URL = 'login'`.
+- Seguridad por capas: `login_required` / `LoginRequiredMixin` (autenticación), `permission_required` / `PermissionRequiredMixin` (autorización) y `filtrar_por_delegacion` en cada QuerySet (scoping). Una cuenta sin rol o sin perfil de delegación recibe **403**.
+- `request.session` guarda solo preferencias: el período elegido en el dashboard y la cantidad de filas por página en actividades.
+- Mensajes (`django.contrib.messages`) al ingresar, al cerrar sesión y en cada operación del CRUD.
+- Cookies: `SESSION_COOKIE_AGE` de 2 horas, `HTTPONLY`, `SAMESITE='Lax'` y `SESSION/CSRF_COOKIE_SECURE` desde `COOKIE_SECURE` en `.env`.
+
+### Recuperación de contraseña (guía autónoma)
+
+Enlace **¿Olvidó su contraseña?** en el login → correo → código de 6 dígitos (`secrets`) → nueva contraseña (`SetPasswordForm`, que usa `set_password()`).
+Solo se guarda el **hash** del código (`CodigoRecuperacion`). El código vence en **120 s**, es de **uso único**, admite **5 intentos** y pedir uno nuevo invalida los anteriores. La respuesta es siempre genérica («Si el correo corresponde…»).
+En desarrollo el correo se imprime en la terminal de `runserver`. Django 6.1 reemplaza `EMAIL_BACKEND`/`EMAIL_HOST`/... por `MAILERS`, y definir ambos es un error; por eso `settings.py` lee las mismas variables de `.env` (`EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`) dentro de `MAILERS`. Para usar Mailtrap basta con cambiar esas variables.
+
+### CRUD protegido con modal (Clase 7)
+
+`/actividades/` usa `ListView`, `CreateView`, `UpdateView` y `DeleteView` con `LoginRequiredMixin` y `PermissionRequiredMixin`, y el mismo `ActividadWebForm` (ModelForm) para crear y editar. Ese formulario tiene `clean_numero()`, `clean()` y las validaciones del modelo.
+Crear y editar se hacen en un modal de Bootstrap. Si hay errores, la misma plantilla vuelve a mostrarse con el modal abierto. Cada operación conserva su URL (`/actividades/nueva/`, `/<id>/editar/`, `/<id>/eliminar/`).
+Eliminar funciona solo por POST y exige `delete_actividad`, que tienen los administradores y no los funcionarios. Ocultar un botón no protege nada: cada vista vuelve a verificar el permiso y el alcance, y responde 403 o 404.
+
+### Archivos y confirmaciones (Clase 8)
+
+La carga (`enctype="multipart/form-data"`) valida el tamaño (máximo 2 MB), la extensión (JPG, PNG o PDF) y el **contenido real**: `Image.open().verify()` de Pillow para imágenes y la firma `%PDF-` para PDF. El nombre enviado se descarta y se guarda con un nombre UUID en `media/evidencias/AAAA/MM/`.
+Al eliminar o reemplazar una evidencia, su archivo físico también se borra (señales en `evidencias/signals.py`), para no dejar archivos huérfanos.
+SweetAlert2 (`static/js/confirmar.js`) pide confirmación antes de eliminar. Es solo una ayuda visual: Django sigue exigiendo POST, CSRF, login y permisos.
 
 ## Cuentas de prueba
 

@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from core.admin_utils import ScopedModelAdmin, es_usuario_sin_restriccion
 
-from .models import Funcionario
+from .models import CodigoRecuperacion, Funcionario
 
 
 @admin.register(Funcionario)
@@ -21,3 +21,16 @@ class FuncionarioAdmin(ScopedModelAdmin, admin.ModelAdmin):
         if not es_usuario_sin_restriccion(request.user):
             campos += [campo for campo in ('user', 'delegacion') if campo not in campos]
         return campos
+
+
+@admin.register(CodigoRecuperacion)
+class CodigoRecuperacionAdmin(admin.ModelAdmin):
+    list_display = ('user', 'creado', 'expira', 'intentos', 'usado')
+    list_filter = ('usado',)
+    search_fields = ('user__username', 'user__email')
+    # El hash no se muestra ni se edita desde el Admin.
+    exclude = ('codigo_hash',)
+    readonly_fields = ('user', 'creado', 'expira', 'intentos', 'usado')
+
+    def has_add_permission(self, request):
+        return False

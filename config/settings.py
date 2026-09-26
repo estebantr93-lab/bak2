@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'monitoreo',
     'reportes',
     'colaboracion',
+    'dashboard',
 ]
 
 MIDDLEWARE = [
@@ -152,7 +153,7 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 
-MEDIA_URL = 'media/'
+MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -160,15 +161,48 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
+# Django 6.1 reemplaza EMAIL_BACKEND/EMAIL_HOST/... por MAILERS (definir ambos es un error),
+# así que las mismas variables de entorno de la guía se leen dentro de MAILERS.
+# En desarrollo el backend de consola imprime el correo en la terminal.
 
+EMAIL_BACKEND_ENV = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
 MAILERS = {
     'default': {
-        'BACKEND': 'django.core.mail.backends.console.EmailBackend',
+        'BACKEND': EMAIL_BACKEND_ENV,
     },
 }
+if EMAIL_BACKEND_ENV.endswith('smtp.EmailBackend'):
+    MAILERS['default']['OPTIONS'] = {
+        'host': os.getenv('EMAIL_HOST', ''),
+        'port': int(os.getenv('EMAIL_PORT', '2525')),
+        'username': os.getenv('EMAIL_HOST_USER', ''),
+        'password': os.getenv('EMAIL_HOST_PASSWORD', ''),
+        'use_tls': os.getenv('EMAIL_USE_TLS', 'True') == 'True',
+    }
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'SGR La Serena <no-responder@demo.sgr.local>')
 
 
-# Autenticación: el login se define en config/urls.py y, al ingresar, envía al dashboard.
+# Autenticación (rutas de django.contrib.auth.urls montadas en config/urls.py)
 LOGIN_URL = 'login'
-LOGIN_REDIRECT_URL = 'monitoreo:dashboard'
+LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
+
+
+# Sesiones y cookies: COOKIE_SECURE=True solo en producción con HTTPS.
+COOKIE_SECURE = os.getenv('COOKIE_SECURE', 'False').lower() == 'true'
+SESSION_COOKIE_AGE = 60 * 60 * 2  # 2 horas
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_COOKIE_HTTPONLY = True
+SESSION_SAVE_EVERY_REQUEST = False
+SESSION_COOKIE_SECURE = COOKIE_SECURE
+CSRF_COOKIE_SECURE = COOKIE_SECURE
+SESSION_COOKIE_SAMESITE = 'Lax'
+
+
+# Recuperación de contraseña mediante código temporal
+RECUPERACION_CODIGO_VIGENCIA_SEGUNDOS = int(os.getenv('RECUPERACION_CODIGO_VIGENCIA_SEGUNDOS', '120'))
+RECUPERACION_CODIGO_MAX_INTENTOS = 5
+
+
+# Archivos de evidencia
+EVIDENCIA_TAMANO_MAXIMO_MB = 2

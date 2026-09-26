@@ -1,3 +1,4 @@
+import os
 import uuid
 
 from django.contrib.auth.models import User
@@ -5,6 +6,14 @@ from django.db import models
 from django.utils import timezone
 
 from actividades.models import Actividad
+
+EXTENSIONES_IMAGEN = {'.jpg', '.jpeg', '.png'}
+
+
+def ruta_evidencia(instance, filename):
+    """No se confía en el nombre enviado: se conserva solo la extensión y se genera un nombre único."""
+    extension = os.path.splitext(filename)[1].lower()
+    return f'evidencias/{timezone.now():%Y/%m}/{uuid.uuid4().hex}{extension}'
 
 
 class Evidencia(models.Model):
@@ -17,7 +26,7 @@ class Evidencia(models.Model):
     codigo_unico = models.CharField(max_length=40, unique=True, blank=True)
     actividad = models.ForeignKey(Actividad, on_delete=models.CASCADE, related_name='evidencias')
     descripcion = models.TextField(blank=True)
-    archivo = models.FileField(upload_to='evidencias/%Y/%m/', blank=True, null=True)
+    archivo = models.FileField(upload_to=ruta_evidencia, blank=True, null=True)
     fecha_registro = models.DateTimeField(auto_now_add=True)
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='pendiente')
     resultado = models.CharField(max_length=200, blank=True)
@@ -35,6 +44,10 @@ class Evidencia(models.Model):
 
     def __str__(self):
         return self.codigo_unico
+
+    @property
+    def es_imagen(self):
+        return bool(self.archivo) and os.path.splitext(self.archivo.name)[1].lower() in EXTENSIONES_IMAGEN
 
     @staticmethod
     def generar_codigo_unico():

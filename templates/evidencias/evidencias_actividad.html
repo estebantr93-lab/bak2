@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Evidencias {{ actividad.numero }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb small">
+    <li class="breadcrumb-item"><a href="{% url 'actividad_list' %}">Actividades</a></li>
+    <li class="breadcrumb-item active" aria-current="page">{{ actividad.numero }}</li>
+</ol></nav>
+
+<h1 class="h3 mb-1">Evidencias de {{ actividad.numero }}</h1>
+<p class="text-muted small">{{ actividad.descripcion }} · {{ actividad.delegacion }}</p>
+
+<div class="row g-4">
+    <div class="col-12 col-lg-8">
+        <div class="row g-3">
+        {% for evidencia in evidencias %}
+            <div class="col-12 col-sm-6">
+                <div class="card h-100">
+                    {% if evidencia.es_imagen %}
+                        <img src="{{ evidencia.archivo.url }}" class="card-img-top evidencia-img" alt="Evidencia {{ evidencia.codigo_unico }}">
+                    {% elif evidencia.archivo %}
+                        <div class="card-img-top evidencia-sin-img"><a href="{{ evidencia.archivo.url }}" target="_blank" rel="noopener">Ver PDF</a></div>
+                    {% else %}
+                        <div class="card-img-top evidencia-sin-img text-muted">Sin archivo</div>
+                    {% endif %}
+                    <div class="card-body">
+                        <div class="fw-semibold small">{{ evidencia.codigo_unico }}</div>
+                        <div class="small text-muted">{{ evidencia.fecha_registro|date:"d-m-Y H:i" }} · {{ evidencia.get_estado_display }}</div>
+                        {% if evidencia.descripcion %}<p class="small mb-0 mt-2">{{ evidencia.descripcion }}</p>{% endif %}
+                    </div>
+                    {% if perms.evidencias.delete_evidencia %}
+                    <div class="card-footer bg-transparent text-end">
+                        <form method="post" action="{% url 'evidencia_delete' evidencia.pk %}"
+                              data-confirmar="¿Eliminar la evidencia {{ evidencia.codigo_unico }}? El archivo se borrará.">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-danger btn-sm">Eliminar</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        {% empty %}
+            <div class="col-12"><div class="alert alert-light border">Esta actividad aún no tiene evidencias.</div></div>
+        {% endfor %}
+        </div>
+    </div>
+
+    {% if perms.evidencias.add_evidencia %}
+    <div class="col-12 col-lg-4">
+        <div class="card"><div class="card-body">
+            <h2 class="h6">Adjuntar evidencia</h2>
+            {# multipart/form-data: los archivos llegan en request.FILES #}
+            <form method="post" enctype="multipart/form-data" novalidate>
+                {% csrf_token %}
+                {% include "includes/form_campos.html" %}
+                <button type="submit" class="btn btn-sgr w-100">Subir</button>
+            </form>
+        </div></div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Ingresar código{% endblock %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-12 col-sm-10 col-md-6 col-lg-4">
+    <div class="card shadow-sm"><div class="card-body p-4">
+        <h1 class="h4 mb-2 text-center">Ingresar código</h1>
+        <p class="small text-muted text-center">
+            El código vence en {{ vigencia }} segundos, sirve una sola vez y admite hasta {{ max_intentos }} intentos.
+        </p>
+        <form method="post" novalidate>
+            {% csrf_token %}
+            {% include "includes/form_campos.html" %}
+            <button class="btn btn-sgr w-100" type="submit">Validar código</button>
+        </form>
+        <p class="text-center small mt-3 mb-0"><a href="{% url 'recuperar_solicitar' %}">Solicitar un código nuevo</a></p>
+    </div></div>
+</div></div>
+{% endblock %}

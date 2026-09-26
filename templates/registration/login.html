@@ -12,29 +12,24 @@
                 {% if user.is_authenticated and next %}
                     <div class="alert alert-warning small">
                         Su cuenta no tiene acceso a esa sección. Ingrese con otra cuenta o vuelva al
-                        <a href="{% url 'monitoreo:dashboard' %}">dashboard</a>.
+                        <a href="{% url 'dashboard' %}">dashboard</a>.
                     </div>
                 {% endif %}
 
                 {% if form.errors %}
+                    {# El mensaje no revela cuál de las dos credenciales falló. #}
                     <div class="alert alert-danger small">Usuario o contraseña incorrectos.</div>
                 {% endif %}
 
-                <form method="post" action="{% url 'login' %}">
+                <form method="post">
                     {% csrf_token %}
-                    <div class="mb-3">
-                        <label class="form-label" for="id_username">Usuario</label>
-                        <input type="text" name="username" id="id_username" class="form-control"
-                               value="{{ form.username.value|default:'' }}" autocomplete="username" autofocus required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="id_password">Contraseña</label>
-                        <input type="password" name="password" id="id_password" class="form-control"
-                               autocomplete="current-password" required>
-                    </div>
+                    {% include "includes/form_campos.html" %}
                     <input type="hidden" name="next" value="{{ next }}">
                     <button class="btn btn-sgr w-100" type="submit">Ingresar</button>
                 </form>
+                <p class="text-center small mt-3 mb-0">
+                    <a href="{% url 'recuperar_solicitar' %}">¿Olvidó su contraseña?</a>
+                </p>
             </div>
         </div>
     </div>
