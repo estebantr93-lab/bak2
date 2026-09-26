@@ -32,13 +32,13 @@
                         <li class="nav-item"><span class="navbar-text mx-lg-3">{{ user.get_username }}</span></li>
                         <li class="nav-item">
                             {# Desde Django 5 el logout solo acepta POST. #}
-                            <form method="post" action="{% url 'accounts:logout' %}" class="d-inline">
+                            <form method="post" action="{% url 'logout' %}" class="d-inline">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-sm btn-outline-light">Cerrar sesión</button>
                             </form>
                         </li>
                     {% else %}
-                        <li class="nav-item"><a class="nav-link" href="{% url 'accounts:login' %}">Ingresar</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{% url 'login' %}">Ingresar</a></li>
                     {% endif %}
                     {% block nav_links %}{% endblock %}
                 </ul>

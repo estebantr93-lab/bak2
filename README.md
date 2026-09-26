@@ -36,8 +36,7 @@ Cada módulo del dominio SGR es una app Django independiente:
 
 ```
 Proyecto_Integrado_SGR/
-├── config/          # Proyecto Django (settings, urls, wsgi, asgi) + vista de la página de inicio
-├── accounts/        # Login/logout propio del sistema (LoginView + formulario Bootstrap)
+├── config/          # Proyecto Django (settings, urls con login/logout, wsgi, asgi) + vista de la página de inicio
 ├── core/            # Delegacion, Cargo, TipoActividad, Periodo, Parametro + admin_utils (scoping) + seed_data
 ├── funcionarios/    # Funcionario (perfil), grupos/permisos (security.py)
 ├── actividades/     # Actividad, AtencionSocial
@@ -128,8 +127,8 @@ El proyecto expone estas rutas:
 | URL | Contenido |
 | --- | --- |
 | **http://127.0.0.1:8000/** | Portada pública. El botón **Ingresar al sistema** lleva al login. |
-| **http://127.0.0.1:8000/accounts/login/** | Login del sistema. Tras ingresar redirige al dashboard (o a `?next=`). |
-| **http://127.0.0.1:8000/accounts/logout/** | Cierre de sesión (solo `POST`, botón en la barra superior). |
+| **http://127.0.0.1:8000/login/** | Login del sistema (`LoginView` de Django, definido en `config/urls.py`). Tras ingresar redirige al dashboard (o a `?next=`). |
+| **http://127.0.0.1:8000/logout/** | Cierre de sesión (solo `POST`, botón en la barra superior). |
 | **http://127.0.0.1:8000/dashboard/** | Dashboard: resumen por funcionario agrupado por rol, acotado a lo que el usuario puede ver. |
 | **http://127.0.0.1:8000/admin/** | Django Admin. `/admin/login/` redirige al login propio. |
 

@@ -60,7 +60,7 @@ class DashboardTests(TestCase):
 
     def test_dashboard_requiere_login(self):
         response = self.client.get(reverse('monitoreo:dashboard'))
-        self.assertRedirects(response, reverse('accounts:login') + '?next=' + reverse('monitoreo:dashboard'))
+        self.assertRedirects(response, reverse('login') + '?next=' + reverse('monitoreo:dashboard'))
 
     def test_admin_centro_solo_ve_su_delegacion(self):
         response = self._ingresar('admin_centro', 'AdminCentro#2026SGR')

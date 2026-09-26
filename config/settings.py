@@ -49,7 +49,6 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'accounts',
     'core',
     'funcionarios',
     'actividades',
@@ -169,7 +168,7 @@ MAILERS = {
 }
 
 
-# Autenticación: login propio (app accounts) y dashboard como destino tras ingresar.
-LOGIN_URL = 'accounts:login'
+# Autenticación: el login se define en config/urls.py y, al ingresar, envía al dashboard.
+LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'monitoreo:dashboard'
-LOGOUT_REDIRECT_URL = 'accounts:login'
+LOGOUT_REDIRECT_URL = 'login'

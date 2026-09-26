@@ -17,6 +17,7 @@ Including another URLconf
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.contrib.auth import views as auth_views
 from django.urls import include, path
 from django.views.generic import RedirectView
 
@@ -24,12 +25,13 @@ from .views import inicio
 
 urlpatterns = [
     path('', inicio, name='inicio'),
-    path('accounts/', include('accounts.urls')),
+    path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
+    path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('dashboard/', include('monitoreo.urls')),
     # El login del Admin se unifica con el login propio del sistema.
     path(
         'admin/login/',
-        RedirectView.as_view(pattern_name='accounts:login', permanent=False, query_string=True),
+        RedirectView.as_view(pattern_name='login', permanent=False, query_string=True),
     ),
     path('admin/', admin.site.urls),
 ]
