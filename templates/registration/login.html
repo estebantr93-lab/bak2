@@ -1,17 +1,38 @@
 {% extends "base.html" %}
 
+{% block title %}Ingreso{% endblock %}
+
 {% block content %}
-<h1>Ingreso al sistema</h1>
-{% if form.errors %}
-<div class="alert alert-danger">
-    Usuario o contraseña incorrectos.
+<div class="row justify-content-center">
+    <div class="col-12 col-sm-10 col-md-6 col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h1 class="h4 mb-3 text-center">Ingreso al sistema</h1>
+
+                {% if user.is_authenticated and next %}
+                    <div class="alert alert-warning small">
+                        Su cuenta no tiene acceso a esa sección. Ingrese con otra cuenta o vuelva al
+                        <a href="{% url 'monitoreo:dashboard' %}">dashboard</a>.
+                    </div>
+                {% endif %}
+
+                {% if form.errors %}
+                    <div class="alert alert-danger small">Usuario o contraseña incorrectos.</div>
+                {% endif %}
+
+                <form method="post" action="{% url 'accounts:login' %}">
+                    {% csrf_token %}
+                    {% for field in form %}
+                        <div class="mb-3">
+                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                        </div>
+                    {% endfor %}
+                    <input type="hidden" name="next" value="{{ next }}">
+                    <button class="btn btn-sgr w-100" type="submit">Ingresar</button>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
-{% endif %}
-<form method="post">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button class="btn btn-primary" type="submit">
-        Ingresar
-    </button>
-</form>
 {% endblock %}

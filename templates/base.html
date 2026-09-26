@@ -4,97 +4,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SGR{% endblock %} · Sistema de Gestión de Resultados</title>
 
-    <title>{% block title %}Mi sitio{% endblock %}</title>
-
-    <!-- Bootstrap 5 CSS -->
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
-
-
-    <!-- CSS personalizado -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
-
     {% block extra_css %}{% endblock %}
 </head>
 
-<body class="bg-light">
+<body class="d-flex flex-column min-vh-100">
 
-    <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <nav class="navbar navbar-expand-lg navbar-dark sgr-navbar">
         <div class="container">
-            <a class="navbar-brand fw-bold" href="">
-                Mi Sitio
-            </a>
+            <a class="navbar-brand fw-bold" href="{% url 'inicio' %}">SGR · La Serena</a>
 
-            <button
-                class="navbar-toggler"
-                type="button"
-                data-bs-toggle="collapse"
-                data-bs-target="#navbarNav"
-                aria-controls="navbarNav"
-                aria-expanded="false"
-                aria-label="Abrir navegación"
-            >
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                    aria-controls="navbarNav" aria-expanded="false" aria-label="Abrir navegación">
                 <span class="navbar-toggler-icon"></span>
             </button>
 
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-
-                    <li class="nav-item">
-                        <a class="nav-link" href="">
-                            Inicio
-                        </a>
-                    </li>
-
+                <ul class="navbar-nav ms-auto align-items-lg-center">
+                    {% if user.is_authenticated %}
+                        <li class="nav-item"><a class="nav-link" href="{% url 'monitoreo:dashboard' %}">Dashboard</a></li>
+                        {% if user.is_staff %}
+                            <li class="nav-item"><a class="nav-link" href="{% url 'admin:index' %}">Administración</a></li>
+                        {% endif %}
+                        <li class="nav-item"><span class="navbar-text mx-lg-3">{{ user.get_username }}</span></li>
+                        <li class="nav-item">
+                            {# Desde Django 5 el logout solo acepta POST. #}
+                            <form method="post" action="{% url 'accounts:logout' %}" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-light">Cerrar sesión</button>
+                            </form>
+                        </li>
+                    {% else %}
+                        <li class="nav-item"><a class="nav-link" href="{% url 'accounts:login' %}">Ingresar</a></li>
+                    {% endif %}
                     {% block nav_links %}{% endblock %}
-
                 </ul>
             </div>
         </div>
     </nav>
 
-    <!-- Mensajes Django -->
     <div class="container mt-3">
-        {% if messages %}
-            {% for message in messages %}
-                <div
-                    class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show"
-                    role="alert"
-                >
-                    {{ message }}
-
-                    <button
-                        type="button"
-                        class="btn-close"
-                        data-bs-dismiss="alert"
-                        aria-label="Cerrar"
-                    ></button>
-                </div>
-            {% endfor %}
-        {% endif %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+            </div>
+        {% endfor %}
     </div>
 
-    <!-- Contenido principal -->
-    <main class="container py-4">
-        {% block content %}
-        {% endblock %}
+    <main class="container py-4 flex-grow-1">
+        {% block content %}{% endblock %}
     </main>
 
-    <!-- Footer -->
-    <footer class="bg-dark text-white mt-auto py-4">
-        <div class="container text-center">
-            <p class="mb-0">
-                &copy; {% now "Y" %} Mi Sitio. Todos los derechos reservados.
-            </p>
+    <footer class="sgr-footer py-3">
+        <div class="container text-center small">
+            &copy; {% now "Y" %} SGR · Ilustre Municipalidad de La Serena · Proyecto académico con datos ficticios.
         </div>
     </footer>
 
-    <!-- Bootstrap 5 JS -->
-       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
-
-
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
     {% block extra_js %}{% endblock %}
-
 </body>
 </html>

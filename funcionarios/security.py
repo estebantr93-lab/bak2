@@ -3,8 +3,10 @@ from django.contrib.contenttypes.models import ContentType
 
 from actividades.models import Actividad, AtencionSocial
 from agenda.models import Compromiso, SeguimientoCompromiso
-from core.models import Periodo, TipoActividad
+from core.models import Cargo, Delegacion, Periodo, TipoActividad
 from evidencias.models import Evidencia, Validacion
+from medicion.models import Indicador
+from medicion.models import Meta as MetaModel
 
 from .models import Funcionario
 
@@ -20,7 +22,29 @@ def configurar_grupos_y_permisos():
     grupo_funcionarios, _ = Group.objects.get_or_create(name='Funcionarios')
     verificadores, _ = Group.objects.get_or_create(name='Verificadores')
 
-    administradores.permissions.set(Permission.objects.all())
+    # Administradores de delegación: gestionan todo lo operativo de SU delegación
+    # (el alcance lo impone ScopedModelAdmin). No reciben permisos sobre usuarios,
+    # grupos ni datos maestros, para que no puedan saltarse el aislamiento.
+    ct_evidencia = ContentType.objects.get_for_model(Evidencia)
+    permiso_aprobar = Permission.objects.get(content_type=ct_evidencia, codename='can_approve_evidencia')
+    crud = ['add', 'change', 'delete', 'view']
+    permisos_administradores = (
+        _permisos(Actividad, crud)
+        + _permisos(AtencionSocial, crud)
+        + _permisos(Evidencia, crud)
+        + _permisos(Validacion, ['add', 'view'])
+        + _permisos(Compromiso, crud)
+        + _permisos(SeguimientoCompromiso, crud)
+        + _permisos(Indicador, ['view'])
+        + _permisos(Funcionario, ['change', 'view'])
+        + _permisos(Delegacion, ['view'])
+        + _permisos(Cargo, ['view'])
+        + _permisos(TipoActividad, ['view'])
+        + _permisos(Periodo, ['view'])
+        + _permisos(MetaModel, ['view'])
+        + [permiso_aprobar]
+    )
+    administradores.permissions.set(permisos_administradores)
 
     permisos_funcionarios = (
         _permisos(Actividad, ['add', 'change', 'view'])
@@ -34,8 +58,6 @@ def configurar_grupos_y_permisos():
     )
     grupo_funcionarios.permissions.set(permisos_funcionarios)
 
-    ct_evidencia = ContentType.objects.get_for_model(Evidencia)
-    permiso_aprobar = Permission.objects.get(content_type=ct_evidencia, codename='can_approve_evidencia')
     permisos_verificadores = (
         _permisos(Evidencia, ['view', 'change'])
         + _permisos(Validacion, ['add', 'view'])

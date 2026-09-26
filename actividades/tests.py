@@ -185,4 +185,4 @@ class RevisionEnVivoActividadesTests(TestCase):
         })
         self.assertEqual(response.status_code, 200)
         nombres = [item['text'] for item in response.json()['results']]
-        self.assertEqual(nombres, ['Ana Pérez (Centro)'])
+        self.assertEqual(nombres, ['Ana Pérez (Centro)', 'María Soto (Admin Centro)'])

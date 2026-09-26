@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+    <div>
+        <h1 class="h3 mb-1">Dashboard de gestión</h1>
+        <p class="text-muted mb-0">
+            {{ user.get_full_name|default:user.get_username }} · <strong>{{ rol_etiqueta }}</strong>
+            {% if delegacion_usuario and rol != 'superadmin' and rol != 'verificador' %}· {{ delegacion_usuario }}{% endif %}
+        </p>
+    </div>
+    <form method="get" class="d-flex gap-2 align-items-center">
+        <label for="periodo" class="form-label mb-0 small text-muted">Período</label>
+        <select id="periodo" name="periodo" class="form-select form-select-sm" onchange="this.form.submit()">
+            {% for p in periodos %}
+                <option value="{{ p.pk }}" {% if periodo and p.pk == periodo.pk %}selected{% endif %}>{{ p.nombre }}</option>
+            {% endfor %}
+        </select>
+        <noscript><button class="btn btn-sm btn-sgr" type="submit">Ver</button></noscript>
+    </form>
+</div>
+
+{% if not rol %}
+    <div class="alert alert-warning">Su usuario no tiene un rol asignado. Contacte al administrador del sistema.</div>
+{% elif not secciones %}
+    <div class="alert alert-warning">Su usuario no tiene una delegación asociada, por lo que no hay datos para mostrar.</div>
+{% else %}
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-4 col-xl-2"><div class="card kpi h-100"><div class="card-body">
+        <div class="valor">{{ totales.funcionarios }}</div><div class="etiqueta">Funcionarios</div>
+    </div></div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="card kpi h-100"><div class="card-body">
+        <div class="valor">{{ totales.act_total }}</div><div class="etiqueta">Actividades</div>
+    </div></div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="card kpi h-100"><div class="card-body">
+        <div class="valor">{{ totales.act_aprobadas }}</div><div class="etiqueta">Aprobadas</div>
+    </div></div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="card kpi h-100"><div class="card-body">
+        <div class="valor">{{ totales.evi_pendientes }}</div><div class="etiqueta">Evidencias pendientes</div>
+    </div></div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="card kpi h-100"><div class="card-body">
+        <div class="valor">{{ totales.comp_vencidos }}</div><div class="etiqueta">Compromisos vencidos</div>
+    </div></div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="card kpi h-100"><div class="card-body">
+        <div class="valor">{{ totales.cumplimiento_pct }}%</div><div class="etiqueta">Cumplimiento (esperado {{ esperado_pct }}%)</div>
+    </div></div></div>
+</div>
+
+{% for seccion in secciones %}
+<section class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="h5 mb-0">{{ seccion.delegacion.nombre }}</h2>
+        <span class="small text-muted">{{ seccion.totales.funcionarios }} funcionario(s)</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0">
+            <thead>
+                <tr class="small text-muted">
+                    <th>Funcionario</th>
+                    <th>Cargo</th>
+                    <th class="text-end">Actividades</th>
+                    <th class="text-end">Aprob.</th>
+                    <th class="text-end">Pend.</th>
+                    <th class="text-end">Rech.</th>
+                    <th class="text-end">Evid. pend.</th>
+                    <th class="text-end">Compr. abiertos</th>
+                    <th class="text-end">Compr. vencidos</th>
+                    <th class="text-end">Meta</th>
+                    <th class="text-end">Cumplimiento</th>
+                </tr>
+            </thead>
+            {% for grupo in seccion.grupos %}
+            <tbody>
+                <tr class="fila-rol"><th colspan="11">{{ grupo.etiqueta }} ({{ grupo.totales.funcionarios }})</th></tr>
+                {% for fila in grupo.filas %}
+                <tr>
+                    <td>{{ fila.funcionario.nombre }}{% if fila.funcionario.user_id == user.pk %} <span class="badge text-bg-secondary">Usted</span>{% endif %}</td>
+                    <td class="small">{{ fila.funcionario.cargo }}</td>
+                    <td class="text-end">{{ fila.act_total }}</td>
+                    <td class="text-end">{{ fila.act_aprobadas }}</td>
+                    <td class="text-end">{{ fila.act_pendientes }}</td>
+                    <td class="text-end">{{ fila.act_rechazadas }}</td>
+                    <td class="text-end">{{ fila.evi_pendientes }}</td>
+                    <td class="text-end">{{ fila.comp_abiertos }}</td>
+                    <td class="text-end">{{ fila.comp_vencidos }}</td>
+                    <td class="text-end">{{ fila.meta|default:"—" }}</td>
+                    <td class="text-end">
+                        {% if fila.semaforo %}
+                            <span class="semaforo semaforo-{{ fila.semaforo }}" title="Semáforo {{ fila.semaforo }}"></span>
+                            {{ fila.cumplimiento_pct }}%
+                        {% else %}<span class="text-muted">sin meta</span>{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if grupo.filas|length > 1 %}
+                <tr class="fila-subtotal">
+                    <td colspan="2">Subtotal {{ grupo.etiqueta|lower }}</td>
+                    <td class="text-end">{{ grupo.totales.act_total }}</td>
+                    <td class="text-end">{{ grupo.totales.act_aprobadas }}</td>
+                    <td class="text-end">{{ grupo.totales.act_pendientes }}</td>
+                    <td class="text-end">{{ grupo.totales.act_rechazadas }}</td>
+                    <td class="text-end">{{ grupo.totales.evi_pendientes }}</td>
+                    <td class="text-end">{{ grupo.totales.comp_abiertos }}</td>
+                    <td class="text-end">{{ grupo.totales.comp_vencidos }}</td>
+                    <td class="text-end">{{ grupo.totales.meta }}</td>
+                    <td class="text-end">{{ grupo.totales.cumplimiento_pct }}%</td>
+                </tr>
+                {% endif %}
+            </tbody>
+            {% empty %}
+            <tbody><tr><td colspan="11" class="text-muted text-center py-3">Sin funcionarios registrados.</td></tr></tbody>
+            {% endfor %}
+        </table>
+    </div>
+</section>
+{% endfor %}
+
+{% endif %}
+{% endblock %}

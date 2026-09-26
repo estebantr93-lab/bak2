@@ -77,7 +77,9 @@ class Command(BaseCommand):
         self.stdout.write('')
         self.stdout.write(self.style.MIGRATE_HEADING('Cuentas de prueba (usuario / contraseña / rol):'))
         roles = {
-            'admin_sgr': 'Administrador (superusuario) — acceso total',
+            'admin_sgr': 'Administrador general (superusuario) — acceso total',
+            'admin_centro': 'Administrador Delegación Centro — solo ve y gestiona Centro',
+            'admin_norte': 'Administrador Delegación Norte — solo ve y gestiona Norte',
             'funcionario_centro': 'Funcionario Delegación Centro — acceso limitado a su delegación',
             'funcionario_norte': 'Funcionario Delegación Norte — acceso limitado a su delegación',
             'verificador_leia': 'Verificador — revisión y aprobación de evidencias en todas las delegaciones',

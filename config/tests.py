@@ -10,9 +10,9 @@ class InicioViewTests(TestCase):
         response = self.client.get('/')
         self.assertTemplateUsed(response, 'landing.html')
 
-    def test_raiz_enlaza_al_admin(self):
+    def test_raiz_enlaza_al_login(self):
         response = self.client.get('/')
-        self.assertContains(response, 'href="/admin/"')
+        self.assertContains(response, 'href="/accounts/login/"')
 
     def test_raiz_no_expone_los_modulos_internos(self):
         response = self.client.get('/')

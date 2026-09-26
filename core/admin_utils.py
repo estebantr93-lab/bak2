@@ -12,10 +12,47 @@ def get_usuario_delegacion(user):
     return funcionario.delegacion
 
 
-def es_usuario_sin_restriccion(user):
+GRUPO_ADMINISTRADORES = 'Administradores'
+GRUPO_FUNCIONARIOS = 'Funcionarios'
+GRUPO_VERIFICADORES = 'Verificadores'
+
+ROL_SUPERADMIN = 'superadmin'
+ROL_ADMIN_DELEGACION = 'admin_delegacion'
+ROL_VERIFICADOR = 'verificador'
+ROL_FUNCIONARIO = 'funcionario'
+
+ROLES_ETIQUETAS = {
+    ROL_SUPERADMIN: 'Administrador general',
+    ROL_ADMIN_DELEGACION: 'Administrador de delegación',
+    ROL_VERIFICADOR: 'Verificador',
+    ROL_FUNCIONARIO: 'Funcionario',
+}
+
+
+def get_rol(user):
+    """Rol principal del usuario, en orden de mayor a menor alcance."""
+    if not user or not user.is_authenticated:
+        return None
     if user.is_superuser:
-        return True
-    return user.groups.filter(name__in=['Administradores', 'Verificadores']).exists()
+        return ROL_SUPERADMIN
+    # groups.all() aprovecha prefetch_related('user__groups') en listados.
+    grupos = {grupo.name for grupo in user.groups.all()}
+    if GRUPO_ADMINISTRADORES in grupos:
+        return ROL_ADMIN_DELEGACION
+    if GRUPO_VERIFICADORES in grupos:
+        return ROL_VERIFICADOR
+    if GRUPO_FUNCIONARIOS in grupos:
+        return ROL_FUNCIONARIO
+    return None
+
+
+def es_usuario_sin_restriccion(user):
+    """Solo el superusuario y los verificadores ven todas las delegaciones.
+
+    Los administradores de delegación quedan acotados a la delegación de su
+    perfil de Funcionario, igual que los funcionarios.
+    """
+    return get_rol(user) in (ROL_SUPERADMIN, ROL_VERIFICADOR)
 
 
 class ScopedModelAdmin:
@@ -28,7 +65,7 @@ class ScopedModelAdmin:
         delegacion = get_usuario_delegacion(request.user)
         if delegacion is None:
             return qs.none()
-        return qs.filter(**{self.scope_by: delegacion})
+        return qs.filter(**{self.scope_by: delegacion.pk})
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if not es_usuario_sin_restriccion(request.user):
@@ -61,7 +98,7 @@ class ScopedModelAdmin:
             valor = getattr(valor, paso, None)
             if valor is None:
                 return False
-        return valor == delegacion
+        return getattr(valor, 'pk', valor) == delegacion.pk
 
     def has_change_permission(self, request, obj=None):
         if not super().has_change_permission(request, obj):

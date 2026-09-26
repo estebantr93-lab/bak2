@@ -37,16 +37,18 @@ Cada módulo del dominio SGR es una app Django independiente:
 ```
 Proyecto_Integrado_SGR/
 ├── config/          # Proyecto Django (settings, urls, wsgi, asgi) + vista de la página de inicio
+├── accounts/        # Login/logout propio del sistema (LoginView + formulario Bootstrap)
 ├── core/            # Delegacion, Cargo, TipoActividad, Periodo, Parametro + admin_utils (scoping) + seed_data
 ├── funcionarios/    # Funcionario (perfil), grupos/permisos (security.py)
 ├── actividades/     # Actividad, AtencionSocial
 ├── evidencias/      # Evidencia, Validacion + acción "Aprobar evidencias seleccionadas"
 ├── agenda/          # Compromiso, SeguimientoCompromiso
 ├── medicion/        # Meta, Ponderacion, Indicador + fórmulas de cálculo (services.py)
-├── monitoreo/       # TableroPanel
+├── monitoreo/       # TableroPanel + Dashboard de resumen por funcionario y rol (services.py)
 ├── reportes/        # Servicios de exportación (sin modelos propios)
 ├── colaboracion/    # Comentario, Alerta, TrazaAuditoria
-├── templates/       # Plantillas de proyecto: landing.html y override de admin/base_site.html
+├── templates/       # landing, base, registration/login, monitoreo/dashboard y override del admin
+├── static/          # CSS del sitio (static/css/style.css)
 ├── .env.example
 ├── .gitignore
 ├── manage.py
@@ -121,12 +123,26 @@ El comando `seed_data` (definido en `core/management/commands/seed_data.py`) eje
 python manage.py runserver
 ```
 
-El proyecto expone dos rutas:
+El proyecto expone estas rutas:
 
 | URL | Contenido |
 | --- | --- |
-| **http://127.0.0.1:8000/** | Portada pública del sistema. Solo identifica al SGR y ofrece el botón **Ingresar al sistema**; no expone datos ni estructura interna. |
-| **http://127.0.0.1:8000/admin/** | Django Admin, donde se realiza toda la operación y la demostración de la evaluación. |
+| **http://127.0.0.1:8000/** | Portada pública. El botón **Ingresar al sistema** lleva al login. |
+| **http://127.0.0.1:8000/accounts/login/** | Login del sistema. Tras ingresar redirige al dashboard (o a `?next=`). |
+| **http://127.0.0.1:8000/accounts/logout/** | Cierre de sesión (solo `POST`, botón en la barra superior). |
+| **http://127.0.0.1:8000/dashboard/** | Dashboard: resumen por funcionario agrupado por rol, acotado a lo que el usuario puede ver. |
+| **http://127.0.0.1:8000/admin/** | Django Admin. `/admin/login/` redirige al login propio. |
+
+### Dashboard por rol
+
+Por cada funcionario visible muestra, para el período elegido: actividades (total, aprobadas, pendientes, rechazadas), evidencias pendientes, compromisos abiertos y vencidos, meta del cargo y % de cumplimiento con semáforo (`medicion/services.py`). Los funcionarios se agrupan por delegación y, dentro de ella, por rol, con subtotales.
+
+| Rol | Qué ve en el dashboard |
+| --- | --- |
+| Administrador general (superusuario) | Ambas delegaciones |
+| Administrador de delegación (grupo `Administradores`) | Solo los funcionarios de **su** delegación |
+| Verificador (grupo `Verificadores`) | Ambas delegaciones (revisa evidencias de todas) |
+| Funcionario (grupo `Funcionarios`) | Solo su propio resumen |
 
 ## Cuentas de prueba
 
@@ -134,7 +150,9 @@ Cuentas de demostración creadas por `seed_data` (no personales; contraseñas fi
 
 | Usuario | Contraseña | Rol / grupo | Alcance en el Admin |
 | --- | --- | --- | --- |
-| `admin_sgr` | `Admin#2026SGR` | Administrador (superusuario) | Acceso total a todas las delegaciones y modelos |
+| `admin_sgr` | `Admin#2026SGR` | Administrador general (superusuario) | Acceso total a todas las delegaciones y modelos |
+| `admin_centro` | `AdminCentro#2026SGR` | Administrador de delegación — grupo `Administradores` (Centro) | Gestiona actividades, evidencias, compromisos y funcionarios **solo de Centro**; no ve nada de Norte ni administra usuarios |
+| `admin_norte` | `AdminNorte#2026SGR` | Administrador de delegación — grupo `Administradores` (Norte) | Igual que el anterior, **solo Norte** |
 | `funcionario_centro` | `Centro#2026SGR` | Funcionario — grupo `Funcionarios` (Delegación Centro) | Solo ve/edita actividades, evidencias, atenciones sociales, compromisos y seguimientos de **Centro** |
 | `funcionario_norte` | `Norte#2026SGR` | Funcionario — grupo `Funcionarios` (Delegación Norte) | Solo ve/edita registros de **Norte** |
 | `verificador_leia` | `Verifica#2026SGR` | Verificador — grupo `Verificadores` | Ve evidencias de todas las delegaciones; único rol con permiso para ejecutar la acción "Aprobar evidencias seleccionadas" |
@@ -170,8 +188,9 @@ Secuencia de la demostración:
 4. Ejecutar `migrate`.
 5. Ejecutar `seed_data`.
 6. Ingresar con `admin_sgr` y mostrar el Admin completo: maestras (`Delegacion`, `Cargo`, `TipoActividad`, `Periodo`, `Parametro`), operativas de todas las apps, el Inline de evidencias dentro de una actividad, la acción "Aprobar evidencias seleccionadas" y la validación controlada (por ejemplo, intentar registrar una actividad en el período `2026-Q1 (cerrado)`).
-7. Cerrar sesión e ingresar con `funcionario_centro` para demostrar que solo ve/edita registros de Delegación Centro (no ve los de Norte).
-8. Ejecutar sobre datos cargados: búsqueda, filtros, ordenamiento, Inline, acción personalizada, validación y scoping/rol.
+7. Ingresar con `admin_centro` y luego con `admin_norte` para mostrar que cada administrador solo ve su delegación (dashboard y Admin).
+8. Cerrar sesión e ingresar con `funcionario_centro` para demostrar que solo ve/edita registros de Delegación Centro (no ve los de Norte).
+9. Ejecutar sobre datos cargados: búsqueda, filtros, ordenamiento, Inline, acción personalizada, validación y scoping/rol.
 
 ## Flujo de trabajo en 4 pasos
 

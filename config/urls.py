@@ -24,10 +24,14 @@ from .views import inicio
 
 urlpatterns = [
     path('', inicio, name='inicio'),
-    path('admin/login/', RedirectView.as_view(pattern_name='accounts.login', permanent=False)),
+    path('accounts/', include('accounts.urls')),
+    path('dashboard/', include('monitoreo.urls')),
+    # El login del Admin se unifica con el login propio del sistema.
+    path(
+        'admin/login/',
+        RedirectView.as_view(pattern_name='accounts:login', permanent=False, query_string=True),
+    ),
     path('admin/', admin.site.urls),
-    path("accounts/",include("accounts.urls"),),
-    path('admin/')
 ]
 
 if settings.DEBUG:

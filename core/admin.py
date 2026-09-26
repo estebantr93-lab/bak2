@@ -1,5 +1,7 @@
 from django.contrib import admin
 
+from .admin_utils import ScopedModelAdmin
+
 from .forms import PeriodoForm
 from .models import Cargo, Delegacion, Parametro, Periodo, TipoActividad
 
@@ -9,7 +11,8 @@ admin.site.index_title = 'Administración del Sistema de Gestión de Resultados'
 
 
 @admin.register(Delegacion)
-class DelegacionAdmin(admin.ModelAdmin):
+class DelegacionAdmin(ScopedModelAdmin, admin.ModelAdmin):
+    scope_by = 'pk'
     list_display = ('nombre', 'direccion', 'telefono', 'activa')
     search_fields = ('nombre', 'direccion')
     list_filter = ('activa',)
