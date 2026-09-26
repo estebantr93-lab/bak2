@@ -13,7 +13,7 @@ Esta entrega corresponde a la **Evaluación Sumativa II — "Taller: Aplicación
 ## Stack y dependencias
 
 - **Backend:** Python 3 + Django 6.1.1
-- **Base de datos:** SQLite (desarrollo, portable) / PostgreSQL (producción, opcional vía variables de entorno)
+- **Base de datos:** MySQL 8.4+ o MariaDB 10.11+ (local en desarrollo, Amazon RDS en AWS), configurada por variables de entorno. Son las versiones mínimas que acepta Django 6.1.
 - **Variables de entorno:** `python-dotenv`
 
 | Paquete | Versión |
@@ -23,11 +23,15 @@ Esta entrega corresponde a la **Evaluación Sumativa II — "Taller: Aplicación
 | python-dotenv | 1.2.3 |
 | sqlparse | 0.6.0 |
 | tzdata | 2026.3 |
+| pillow | 12.3.0 |
+| mysqlclient | 2.3.0 |
 
 ## Requisitos previos
 
 - **Git** instalado.
-- **Python 3** instalado (entorno de desarrollo verificado con Python 3.12).
+- **Python 3.12+** instalado (Django 6.1 no funciona con versiones anteriores).
+- **MySQL 8.4+ o MariaDB 10.11+** en ejecución (local, en Docker o Amazon RDS).
+- Para compilar `mysqlclient` en Linux: `sudo apt install pkg-config libmariadb-dev` (Debian/Ubuntu) o `sudo dnf install pkgconf mariadb-connector-c-devel gcc python3-devel` (Amazon Linux). En Windows y macOS `pip` descarga una rueda precompilada.
 - Se documentan comandos para **Linux/macOS (bash/zsh)**; para Windows se usan los equivalentes de `venv`/`activate`.
 
 ## Arquitectura modular (apps Django)
@@ -94,9 +98,35 @@ Valores documentados en `.env.example`:
 SECRET_KEY=change-this-secret-key-in-your-local-env
 DEBUG=True
 ALLOWED_HOSTS=localhost,127.0.0.1
-DB_ENGINE=django.db.backends.sqlite3
-DB_NAME=db.sqlite3
+DB_ENGINE=django.db.backends.mysql
+DB_NAME=sgr
+DB_USER=sgr_app
+DB_PASSWORD=cambiar-esta-clave
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_SSL_CA=
 ```
+
+### 4.1 Crear la base de datos y su usuario (una sola vez)
+
+Hay que usar un usuario propio de la aplicación, no `root`. Como administrador de MySQL/MariaDB:
+
+```sql
+CREATE DATABASE sgr CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'sgr_app'@'%' IDENTIFIED BY 'cambiar-esta-clave';
+GRANT ALL PRIVILEGES ON sgr.* TO 'sgr_app'@'%';
+-- Solo si se ejecutan los tests: Django crea y borra la base test_sgr.
+GRANT ALL PRIVILEGES ON test_sgr.* TO 'sgr_app'@'%';
+FLUSH PRIVILEGES;
+```
+
+### 4.2 Despliegue en AWS (Amazon RDS)
+
+- Crear la instancia RDS con motor **MySQL 8.4** o **MariaDB 10.11 / 11.4**. Django 6.1 rechaza MySQL 8.0 y MariaDB 10.6.
+- En el *parameter group* de RDS: `character_set_server = utf8mb4` y `collation_server = utf8mb4_unicode_ci`.
+- `DB_HOST` es el *endpoint* de RDS. El *security group* de RDS debe permitir el puerto 3306 **solo** desde el servidor de la aplicación (EC2 o Elastic Beanstalk), nunca desde `0.0.0.0/0`.
+- TLS: descargar `global-bundle.pem` desde la documentación de AWS RDS y apuntar `DB_SSL_CA` a esa ruta.
+- En producción: `DEBUG=False`, `COOKIE_SECURE=True` (con HTTPS), `ALLOWED_HOSTS` con el dominio real y un `SECRET_KEY` propio. Las credenciales van en variables de entorno o en AWS Secrets Manager, nunca en el repositorio.
 
 > El archivo `.env` no se versiona (ver `.gitignore`). Cada equipo/computador genera el suyo a partir de la plantilla.
 
@@ -115,7 +145,7 @@ python manage.py seed_data
 
 El comando `seed_data` (definido en `core/management/commands/seed_data.py`) ejecuta, en orden de dependencias, los seeders de `core → funcionarios → medicion → actividades → evidencias → agenda → colaboracion`, creando de forma **idempotente**: 2 delegaciones, 4 cargos, 5 tipos de actividad, 2 períodos (uno cerrado, uno abierto), parámetros, metas/ponderaciones/indicadores, 8 actividades (con evidencias y validaciones) repartidas entre ambas delegaciones, 4 compromisos de agenda (con seguimientos) y los usuarios/grupos de prueba. Al finalizar imprime un resumen de conteos y las credenciales de demostración.
 
-> Para reconstruir desde cero: eliminar `db.sqlite3` y repetir los pasos 5 y 6.
+> Para reconstruir desde cero: `DROP DATABASE sgr; CREATE DATABASE sgr CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;` y repetir los pasos 5 y 6.
 
 ### 7. Levantar el servidor
 

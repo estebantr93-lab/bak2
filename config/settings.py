@@ -94,26 +94,35 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
-DB_ENGINE = os.getenv('DB_ENGINE', 'django.db.backends.sqlite3')
+# MySQL / MariaDB (en AWS: Amazon RDS). SQLite ya no se usa en este proyecto.
+# Django 6.1 exige MySQL 8.4+ o MariaDB 10.11+ y el driver mysqlclient 2.2.1+.
+DATABASES = {
+    'default': {
+        'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.mysql'),
+        'NAME': os.getenv('DB_NAME', 'sgr'),
+        'USER': os.getenv('DB_USER', ''),
+        'PASSWORD': os.getenv('DB_PASSWORD', ''),
+        'HOST': os.getenv('DB_HOST', '127.0.0.1'),
+        'PORT': os.getenv('DB_PORT', '3306'),
+        # Reutiliza conexiones entre peticiones (segundos); 0 = cerrar al final de cada petición.
+        'CONN_MAX_AGE': int(os.getenv('DB_CONN_MAX_AGE', '60')),
+        'OPTIONS': {
+            # utf8mb4: tildes, ñ y emojis completos (el "utf8" de MySQL solo cubre 3 bytes).
+            'charset': 'utf8mb4',
+            # Modo estricto: MySQL rechaza datos inválidos en vez de truncarlos en silencio.
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+        },
+        'TEST': {
+            'NAME': os.getenv('DB_TEST_NAME', 'test_' + os.getenv('DB_NAME', 'sgr')),
+            'CHARSET': 'utf8mb4',
+            'COLLATION': 'utf8mb4_unicode_ci',
+        },
+    }
+}
 
-if DB_ENGINE == 'django.db.backends.sqlite3':
-    DATABASES = {
-        'default': {
-            'ENGINE': DB_ENGINE,
-            'NAME': BASE_DIR / os.getenv('DB_NAME', 'db.sqlite3'),
-        }
-    }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': DB_ENGINE,
-            'NAME': os.getenv('DB_NAME', ''),
-            'USER': os.getenv('DB_USER', ''),
-            'PASSWORD': os.getenv('DB_PASSWORD', ''),
-            'HOST': os.getenv('DB_HOST', ''),
-            'PORT': os.getenv('DB_PORT', ''),
-        }
-    }
+# Conexión cifrada a RDS: descargar el bundle de certificados de AWS y apuntar DB_SSL_CA a él.
+if os.getenv('DB_SSL_CA'):
+    DATABASES['default']['OPTIONS']['ssl'] = {'ca': os.getenv('DB_SSL_CA')}
 
 
 # Password validation
