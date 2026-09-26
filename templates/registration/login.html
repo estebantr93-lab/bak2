@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Ingreso al sistema</h1>
+{% if form.errors %}
+<div class="alert alert-danger">
+    Usuario o contraseña incorrectos.
+</div>
+{% endif %}
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button class="btn btn-primary" type="submit">
+        Ingresar
+    </button>
+</form>
+{% endblock %}

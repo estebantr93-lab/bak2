@@ -1,0 +1,89 @@
+html[data-theme="light"],
+:root {
+    --primary: #ad0000;
+    --secondary: #6d0101;
+    --accent: #b33d00;
+    --primary-fg: #fff;
+
+    --header-color: #fff;
+    --header-branding-color: #fff;
+    --header-bg: var(--primary);
+    --header-link-color: #fff;
+
+    --breadcrumbs-fg: #f3d9c9;
+    --breadcrumbs-link-fg: #fff;
+    --breadcrumbs-bg: var(--secondary);
+
+    --link-fg: var(--primary);
+    --link-hover-color: #7a0000;
+    --link-selected-fg: var(--accent);
+
+    --selected-bg: #fbe4d5;
+    --selected-row: #fdeee3;
+
+    --button-fg: #fff;
+    --button-bg: var(--accent);
+    --button-hover-bg: #8f3200;
+    --default-button-bg: var(--primary);
+    --default-button-hover-bg: #7a0000;
+    --close-button-bg: #6c757d;
+    --close-button-hover-bg: #545b62;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --primary: #5c0000;
+        --secondary: #3d0000;
+        --accent: #b33d00;
+        --primary-fg: #f7f7f7;
+
+        --header-bg: var(--primary);
+        --header-color: #fff;
+        --header-branding-color: #fff;
+        --header-link-color: #fff;
+
+        --breadcrumbs-bg: var(--secondary);
+        --breadcrumbs-fg: #e8c4b0;
+        --breadcrumbs-link-fg: #fff;
+
+        --link-fg: #ff8a65;
+        --link-hover-color: #ffab91;
+        --link-selected-fg: #ff7043;
+
+        --selected-bg: #2a1710;
+        --selected-row: #3a2015;
+
+        --button-bg: var(--accent);
+        --button-hover-bg: #8f3200;
+        --default-button-bg: #7a0000;
+        --default-button-hover-bg: var(--primary);
+    }
+}
+
+html[data-theme="dark"] {
+    --primary: #5c0000;
+    --secondary: #3d0000;
+    --accent: #b33d00;
+    --primary-fg: #f7f7f7;
+
+    --header-bg: var(--primary);
+    --header-color: #fff;
+    --header-branding-color: #fff;
+    --header-link-color: #fff;
+
+    --breadcrumbs-bg: var(--secondary);
+    --breadcrumbs-fg: #e8c4b0;
+    --breadcrumbs-link-fg: #fff;
+
+    --link-fg: #ff8a65;
+    --link-hover-color: #ffab91;
+    --link-selected-fg: #ff7043;
+
+    --selected-bg: #2a1710;
+    --selected-row: #3a2015;
+
+    --button-bg: var(--accent);
+    --button-hover-bg: #8f3200;
+    --default-button-bg: #7a0000;
+    --default-button-hover-bg: var(--primary);
+}
