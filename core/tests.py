@@ -242,19 +242,44 @@ class SecretosTests(TestCase):
 
 
 class SeedVolumenTests(TestCase):
-    def test_volumen_supera_1000_registros_y_es_idempotente(self):
+    def test_volumen_supera_1000_registros_balanceado_e_idempotente(self):
+        import shutil
+        import tempfile
+
+        from django.test import override_settings
+
         from actividades.models import Activity, SocialCase
         from agenda.models import Commitment, CommitmentFollowUp
         from core.testing import sembrar_datos_demo
-        from evidencias.models import Evidence
+        from evidencias.models import Evidence, Validation
         from funcionarios.models import Employee
 
-        modelos = [Employee, Activity, SocialCase, Evidence, Commitment, CommitmentFollowUp]
-        sembrar_datos_demo(volumen=500)
-        total = sum(m.objects.count() for m in modelos)
-        self.assertGreaterEqual(total, 1000)
-        sembrar_datos_demo(volumen=500)
-        self.assertEqual(sum(m.objects.count() for m in modelos), total)
-        # Datos repartidos en ambas delegaciones (sirven para probar scoping y paginación).
-        for delegacion in ('Delegación Centro', 'Delegación Norte'):
-            self.assertGreater(Activity.objects.filter(delegation__name=delegacion).count(), 100)
+        media = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, media, ignore_errors=True)
+        modelos = [Employee, Activity, SocialCase, Evidence, Validation, Commitment, CommitmentFollowUp]
+        with override_settings(MEDIA_ROOT=media):
+            sembrar_datos_demo(volumen=500)
+            total = sum(m.objects.count() for m in modelos)
+            self.assertGreaterEqual(total, 1000)
+            sembrar_datos_demo(volumen=500)  # idempotente
+            self.assertEqual(sum(m.objects.count() for m in modelos), total)
+
+            # Mitad de las actividades de volumen para cada delegación.
+            for delegacion in ('Delegación Centro', 'Delegación Norte'):
+                self.assertEqual(
+                    Activity.objects.filter(delegation__name=delegacion, number__startswith='VOL-').count(), 250,
+                )
+                self.assertGreater(Evidence.objects.filter(activity__delegation__name=delegacion).count(), 120)
+                self.assertGreater(
+                    Evidence.objects.filter(activity__delegation__name=delegacion).exclude(file='').count(), 20,
+                )
+            # Las cuentas de demostración tienen datos propios para mostrar.
+            for username in ('funcionario_centro', 'funcionario_norte'):
+                self.assertGreaterEqual(Activity.objects.filter(employee__user__username=username).count(), 40)
+            # Solo cargos operativos en los funcionarios generados.
+            cargos = set(Employee.objects.filter(user__username__startswith='vol_').values_list('position__name', flat=True))
+            self.assertEqual(cargos, {'Encargado de Atención Ciudadana', 'Encargado Social'})
+
+            # --rehacer-volumen borra y regenera exactamente lo mismo (semilla fija).
+            sembrar_datos_demo(volumen=500, rehacer_volumen=True)
+            self.assertEqual(sum(m.objects.count() for m in modelos), total)
