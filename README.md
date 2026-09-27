@@ -199,10 +199,19 @@ En desarrollo el correo se imprime en la terminal de `runserver`. Django 6.1 ree
 Crear y editar se hacen en un modal de Bootstrap. Si hay errores, la misma plantilla vuelve a mostrarse con el modal abierto. Cada operación conserva su URL (`/actividades/nueva/`, `/<id>/editar/`, `/<id>/eliminar/`).
 Eliminar funciona solo por POST y exige `delete_actividad`, que tienen los administradores y no los funcionarios. Ocultar un botón no protege nada: cada vista vuelve a verificar el permiso y el alcance, y responde 403 o 404.
 
+### Borrado lógico (`deleted_at`)
+
+`Actividad`, `AtencionSocial`, `Evidencia`, `Compromiso` y `SeguimientoCompromiso` heredan de `core.soft_delete.SoftDeleteModel`:
+
+- `delete()` (desde las vistas, el Admin o un QuerySet) **no borra la fila**: marca `deleted_at` y propaga la marca a los hijos (por ejemplo, una actividad a sus evidencias y atenciones).
+- `Modelo.objects` devuelve solo registros activos y es el que usan listados, dashboard, Admin y exportaciones. `Modelo.all_objects` ve también los eliminados. Es el manager por defecto para que Django siga detectando valores únicos ocupados por registros eliminados, en vez de fallar con un error 500.
+- Las llaves foráneas usan `limit_choices_to={'deleted_at__isnull': True}`, así los formularios no ofrecen registros eliminados.
+- `restore()` recupera un registro; `hard_delete()` lo borra físicamente (no se usa en el flujo normal).
+
 ### Archivos y confirmaciones (Clase 8)
 
 La carga (`enctype="multipart/form-data"`) valida el tamaño (máximo 2 MB), la extensión (JPG, PNG o PDF) y el **contenido real**: `Image.open().verify()` de Pillow para imágenes y la firma `%PDF-` para PDF. El nombre enviado se descarta y se guarda con un nombre UUID en `media/evidencias/AAAA/MM/`.
-Al eliminar o reemplazar una evidencia, su archivo físico también se borra (señales en `evidencias/signals.py`), para no dejar archivos huérfanos.
+Al reemplazar el archivo de una evidencia, el anterior se borra (`evidencias/signals.py`). Al eliminarla, el borrado es lógico y el archivo se conserva; solo `hard_delete()` lo borra del disco.
 SweetAlert2 (`static/js/confirmar.js`) pide confirmación antes de eliminar. Es solo una ayuda visual: Django sigue exigiendo POST, CSRF, login y permisos.
 
 ## Cuentas de prueba

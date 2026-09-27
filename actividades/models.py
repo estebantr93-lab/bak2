@@ -2,10 +2,11 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from core.models import Delegacion, Periodo, TipoActividad
+from core.soft_delete import SoftDeleteModel
 from funcionarios.models import Funcionario
 
 
-class Actividad(models.Model):
+class Actividad(SoftDeleteModel):
     ESTADO_CHOICES = [
         ('pendiente', 'Pendiente'),
         ('aprobada', 'Aprobada'),
@@ -26,6 +27,8 @@ class Actividad(models.Model):
     codigo_evidencia = models.CharField(max_length=40, unique=True)
     estado_validacion = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='pendiente')
 
+    soft_delete_cascade = ('evidencias', 'atenciones_sociales')
+
     class Meta:
         ordering = ['-fecha']
         verbose_name = 'Actividad'
@@ -42,8 +45,10 @@ class Actividad(models.Model):
             raise ValidationError('La delegación debe coincidir con la delegación del funcionario.')
 
 
-class AtencionSocial(models.Model):
-    actividad = models.ForeignKey(Actividad, on_delete=models.CASCADE, related_name='atenciones_sociales')
+class AtencionSocial(SoftDeleteModel):
+    actividad = models.ForeignKey(
+        Actividad, on_delete=models.CASCADE, related_name='atenciones_sociales', limit_choices_to={'deleted_at__isnull': True},
+    )
     numero_gestion = models.PositiveSmallIntegerField()
     descripcion = models.TextField()
 

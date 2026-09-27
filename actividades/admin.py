@@ -13,6 +13,9 @@ class EvidenciaInline(admin.TabularInline):
     readonly_fields = ('codigo_unico', 'fecha_registro')
     can_delete = False
 
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(deleted_at__isnull=True)
+
 
 @admin.register(Actividad)
 class ActividadAdmin(ScopedModelAdmin, admin.ModelAdmin):

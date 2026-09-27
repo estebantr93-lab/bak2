@@ -1,10 +1,11 @@
 from django.db import models
 
 from core.models import Delegacion
+from core.soft_delete import SoftDeleteModel
 from funcionarios.models import Funcionario
 
 
-class Compromiso(models.Model):
+class Compromiso(SoftDeleteModel):
     ESTADO_CHOICES = [
         ('ingresado', 'Ingresado'),
         ('pendiente', 'Pendiente'),
@@ -22,6 +23,8 @@ class Compromiso(models.Model):
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='ingresado')
     observaciones = models.TextField(blank=True)
 
+    soft_delete_cascade = ('seguimientos',)
+
     class Meta:
         ordering = ['fecha_vencimiento']
         verbose_name = 'Compromiso'
@@ -31,8 +34,10 @@ class Compromiso(models.Model):
         return self.titulo
 
 
-class SeguimientoCompromiso(models.Model):
-    compromiso = models.ForeignKey(Compromiso, on_delete=models.CASCADE, related_name='seguimientos')
+class SeguimientoCompromiso(SoftDeleteModel):
+    compromiso = models.ForeignKey(
+        Compromiso, on_delete=models.CASCADE, related_name='seguimientos', limit_choices_to={'deleted_at__isnull': True},
+    )
     fecha = models.DateTimeField(auto_now_add=True)
     responsable = models.ForeignKey(
         Funcionario, on_delete=models.SET_NULL, null=True, blank=True, related_name='seguimientos'
