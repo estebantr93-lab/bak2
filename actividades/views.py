@@ -1,114 +1,92 @@
-from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
-from django.contrib.messages.views import SuccessMessageMixin
-from django.core.paginator import Paginator
-from django.urls import reverse, reverse_lazy
-from django.views.generic import CreateView, DeleteView, ListView, UpdateView
+from core.crud import (
+    Column,
+    CrudConfig,
+    CrudCreateView,
+    CrudDeleteView,
+    CrudExportView,
+    CrudListView,
+    CrudUpdateView,
+)
 
-from core.admin_utils import filtrar_por_delegacion
-
-from .forms import ActividadWebForm
-from .models import Activity
-
-# Preferencia de interfaz guardada en la sesión (no es un permiso ni un dato sensible).
-SESION_PAGE_SIZE = 'actividades_page_size'
-PAGE_SIZES = [10, 15, 30]
-PAGE_SIZE_POR_DEFECTO = 15
+from .forms import ActividadWebForm, SocialCaseForm
+from .models import Activity, SocialCase
 
 
-def page_size_de_sesion(request):
-    valor = request.GET.get('page_size')
-    if valor and valor.isdigit() and int(valor) in PAGE_SIZES:
-        request.session[SESION_PAGE_SIZE] = int(valor)
-    return request.session.get(SESION_PAGE_SIZE, PAGE_SIZE_POR_DEFECTO)
-
-
-class ActividadScopeMixin(LoginRequiredMixin, PermissionRequiredMixin):
-    """Autenticación + autorización + scoping por delegación en cada vista.
-
-    Anónimo → redirige al login. Autenticado sin permiso → 403.
-    Objeto de otra delegación → 404, porque no existe en su QuerySet.
-    """
-
-    def get_queryset(self):
-        qs = Activity.objects.select_related('employee', 'delegation', 'activity_type', 'period')
-        return filtrar_por_delegacion(qs, self.request.user)
-
-
-class ActividadPaginaMixin:
-    """Contexto del listado para Create/Update: el modal vive en la misma página que el listado."""
-
-    template_name = 'actividades/actividad_list.html'
-
-    def contexto_listado(self):
-        page_size = page_size_de_sesion(self.request)
-        pagina = Paginator(self.get_queryset(), page_size).get_page(self.request.GET.get('page'))
-        return {
-            'page_obj': pagina,
-            'activities': pagina.object_list,
-            'page_size': page_size,
-            'page_sizes': PAGE_SIZES,
-        }
-
-
-class ActividadListView(ActividadScopeMixin, ListView):
-    permission_required = 'actividades.view_activity'
-    template_name = 'actividades/actividad_list.html'
-    context_object_name = 'activities'
-
-    def get_paginate_by(self, queryset):
-        return page_size_de_sesion(self.request)
-
-    def get_context_data(self, **kwargs):
-        contexto = super().get_context_data(**kwargs)
-        contexto.update({
-            'page_size': self.get_paginate_by(None),
-            'page_sizes': PAGE_SIZES,
-            'form': ActividadWebForm(user=self.request.user),
-            'form_action': reverse('actividad_create'),
-            'modal_titulo': 'Nueva actividad',
-            'modal_abierto': False,
-        })
-        return contexto
-
-
-class ActividadFormMixin(ActividadPaginaMixin, SuccessMessageMixin):
+class ActivityCrud(CrudConfig):
+    model = Activity
     form_class = ActividadWebForm
-    success_url = reverse_lazy('actividad_list')
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs['user'] = self.request.user
-        return kwargs
-
-    def get_context_data(self, **kwargs):
-        contexto = super().get_context_data(**kwargs)
-        contexto.update(self.contexto_listado())
-        # Si hay errores, la misma plantilla se vuelve a mostrar con el modal abierto.
-        contexto['modal_abierto'] = True
-        contexto['form_action'] = self.request.path
-        return contexto
-
-
-class ActividadCreateView(ActividadScopeMixin, ActividadFormMixin, CreateView):
-    permission_required = 'actividades.add_activity'
-    success_message = 'Actividad %(number)s registrada correctamente.'
-    extra_context = {'modal_titulo': 'Nueva actividad'}
+    select_related = ('employee', 'delegation', 'activity_type', 'period')
+    title = 'Actividades'
+    singular = 'actividad'
+    url_prefix = 'actividad'
+    context_object_name = 'activities'
+    columns = [
+        Column('Número', 'number'),
+        Column('Fecha', 'date'),
+        Column('Funcionario', 'employee.name'),
+        Column('Delegación', 'delegation.name'),
+        Column('Tipo', 'activity_type.name'),
+        Column('Período', 'period.name'),
+        Column('Estado', 'get_validation_status_display', kind='badge',
+               badge=lambda a: f'estado-{a.validation_status}'),
+    ]
+    row_links = [('Evidencias', 'evidencia_list', 'activity', 'evidencias.view_evidence')]
 
 
-class ActividadUpdateView(ActividadScopeMixin, ActividadFormMixin, UpdateView):
-    permission_required = 'actividades.change_activity'
-    success_message = 'Actividad %(number)s actualizada correctamente.'
-    extra_context = {'modal_titulo': 'Editar actividad'}
+class SocialCaseCrud(CrudConfig):
+    model = SocialCase
+    form_class = SocialCaseForm
+    scope_field = 'activity__delegation'
+    select_related = ('activity', 'activity__delegation', 'activity__employee')
+    title = 'Atenciones sociales'
+    singular = 'atención social'
+    url_prefix = 'atencion'
+    context_object_name = 'social_cases'
+    filters = {'activity': 'activity_id'}
+    columns = [
+        Column('Actividad', 'activity.number'),
+        Column('Delegación', 'activity.delegation.name'),
+        Column('Funcionario', 'activity.employee.name'),
+        Column('Gestión N°', 'step_number'),
+        Column('Descripción', 'description'),
+    ]
 
 
-class ActividadDeleteView(ActividadScopeMixin, DeleteView):
-    permission_required = 'actividades.delete_activity'
-    http_method_names = ['post']  # eliminar solo por POST (con CSRF)
-    success_url = reverse_lazy('actividad_list')
+class ActividadListView(ActivityCrud, CrudListView):
+    pass
 
-    def form_valid(self, form):
-        numero = self.object.number
-        respuesta = super().form_valid(form)
-        messages.success(self.request, f'Actividad {numero} eliminada.')
-        return respuesta
+
+class ActividadCreateView(ActivityCrud, CrudCreateView):
+    pass
+
+
+class ActividadUpdateView(ActivityCrud, CrudUpdateView):
+    pass
+
+
+class ActividadDeleteView(ActivityCrud, CrudDeleteView):
+    pass
+
+
+class ActividadExportView(ActivityCrud, CrudExportView):
+    pass
+
+
+class AtencionListView(SocialCaseCrud, CrudListView):
+    pass
+
+
+class AtencionCreateView(SocialCaseCrud, CrudCreateView):
+    pass
+
+
+class AtencionUpdateView(SocialCaseCrud, CrudUpdateView):
+    pass
+
+
+class AtencionDeleteView(SocialCaseCrud, CrudDeleteView):
+    pass
+
+
+class AtencionExportView(SocialCaseCrud, CrudExportView):
+    pass

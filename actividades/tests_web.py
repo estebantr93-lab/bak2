@@ -66,13 +66,19 @@ class ActividadCrudTests(BaseWeb):
 
     def test_page_size_se_guarda_en_la_sesion(self):
         self.ingresar('admin_sgr', CLAVE_TEST)
-        self.client.get(reverse('actividad_list'), {'page_size': 10})
-        self.assertEqual(self.client.session['actividades_page_size'], 10)
+        self.client.get(reverse('actividad_list'), {'page_size': 5})
+        self.assertEqual(self.client.session['page_size'], 5)
         response = self.client.get(reverse('actividad_list'))
-        self.assertEqual(response.context['page_size'], 10)
-        # Un valor no permitido no cambia la preferencia.
-        self.client.get(reverse('actividad_list'), {'page_size': 9999})
-        self.assertEqual(self.client.session['actividades_page_size'], 10)
+        self.assertEqual(response.context['page_size'], 5)
+        self.assertEqual(response.context['page_obj'].paginator.per_page, 5)
+        self.assertEqual(response.context['page_sizes'], [5, 15, 30])
+        # Valores no permitidos se ignoran y la preferencia se mantiene.
+        for invalido in ('9999', '10', 'abc', '-5'):
+            self.client.get(reverse('actividad_list'), {'page_size': invalido})
+            self.assertEqual(self.client.session['page_size'], 5)
+        # La preferencia es de sesión: se aplica también a los otros listados.
+        response = self.client.get(reverse('evidencia_list'))
+        self.assertEqual(response.context['page_obj'].paginator.per_page, 5)
 
     def test_crear_actividad(self):
         self.ingresar('funcionario_centro', CLAVE_TEST)
@@ -150,13 +156,13 @@ class EvidenciaArchivoTests(BaseWeb):
     def subir(self, archivo, activity=None):
         activity = activity or self.actividad_centro
         return self.client.post(
-            reverse('evidencias_actividad', args=[activity.pk]), {'description': 'Foto', 'file': archivo},
+            reverse('evidencia_create'), {'activity': activity.pk, 'description': 'Foto', 'file': archivo},
         )
 
     def test_sube_imagen_valida_con_nombre_seguro(self):
         self.ingresar('funcionario_centro', CLAVE_TEST)
         response = self.subir(imagen_png('../../peligroso nombre.png'))
-        self.assertRedirects(response, reverse('evidencias_actividad', args=[self.actividad_centro.pk]))
+        self.assertRedirects(response, reverse('evidencia_list'))
         evidencia = Evidence.objects.filter(activity=self.actividad_centro).exclude(file='').get()
         self.assertTrue(evidencia.file.name.startswith('evidencias/'))
         self.assertNotIn('peligroso', evidencia.file.name)
@@ -187,7 +193,8 @@ class EvidenciaArchivoTests(BaseWeb):
     def test_no_puede_subir_a_actividad_de_otra_delegacion(self):
         self.ingresar('funcionario_centro', CLAVE_TEST)
         response = self.subir(imagen_png(), activity=self.actividad_norte)
-        self.assertEqual(response.status_code, 404)
+        self.assertIn('activity', response.context['form'].errors)
+        self.assertFalse(Evidence.all_objects.filter(activity=self.actividad_norte, description='Foto').exists())
 
     def test_eliminar_es_logico_y_conserva_el_archivo(self):
         self.ingresar('admin_centro', CLAVE_TEST)
@@ -200,7 +207,7 @@ class EvidenciaArchivoTests(BaseWeb):
         self.assertIsNotNone(Evidence.all_objects.get(pk=evidencia.pk).deleted_at)
         self.assertTrue(storage.exists(nombre))
         # La evidencia eliminada ya no aparece en el listado.
-        response = self.client.get(reverse('evidencias_actividad', args=[self.actividad_centro.pk]))
+        response = self.client.get(reverse('evidencia_list'), {'activity': self.actividad_centro.pk})
         self.assertNotIn(evidencia, list(response.context['evidence_items']))
 
     def test_hard_delete_borra_el_archivo_fisico(self):

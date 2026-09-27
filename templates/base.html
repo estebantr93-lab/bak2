@@ -29,6 +29,15 @@
                         {% if perms.actividades.view_activity %}
                             <li class="nav-item"><a class="nav-link" href="{% url 'actividad_list' %}">Actividades</a></li>
                         {% endif %}
+                        {% if perms.actividades.view_socialcase %}
+                            <li class="nav-item"><a class="nav-link" href="{% url 'atencion_list' %}">Atenciones</a></li>
+                        {% endif %}
+                        {% if perms.evidencias.view_evidence %}
+                            <li class="nav-item"><a class="nav-link" href="{% url 'evidencia_list' %}">Evidencias</a></li>
+                        {% endif %}
+                        {% if perms.agenda.view_commitment %}
+                            <li class="nav-item"><a class="nav-link" href="{% url 'compromiso_list' %}">Compromisos</a></li>
+                        {% endif %}
                         {% if user.is_staff %}
                             <li class="nav-item"><a class="nav-link" href="{% url 'admin:index' %}">Administración</a></li>
                         {% endif %}

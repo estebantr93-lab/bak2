@@ -1,7 +1,7 @@
 from django import forms
 from django.core.exceptions import ValidationError
 
-from .models import Activity
+from .models import Activity, SocialCase
 
 
 class ActividadForm(forms.ModelForm):
@@ -67,3 +67,22 @@ class ActividadWebForm(ActividadForm):
         if funcionario is not None:
             self.instance.delegation = funcionario.delegation
         return cleaned_data
+
+
+class SocialCaseForm(forms.ModelForm):
+    """Gestiones (1 a 3) de una actividad de atención social. Rango, máximo por actividad y
+    categoría social se validan en el modelo; aquí solo se acota lo que el usuario puede elegir."""
+
+    class Meta:
+        model = SocialCase
+        fields = ['activity', 'step_number', 'description']
+        labels = {'activity': 'Actividad', 'step_number': 'Número de gestión (1 a 3)', 'description': 'Descripción'}
+        widgets = {'description': forms.Textarea(attrs={'rows': 3})}
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        from core.admin_utils import filtrar_por_delegacion
+
+        actividades = Activity.objects.filter(activity_type__category='social').select_related('delegation')
+        self.fields['activity'].queryset = filtrar_por_delegacion(actividades, user)
+        self.fields['activity'].empty_label = 'Seleccione…'

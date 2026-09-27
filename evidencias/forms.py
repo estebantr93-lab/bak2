@@ -3,32 +3,70 @@ import os
 from django import forms
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import UploadedFile
 from PIL import Image, UnidentifiedImageError
 
-from .models import EXTENSIONES_IMAGEN, Evidence
+from actividades.models import Activity
+from core.admin_utils import filtrar_por_delegacion
+
+from .models import EXTENSIONES_IMAGEN, Evidence, Validation
 
 EXTENSIONES_PERMITIDAS = EXTENSIONES_IMAGEN | {'.pdf'}
 
 
 class EvidenciaForm(forms.ModelForm):
+    """Carga/edición de evidencias. El verificador (permiso can_approve_evidence) además
+    puede cambiar el estado; al hacerlo queda registrado quién revisó y una Validation."""
+
     class Meta:
         model = Evidence
-        fields = ['description', 'file']
+        fields = ['activity', 'description', 'file', 'status', 'result']
         widgets = {
             'description': forms.Textarea(attrs={'rows': 2}),
             'file': forms.ClearableFileInput(attrs={'accept': '.jpg,.jpeg,.png,.pdf'}),
         }
-        labels = {'description': 'Descripción'}
+        labels = {'activity': 'Actividad', 'description': 'Descripción', 'file': 'Archivo',
+                  'status': 'Estado', 'result': 'Resultado de la revisión'}
         help_texts = {'file': 'JPG, PNG o PDF, máximo 2 MB.'}
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['file'].required = True
+        self.user = user
+        self.fields['activity'].queryset = filtrar_por_delegacion(
+            Activity.objects.select_related('delegation'), user,
+        )
+        self.fields['activity'].empty_label = 'Seleccione…'
+        # Al crear, el archivo es obligatorio; al editar se puede conservar el actual.
+        self.fields['file'].required = self.instance.pk is None
+        # El estado solo lo cambia quien puede aprobar, y solo al revisar una evidencia existente.
+        if self.instance.pk is None or user is None or not user.has_perm('evidencias.can_approve_evidence'):
+            del self.fields['status']
+            del self.fields['result']
+
+    def save(self, commit=True):
+        evidencia = super().save(commit=False)
+        revisa = 'status' in self.fields and 'status' in self.changed_data and evidencia.status != 'pending'
+        if revisa:
+            evidencia.reviewed_by = self.user
+        if commit:
+            evidencia.save()
+            if revisa:
+                Validation.objects.create(
+                    evidence=evidencia, reviewer=self.user, status=evidencia.status,
+                    comment=evidencia.result or 'Revisión desde el CRUD web.',
+                )
+        return evidencia
 
     def clean_file(self):
         archivo = self.cleaned_data.get('file')
+        if archivo is False:  # casilla "Limpiar" de ClearableFileInput
+            raise ValidationError('La evidencia debe conservar un archivo; para cambiarlo, adjunte uno nuevo.')
         if not archivo:
-            raise ValidationError('Debe adjuntar un archivo.')
+            if self.instance.pk is None:
+                raise ValidationError('Debe adjuntar un archivo.')
+            return archivo
+        if not isinstance(archivo, UploadedFile):
+            return archivo  # es el archivo ya guardado (no se reemplazó): no hay nada nuevo que validar
 
         maximo = settings.EVIDENCIA_TAMANO_MAXIMO_MB * 1024 * 1024
         if archivo.size > maximo:
