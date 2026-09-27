@@ -2,30 +2,30 @@
 from django.contrib.auth.models import Group, Permission, User
 from django.test import TestCase
 
-from core.models import Cargo, Delegacion
+from core.models import Position, Delegation
 from core.testing import sembrar_datos_demo
 
-from .models import Funcionario
+from .models import Employee
 from .security import configurar_grupos_y_permisos
 
 
 class FuncionarioModelTests(TestCase):
     def test_str_devuelve_el_nombre(self):
-        delegacion = Delegacion.objects.create(nombre='Centro', direccion='Calle 1')
-        cargo = Cargo.objects.create(nombre='Encargado')
+        delegacion = Delegation.objects.create(name='Centro', address='Calle 1')
+        cargo = Position.objects.create(name='Encargado')
         user = User.objects.create_user(username='func1', password='x')
-        funcionario = Funcionario.objects.create(
-            user=user, delegacion=delegacion, cargo=cargo, nombre='Ana Pérez',
+        funcionario = Employee.objects.create(
+            user=user, delegation=delegacion, position=cargo, name='Ana Pérez',
         )
         self.assertEqual(str(funcionario), 'Ana Pérez')
 
     def test_user_solo_puede_tener_un_funcionario(self):
-        delegacion = Delegacion.objects.create(nombre='Centro', direccion='Calle 1')
-        cargo = Cargo.objects.create(nombre='Encargado')
+        delegacion = Delegation.objects.create(name='Centro', address='Calle 1')
+        cargo = Position.objects.create(name='Encargado')
         user = User.objects.create_user(username='func1', password='x')
-        Funcionario.objects.create(user=user, delegacion=delegacion, cargo=cargo, nombre='Ana Pérez')
+        Employee.objects.create(user=user, delegation=delegacion, position=cargo, name='Ana Pérez')
         with self.assertRaises(Exception):
-            Funcionario.objects.create(user=user, delegacion=delegacion, cargo=cargo, nombre='Otra Persona')
+            Employee.objects.create(user=user, delegation=delegacion, position=cargo, name='Otra Persona')
 
 
 class GruposYPermisosTests(TestCase):
@@ -38,12 +38,12 @@ class GruposYPermisosTests(TestCase):
 
     def test_grupo_funcionarios_no_tiene_permiso_de_aprobar_evidencia(self):
         grupo = Group.objects.get(name='Funcionarios')
-        permiso = Permission.objects.get(codename='can_approve_evidencia')
+        permiso = Permission.objects.get(codename='can_approve_evidence')
         self.assertNotIn(permiso, grupo.permissions.all())
 
     def test_grupo_verificadores_tiene_permiso_de_aprobar_evidencia(self):
         grupo = Group.objects.get(name='Verificadores')
-        permiso = Permission.objects.get(codename='can_approve_evidencia')
+        permiso = Permission.objects.get(codename='can_approve_evidence')
         self.assertIn(permiso, grupo.permissions.all())
 
     def test_es_idempotente(self):
@@ -56,10 +56,10 @@ class GruposYPermisosTests(TestCase):
 class SeedFuncionariosTests(TestCase):
     def test_seed_asigna_delegacion_correcta_a_cada_funcionario(self):
         sembrar_datos_demo()
-        centro = Funcionario.objects.get(nombre='Ana Pérez (Centro)')
-        norte = Funcionario.objects.get(nombre='Carlos Rojas (Norte)')
-        self.assertEqual(centro.delegacion.nombre, 'Delegación Centro')
-        self.assertEqual(norte.delegacion.nombre, 'Delegación Norte')
+        centro = Employee.objects.get(name='Ana Pérez (Centro)')
+        norte = Employee.objects.get(name='Carlos Rojas (Norte)')
+        self.assertEqual(centro.delegation.name, 'Delegación Centro')
+        self.assertEqual(norte.delegation.name, 'Delegación Norte')
 
     def test_funcionario_centro_pertenece_al_grupo_funcionarios(self):
         sembrar_datos_demo()

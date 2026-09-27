@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from core.testing import sembrar_datos_demo
 
-from .models import CodigoRecuperacion
+from .models import PasswordResetCode
 
 EMAIL = 'admin_centro@demo.sgr.local'
 NUEVA = 'NuevaClave#2026sgr'
@@ -35,10 +35,10 @@ class RecuperacionTests(TestCase):
         codigo = self._flujo_hasta_codigo()
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, [EMAIL])
-        registro = CodigoRecuperacion.objects.get()
-        self.assertNotEqual(registro.codigo_hash, codigo)
-        self.assertNotIn(codigo, registro.codigo_hash)
-        vigencia = (registro.expira - registro.creado).total_seconds()
+        registro = PasswordResetCode.objects.get()
+        self.assertNotEqual(registro.code_hash, codigo)
+        self.assertNotIn(codigo, registro.code_hash)
+        vigencia = (registro.expires_at - registro.created_at).total_seconds()
         self.assertAlmostEqual(vigencia, 120, delta=2)
 
     def test_respuesta_generica_si_el_correo_no_existe(self):
@@ -51,7 +51,7 @@ class RecuperacionTests(TestCase):
 
     def test_flujo_completo_cambia_contrasena_con_set_password(self):
         codigo = self._flujo_hasta_codigo()
-        response = self.client.post(reverse('recuperar_codigo'), {'codigo': codigo})
+        response = self.client.post(reverse('recuperar_codigo'), {'code': codigo})
         self.assertRedirects(response, reverse('recuperar_nueva'))
         response = self.client.post(reverse('recuperar_nueva'), {'new_password1': NUEVA, 'new_password2': NUEVA})
         self.assertRedirects(response, reverse('login'))
@@ -60,43 +60,43 @@ class RecuperacionTests(TestCase):
 
     def test_codigo_es_de_uso_unico(self):
         codigo = self._flujo_hasta_codigo()
-        self.client.post(reverse('recuperar_codigo'), {'codigo': codigo})
+        self.client.post(reverse('recuperar_codigo'), {'code': codigo})
         session = self.client.session
         session['recuperacion_email'] = EMAIL
         session.save()
-        response = self.client.post(reverse('recuperar_codigo'), {'codigo': codigo})
+        response = self.client.post(reverse('recuperar_codigo'), {'code': codigo})
         self.assertContains(response, 'Código incorrecto o vencido.')
 
     def test_codigo_vencido_no_se_acepta(self):
         codigo = self._flujo_hasta_codigo()
-        CodigoRecuperacion.objects.update(expira=timezone.now() - timedelta(seconds=1))
-        response = self.client.post(reverse('recuperar_codigo'), {'codigo': codigo})
+        PasswordResetCode.objects.update(expires_at=timezone.now() - timedelta(seconds=1))
+        response = self.client.post(reverse('recuperar_codigo'), {'code': codigo})
         self.assertContains(response, 'Código incorrecto o vencido.')
 
     def test_nuevo_codigo_invalida_el_anterior(self):
         primero = self._flujo_hasta_codigo()
         segundo = self._flujo_hasta_codigo()
-        self.assertEqual(CodigoRecuperacion.objects.filter(usado=False).count(), 1)
+        self.assertEqual(PasswordResetCode.objects.filter(is_used=False).count(), 1)
         if primero != segundo:
-            response = self.client.post(reverse('recuperar_codigo'), {'codigo': primero})
+            response = self.client.post(reverse('recuperar_codigo'), {'code': primero})
             self.assertContains(response, 'Código incorrecto o vencido.')
-        response = self.client.post(reverse('recuperar_codigo'), {'codigo': segundo})
+        response = self.client.post(reverse('recuperar_codigo'), {'code': segundo})
         self.assertRedirects(response, reverse('recuperar_nueva'))
 
     def test_maximo_5_intentos(self):
         codigo = self._flujo_hasta_codigo()
         incorrecto = f'{(int(codigo) + 1) % 1000000:06d}'
         for _ in range(4):
-            response = self.client.post(reverse('recuperar_codigo'), {'codigo': incorrecto})
+            response = self.client.post(reverse('recuperar_codigo'), {'code': incorrecto})
             self.assertContains(response, 'Código incorrecto o vencido.')
-        response = self.client.post(reverse('recuperar_codigo'), {'codigo': incorrecto})
+        response = self.client.post(reverse('recuperar_codigo'), {'code': incorrecto})
         self.assertRedirects(response, reverse('recuperar_solicitar'))
-        self.assertTrue(CodigoRecuperacion.objects.get().usado)
+        self.assertTrue(PasswordResetCode.objects.get().is_used)
         # Ni siquiera el código correcto sirve después del bloqueo.
         session = self.client.session
         session['recuperacion_email'] = EMAIL
         session.save()
-        response = self.client.post(reverse('recuperar_codigo'), {'codigo': codigo})
+        response = self.client.post(reverse('recuperar_codigo'), {'code': codigo})
         self.assertContains(response, 'Código incorrecto o vencido.')
 
     def test_no_se_puede_saltar_a_nueva_contrasena(self):

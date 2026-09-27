@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 from django.db import models
 from django.utils import timezone
 
-from actividades.models import Actividad
+from actividades.models import Activity
 from core.soft_delete import SoftDeleteModel
 
 EXTENSIONES_IMAGEN = {'.jpg', '.jpeg', '.png'}
@@ -17,69 +17,71 @@ def ruta_evidencia(instance, filename):
     return f'evidencias/{timezone.now():%Y/%m}/{uuid.uuid4().hex}{extension}'
 
 
-class Evidencia(SoftDeleteModel):
-    ESTADO_CHOICES = [
-        ('pendiente', 'Pendiente'),
-        ('aprobada', 'Aprobada'),
-        ('rechazada', 'Rechazada'),
+class Evidence(SoftDeleteModel):
+    STATUS_CHOICES = [
+        ('pending', 'Pendiente'),
+        ('approved', 'Aprobada'),
+        ('rejected', 'Rechazada'),
     ]
 
-    codigo_unico = models.CharField(max_length=40, unique=True, blank=True)
-    actividad = models.ForeignKey(
-        Actividad, on_delete=models.CASCADE, related_name='evidencias', limit_choices_to={'deleted_at__isnull': True},
+    unique_code = models.CharField('código único', max_length=40, unique=True, blank=True)
+    activity = models.ForeignKey(
+        Activity, verbose_name='actividad', on_delete=models.CASCADE, related_name='evidence_items', limit_choices_to={'deleted_at__isnull': True},
     )
-    descripcion = models.TextField(blank=True)
-    archivo = models.FileField(upload_to=ruta_evidencia, blank=True, null=True)
-    fecha_registro = models.DateTimeField(auto_now_add=True)
-    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='pendiente')
-    resultado = models.CharField(max_length=200, blank=True)
-    revisada_por = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='revisiones'
+    description = models.TextField('descripción', blank=True)
+    file = models.FileField('archivo', upload_to=ruta_evidencia, blank=True, null=True)
+    registered_at = models.DateTimeField('fecha de registro', auto_now_add=True)
+    status = models.CharField('estado', max_length=20, choices=STATUS_CHOICES, default='pending')
+    result = models.CharField('resultado', max_length=200, blank=True)
+    reviewed_by = models.ForeignKey(
+        User, verbose_name='revisada por', on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_evidence'
     )
 
     class Meta:
-        ordering = ['-fecha_registro']
+        db_table = 'evidence'
+        ordering = ['-registered_at']
         verbose_name = 'Evidencia'
         verbose_name_plural = 'Evidencias'
         permissions = [
-            ('can_approve_evidencia', 'Puede aprobar evidencias'),
+            ('can_approve_evidence', 'Puede aprobar evidencias'),
         ]
 
     def __str__(self):
-        return self.codigo_unico
+        return self.unique_code
 
     @property
     def es_imagen(self):
-        return bool(self.archivo) and os.path.splitext(self.archivo.name)[1].lower() in EXTENSIONES_IMAGEN
+        return bool(self.file) and os.path.splitext(self.file.name)[1].lower() in EXTENSIONES_IMAGEN
 
     @staticmethod
     def generar_codigo_unico():
         return f'EVI-{timezone.now():%Y%m}-{uuid.uuid4().hex[:8].upper()}'
 
     def save(self, *args, **kwargs):
-        if not self.codigo_unico:
-            self.codigo_unico = self.generar_codigo_unico()
+        if not self.unique_code:
+            self.unique_code = self.generar_codigo_unico()
         super().save(*args, **kwargs)
 
 
-class Validacion(models.Model):
-    ESTADO_CHOICES = [
-        ('aprobada', 'Aprobada'),
-        ('rechazada', 'Rechazada'),
+class Validation(models.Model):
+    STATUS_CHOICES = [
+        ('approved', 'Aprobada'),
+        ('rejected', 'Rechazada'),
     ]
 
-    evidencia = models.ForeignKey(
-        Evidencia, on_delete=models.CASCADE, related_name='validaciones', limit_choices_to={'deleted_at__isnull': True},
+    evidence = models.ForeignKey(
+        Evidence, verbose_name='evidencia', on_delete=models.CASCADE, related_name='validations', limit_choices_to={'deleted_at__isnull': True},
     )
-    verificador = models.ForeignKey(User, on_delete=models.PROTECT, related_name='validaciones')
-    fecha = models.DateTimeField(auto_now_add=True)
-    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES)
-    comentario = models.TextField(blank=True)
+    reviewer = models.ForeignKey(User, verbose_name='verificador', on_delete=models.PROTECT, related_name='validations')
+    date = models.DateTimeField('fecha', auto_now_add=True)
+    status = models.CharField('estado', max_length=20, choices=STATUS_CHOICES)
+    comment = models.TextField('comentario', blank=True)
 
     class Meta:
-        ordering = ['-fecha']
+        db_table = 'validation'
+        ordering = ['-date']
         verbose_name = 'Validación'
         verbose_name_plural = 'Validaciones'
 
     def __str__(self):
-        return f'{self.evidencia.codigo_unico} - {self.estado}'
+        return f'{self.evidence.unique_code} - {self.status}'

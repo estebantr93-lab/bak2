@@ -2,96 +2,101 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 
-class Delegacion(models.Model):
-    nombre = models.CharField(max_length=120, unique=True)
-    direccion = models.CharField(max_length=200)
-    telefono = models.CharField(max_length=30, blank=True)
-    activa = models.BooleanField(default=True)
+class Delegation(models.Model):
+    name = models.CharField('nombre', max_length=120, unique=True)
+    address = models.CharField('dirección', max_length=200)
+    phone = models.CharField('teléfono', max_length=30, blank=True)
+    is_active = models.BooleanField('activo', default=True)
 
     class Meta:
-        ordering = ['nombre']
+        db_table = 'delegation'
+        ordering = ['name']
         verbose_name = 'Delegación'
         verbose_name_plural = 'Delegaciones'
 
     def __str__(self):
-        return self.nombre
+        return self.name
 
 
-class Cargo(models.Model):
-    nombre = models.CharField(max_length=120, unique=True)
-    area = models.CharField(max_length=120, blank=True)
-    descripcion = models.TextField(blank=True)
+class Position(models.Model):
+    name = models.CharField('nombre', max_length=120, unique=True)
+    area = models.CharField('área', max_length=120, blank=True)
+    description = models.TextField('descripción', blank=True)
 
     class Meta:
-        ordering = ['nombre']
+        db_table = 'position'
+        ordering = ['name']
         verbose_name = 'Cargo'
         verbose_name_plural = 'Cargos'
 
     def __str__(self):
-        return self.nombre
+        return self.name
 
 
-class TipoActividad(models.Model):
-    CATEGORIA_CHOICES = [
-        ('atencion', 'Atención'),
-        ('tramitacion', 'Tramitación'),
-        ('operativo', 'Operativo'),
+class ActivityType(models.Model):
+    CATEGORY_CHOICES = [
+        ('service', 'Atención'),
+        ('paperwork', 'Tramitación'),
+        ('field_work', 'Operativo'),
         ('social', 'Atención social'),
     ]
 
-    codigo = models.CharField(max_length=20, unique=True)
-    nombre = models.CharField(max_length=150)
-    categoria = models.CharField(max_length=20, choices=CATEGORIA_CHOICES)
-    subtipo = models.CharField(max_length=120, blank=True)
-    activo = models.BooleanField(default=True)
+    code = models.CharField('código', max_length=20, unique=True)
+    name = models.CharField('nombre', max_length=150)
+    category = models.CharField('categoría', max_length=20, choices=CATEGORY_CHOICES)
+    subtype = models.CharField('subtipo', max_length=120, blank=True)
+    is_active = models.BooleanField('activo', default=True)
 
     class Meta:
-        ordering = ['codigo']
+        db_table = 'activity_type'
+        ordering = ['code']
         verbose_name = 'Tipo de actividad'
         verbose_name_plural = 'Tipos de actividad'
 
     def __str__(self):
-        return f'{self.codigo} - {self.nombre}'
+        return f'{self.code} - {self.name}'
 
 
-class Periodo(models.Model):
-    nombre = models.CharField(max_length=120, unique=True)
-    fecha_inicio = models.DateField()
-    fecha_termino = models.DateField()
-    cerrado = models.BooleanField(default=False)
-    umbral_minimo = models.DecimalField(max_digits=5, decimal_places=2, default=80.00)
-    tope_maximo = models.DecimalField(max_digits=5, decimal_places=2, default=150.00)
+class Period(models.Model):
+    name = models.CharField('nombre', max_length=120, unique=True)
+    start_date = models.DateField('fecha de inicio')
+    end_date = models.DateField('fecha de término')
+    is_closed = models.BooleanField('cerrado', default=False)
+    min_threshold = models.DecimalField('umbral mínimo', max_digits=5, decimal_places=2, default=80.00)
+    max_cap = models.DecimalField('tope máximo', max_digits=5, decimal_places=2, default=150.00)
 
     class Meta:
-        ordering = ['-fecha_inicio']
+        db_table = 'period'
+        ordering = ['-start_date']
         verbose_name = 'Período'
         verbose_name_plural = 'Períodos'
 
     def __str__(self):
-        return self.nombre
+        return self.name
 
     def clean(self):
-        if self.fecha_inicio and self.fecha_termino and self.fecha_inicio >= self.fecha_termino:
-            raise ValidationError({'fecha_termino': 'La fecha de inicio debe ser anterior a la fecha de término.'})
-        if self.fecha_inicio and self.fecha_termino:
-            solapados = Periodo.objects.filter(
-                fecha_inicio__lte=self.fecha_termino,
-                fecha_termino__gte=self.fecha_inicio,
+        if self.start_date and self.end_date and self.start_date >= self.end_date:
+            raise ValidationError({'end_date': 'La fecha de inicio debe ser anterior a la fecha de término.'})
+        if self.start_date and self.end_date:
+            solapados = Period.objects.filter(
+                start_date__lte=self.end_date,
+                end_date__gte=self.start_date,
             ).exclude(pk=self.pk)
             if solapados.exists():
                 raise ValidationError('El período se solapa con otro período ya existente.')
 
 
-class Parametro(models.Model):
-    clave = models.CharField(max_length=60, unique=True)
-    valor = models.CharField(max_length=120)
-    descripcion = models.TextField(blank=True)
-    vigente = models.BooleanField(default=True)
+class Parameter(models.Model):
+    key = models.CharField('clave', max_length=60, unique=True)
+    value = models.CharField('valor', max_length=120)
+    description = models.TextField('descripción', blank=True)
+    is_active = models.BooleanField('activo', default=True)
 
     class Meta:
-        ordering = ['clave']
+        db_table = 'parameter'
+        ordering = ['key']
         verbose_name = 'Parámetro'
         verbose_name_plural = 'Parámetros'
 
     def __str__(self):
-        return f'{self.clave} = {self.valor}'
+        return f'{self.key} = {self.value}'

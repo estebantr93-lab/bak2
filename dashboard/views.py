@@ -3,7 +3,7 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import render
 
 from core.admin_utils import ROLES_ETIQUETAS, get_rol, get_usuario_delegacion, tiene_acceso_al_sistema
-from core.models import Periodo
+from core.models import Period
 
 from .services import construir_dashboard, periodo_por_defecto
 
@@ -13,7 +13,7 @@ SESION_PERIODO = 'dashboard_periodo_id'
 
 def _periodo_elegido(request, periodos):
     """Lee el período de ?periodo= y lo recuerda en la sesión; si no viene, usa el recordado."""
-    periodo_id = request.GET.get('periodo')
+    periodo_id = request.GET.get('period')
     if periodo_id and periodo_id.isdigit():
         periodo = periodos.filter(pk=periodo_id).first()
         if periodo is not None:
@@ -37,14 +37,14 @@ def dashboard(request):
     rol = get_rol(request.user)
     delegacion = get_usuario_delegacion(request.user)
 
-    periodos = Periodo.objects.all()
+    periodos = Period.objects.all()
     periodo = _periodo_elegido(request, periodos)
     contexto = {
         'rol': rol,
         'rol_etiqueta': ROLES_ETIQUETAS[rol],
         'delegacion_usuario': delegacion,
         'periodos': periodos,
-        'periodo': periodo,
+        'period': periodo,
         **construir_dashboard(request.user, periodo),
     }
     return render(request, 'dashboard/index.html', contexto)

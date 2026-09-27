@@ -1,6 +1,6 @@
 import datetime
 
-from .models import Cargo, Delegacion, Parametro, Periodo, TipoActividad
+from .models import Position, Delegation, Parameter, Period, ActivityType
 
 
 def build_core():
@@ -9,8 +9,8 @@ def build_core():
         ('Delegación Centro', 'Av. Francisco de Aguirre 100, La Serena', '+56512345601'),
         ('Delegación Norte', 'Av. Balmaceda 2200, La Serena', '+56512345602'),
     ]:
-        delegacion, _ = Delegacion.objects.get_or_create(
-            nombre=nombre, defaults={'direccion': direccion, 'telefono': telefono},
+        delegacion, _ = Delegation.objects.get_or_create(
+            name=nombre, defaults={'address': direccion, 'phone': telefono},
         )
         delegaciones[nombre] = delegacion
 
@@ -21,21 +21,21 @@ def build_core():
         ('Coordinador de Delegación', 'Jefatura', 'Coordinación general de la delegación.'),
         ('Verificador de Evidencias', 'Control de gestión', 'Revisión y validación de evidencias de actividades.'),
     ]:
-        cargo, _ = Cargo.objects.get_or_create(
-            nombre=nombre, defaults={'area': area, 'descripcion': descripcion},
+        cargo, _ = Position.objects.get_or_create(
+            name=nombre, defaults={'area': area, 'description': descripcion},
         )
         cargos[nombre] = cargo
 
     tipos = {}
     for codigo, nombre, categoria, subtipo in [
-        ('ATC-01', 'Atención ciudadana', 'atencion', ''),
-        ('TRA-02', 'Trámites', 'tramitacion', ''),
-        ('OPE-03', 'Operativo en terreno', 'operativo', ''),
+        ('ATC-01', 'Atención ciudadana', 'service', ''),
+        ('TRA-02', 'Trámites', 'paperwork', ''),
+        ('OPE-03', 'Operativo en terreno', 'field_work', ''),
         ('SOC-04', 'Atención social', 'social', ''),
-        ('COM-05', 'Actividad comunitaria', 'operativo', 'Comunitario'),
+        ('COM-05', 'Actividad comunitaria', 'field_work', 'Comunitario'),
     ]:
-        tipo, _ = TipoActividad.objects.get_or_create(
-            codigo=codigo, defaults={'nombre': nombre, 'categoria': categoria, 'subtipo': subtipo},
+        tipo, _ = ActivityType.objects.get_or_create(
+            code=codigo, defaults={'name': nombre, 'category': categoria, 'subtype': subtipo},
         )
         tipos[codigo] = tipo
 
@@ -44,10 +44,10 @@ def build_core():
         ('2026-Q1 (cerrado)', datetime.date(2026, 1, 1), datetime.date(2026, 3, 31), True),
         ('2026-S2 (actual)', datetime.date(2026, 6, 1), datetime.date(2026, 9, 30), False),
     ]:
-        periodo, _ = Periodo.objects.get_or_create(
-            nombre=nombre, defaults={
-                'fecha_inicio': inicio, 'fecha_termino': termino, 'cerrado': cerrado,
-                'umbral_minimo': 80, 'tope_maximo': 150,
+        periodo, _ = Period.objects.get_or_create(
+            name=nombre, defaults={
+                'start_date': inicio, 'end_date': termino, 'is_closed': cerrado,
+                'min_threshold': 80, 'max_cap': 150,
             },
         )
         periodos[nombre] = periodo
@@ -58,8 +58,8 @@ def build_core():
         ('AJUSTE_FELICITACION', '10', 'Ajuste porcentual por felicitación ciudadana (RN-011).'),
         ('AJUSTE_RECLAMO', '-20', 'Ajuste porcentual por reclamo ciudadano (RN-011).'),
     ]:
-        Parametro.objects.get_or_create(
-            clave=clave, defaults={'valor': valor, 'descripcion': descripcion, 'vigente': True},
+        Parameter.objects.get_or_create(
+            key=clave, defaults={'value': valor, 'description': descripcion, 'is_active': True},
         )
 
     return {'delegaciones': delegaciones, 'cargos': cargos, 'tipos': tipos, 'periodos': periodos}

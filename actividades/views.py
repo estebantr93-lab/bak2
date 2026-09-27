@@ -8,7 +8,7 @@ from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 from core.admin_utils import filtrar_por_delegacion
 
 from .forms import ActividadWebForm
-from .models import Actividad
+from .models import Activity
 
 # Preferencia de interfaz guardada en la sesión (no es un permiso ni un dato sensible).
 SESION_PAGE_SIZE = 'actividades_page_size'
@@ -31,7 +31,7 @@ class ActividadScopeMixin(LoginRequiredMixin, PermissionRequiredMixin):
     """
 
     def get_queryset(self):
-        qs = Actividad.objects.select_related('funcionario', 'delegacion', 'tipo_actividad', 'periodo')
+        qs = Activity.objects.select_related('employee', 'delegation', 'activity_type', 'period')
         return filtrar_por_delegacion(qs, self.request.user)
 
 
@@ -45,16 +45,16 @@ class ActividadPaginaMixin:
         pagina = Paginator(self.get_queryset(), page_size).get_page(self.request.GET.get('page'))
         return {
             'page_obj': pagina,
-            'actividades': pagina.object_list,
+            'activities': pagina.object_list,
             'page_size': page_size,
             'page_sizes': PAGE_SIZES,
         }
 
 
 class ActividadListView(ActividadScopeMixin, ListView):
-    permission_required = 'actividades.view_actividad'
+    permission_required = 'actividades.view_activity'
     template_name = 'actividades/actividad_list.html'
-    context_object_name = 'actividades'
+    context_object_name = 'activities'
 
     def get_paginate_by(self, queryset):
         return page_size_de_sesion(self.request)
@@ -91,24 +91,24 @@ class ActividadFormMixin(ActividadPaginaMixin, SuccessMessageMixin):
 
 
 class ActividadCreateView(ActividadScopeMixin, ActividadFormMixin, CreateView):
-    permission_required = 'actividades.add_actividad'
-    success_message = 'Actividad %(numero)s registrada correctamente.'
+    permission_required = 'actividades.add_activity'
+    success_message = 'Actividad %(number)s registrada correctamente.'
     extra_context = {'modal_titulo': 'Nueva actividad'}
 
 
 class ActividadUpdateView(ActividadScopeMixin, ActividadFormMixin, UpdateView):
-    permission_required = 'actividades.change_actividad'
-    success_message = 'Actividad %(numero)s actualizada correctamente.'
+    permission_required = 'actividades.change_activity'
+    success_message = 'Actividad %(number)s actualizada correctamente.'
     extra_context = {'modal_titulo': 'Editar actividad'}
 
 
 class ActividadDeleteView(ActividadScopeMixin, DeleteView):
-    permission_required = 'actividades.delete_actividad'
+    permission_required = 'actividades.delete_activity'
     http_method_names = ['post']  # eliminar solo por POST (con CSRF)
     success_url = reverse_lazy('actividad_list')
 
     def form_valid(self, form):
-        numero = self.object.numero
+        numero = self.object.number
         respuesta = super().form_valid(form)
         messages.success(self.request, f'Actividad {numero} eliminada.')
         return respuesta

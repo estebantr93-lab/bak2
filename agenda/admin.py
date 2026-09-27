@@ -2,25 +2,25 @@ from django.contrib import admin
 
 from core.admin_utils import ScopedModelAdmin
 
-from .models import Compromiso, SeguimientoCompromiso
+from .models import Commitment, CommitmentFollowUp
 
 
-@admin.register(Compromiso)
+@admin.register(Commitment)
 class CompromisoAdmin(ScopedModelAdmin, admin.ModelAdmin):
-    scope_by = 'delegacion'
-    list_display = ('titulo', 'delegacion', 'responsable', 'fecha_vencimiento', 'estado')
-    search_fields = ('titulo', 'descripcion')
-    list_filter = ('delegacion', 'estado')
-    ordering = ('fecha_vencimiento',)
-    list_select_related = ('delegacion', 'responsable')
-    autocomplete_fields = ('responsable',)
+    scope_by = 'delegation'
+    list_display = ('title', 'delegation', 'responsible', 'due_date', 'status')
+    search_fields = ('title', 'description')
+    list_filter = ('delegation', 'status')
+    ordering = ('due_date',)
+    list_select_related = ('delegation', 'responsible')
+    autocomplete_fields = ('responsible',)
 
 
-@admin.register(SeguimientoCompromiso)
+@admin.register(CommitmentFollowUp)
 class SeguimientoCompromisoAdmin(ScopedModelAdmin, admin.ModelAdmin):
-    scope_by = 'compromiso__delegacion'
-    list_display = ('compromiso', 'fecha', 'responsable', 'estado_nuevo')
-    search_fields = ('compromiso__titulo',)
-    list_filter = ('estado_nuevo',)
-    ordering = ('-fecha',)
-    list_select_related = ('compromiso', 'responsable')
+    scope_by = 'commitment__delegation'
+    list_display = ('commitment', 'date', 'responsible', 'new_status')
+    search_fields = ('commitment__title',)
+    list_filter = ('new_status',)
+    ordering = ('-date',)
+    list_select_related = ('commitment', 'responsible')

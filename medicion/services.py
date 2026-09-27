@@ -11,9 +11,9 @@ def calcular_cumplimiento_pct(avance, meta):
     return (Decimal(avance) / Decimal(meta)) * 100
 
 
-def calcular_cumplimiento_ponderado(ponderador, cumplimiento_pct, tope_maximo=Decimal('150')):
-    cumplimiento_pct = min(cumplimiento_pct, tope_maximo)
-    return (Decimal(ponderador) * cumplimiento_pct) / 100
+def calcular_cumplimiento_ponderado(weight, compliance_pct, max_cap=Decimal('150')):
+    compliance_pct = min(compliance_pct, max_cap)
+    return (Decimal(weight) * compliance_pct) / 100
 
 
 def calcular_meta_esperada_al_dia(dias_transcurridos, dias_totales):
@@ -24,8 +24,8 @@ def calcular_meta_esperada_al_dia(dias_transcurridos, dias_totales):
 
 def calcular_semaforo(avance_pct, esperado_pct):
     if avance_pct >= esperado_pct:
-        return 'verde'
+        return 'green'
     umbral_ambar = Decimal(esperado_pct) * Decimal('0.6')
     if avance_pct >= umbral_ambar:
-        return 'ambar'
-    return 'rojo'
+        return 'amber'
+    return 'red'

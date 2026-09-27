@@ -45,7 +45,7 @@ def ingresar_codigo(request):
         return redirect('recuperar_solicitar')
     form = ValidarCodigoForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
-        estado, user = validar_codigo(email, form.cleaned_data['codigo'])
+        estado, user = validar_codigo(email, form.cleaned_data['code'])
         if estado == CODIGO_OK:
             request.session.pop(SESION_EMAIL, None)
             request.session[SESION_VALIDADO] = {'user_id': user.pk, 'hasta': time.time() + VENTANA_NUEVA_CLAVE_SEGUNDOS}
@@ -54,7 +54,7 @@ def ingresar_codigo(request):
             _limpiar_sesion(request)
             messages.error(request, 'Superó el máximo de intentos. Solicite un nuevo código.')
             return redirect('recuperar_solicitar')
-        form.add_error('codigo', 'Código incorrecto o vencido.')
+        form.add_error('code', 'Código incorrecto o vencido.')
     return render(request, 'registration/recuperar_codigo.html', {
         'form': form,
         'vigencia': settings.RECUPERACION_CODIGO_VIGENCIA_SEGUNDOS,

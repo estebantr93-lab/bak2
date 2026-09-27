@@ -1,54 +1,56 @@
 from django.db import models
 
-from core.models import Delegacion
+from core.models import Delegation
 from core.soft_delete import SoftDeleteModel
-from funcionarios.models import Funcionario
+from funcionarios.models import Employee
 
 
-class Compromiso(SoftDeleteModel):
-    ESTADO_CHOICES = [
-        ('ingresado', 'Ingresado'),
-        ('pendiente', 'Pendiente'),
-        ('en_proceso', 'En proceso'),
-        ('realizado', 'Realizado'),
+class Commitment(SoftDeleteModel):
+    STATUS_CHOICES = [
+        ('registered', 'Ingresado'),
+        ('pending', 'Pendiente'),
+        ('in_progress', 'En proceso'),
+        ('done', 'Realizado'),
     ]
 
-    titulo = models.CharField(max_length=200)
-    descripcion = models.TextField(blank=True)
-    delegacion = models.ForeignKey(Delegacion, on_delete=models.PROTECT, related_name='compromisos')
-    responsable = models.ForeignKey(
-        Funcionario, on_delete=models.SET_NULL, null=True, blank=True, related_name='compromisos'
+    title = models.CharField('título', max_length=200)
+    description = models.TextField('descripción', blank=True)
+    delegation = models.ForeignKey(Delegation, verbose_name='delegación', on_delete=models.PROTECT, related_name='commitments')
+    responsible = models.ForeignKey(
+        Employee, verbose_name='responsable', on_delete=models.SET_NULL, null=True, blank=True, related_name='commitments'
     )
-    fecha_vencimiento = models.DateField()
-    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='ingresado')
-    observaciones = models.TextField(blank=True)
+    due_date = models.DateField('fecha de vencimiento')
+    status = models.CharField('estado', max_length=20, choices=STATUS_CHOICES, default='registered')
+    notes = models.TextField('observaciones', blank=True)
 
-    soft_delete_cascade = ('seguimientos',)
+    soft_delete_cascade = ('follow_ups',)
 
     class Meta:
-        ordering = ['fecha_vencimiento']
+        db_table = 'commitment'
+        ordering = ['due_date']
         verbose_name = 'Compromiso'
         verbose_name_plural = 'Compromisos'
 
     def __str__(self):
-        return self.titulo
+        return self.title
 
 
-class SeguimientoCompromiso(SoftDeleteModel):
-    compromiso = models.ForeignKey(
-        Compromiso, on_delete=models.CASCADE, related_name='seguimientos', limit_choices_to={'deleted_at__isnull': True},
+class CommitmentFollowUp(SoftDeleteModel):
+    commitment = models.ForeignKey(
+        Commitment, verbose_name='compromiso', on_delete=models.CASCADE, related_name='follow_ups', limit_choices_to={'deleted_at__isnull': True},
     )
-    fecha = models.DateTimeField(auto_now_add=True)
-    responsable = models.ForeignKey(
-        Funcionario, on_delete=models.SET_NULL, null=True, blank=True, related_name='seguimientos'
+    date = models.DateTimeField('fecha', auto_now_add=True)
+    responsible = models.ForeignKey(
+        Employee, verbose_name='responsable', on_delete=models.SET_NULL, null=True, blank=True, related_name='follow_ups'
     )
-    descripcion = models.TextField()
-    estado_nuevo = models.CharField(max_length=20, choices=Compromiso.ESTADO_CHOICES)
+    description = models.TextField('descripción')
+    new_status = models.CharField('estado nuevo', max_length=20, choices=Commitment.STATUS_CHOICES)
 
     class Meta:
-        ordering = ['-fecha']
+        db_table = 'commitment_follow_up'
+        ordering = ['-date']
         verbose_name = 'Seguimiento de compromiso'
         verbose_name_plural = 'Seguimientos de compromiso'
 
     def __str__(self):
-        return f'{self.compromiso.titulo} - {self.estado_nuevo}'
+        return f'{self.commitment.title} - {self.new_status}'

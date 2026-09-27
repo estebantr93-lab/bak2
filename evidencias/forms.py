@@ -5,28 +5,28 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from PIL import Image, UnidentifiedImageError
 
-from .models import EXTENSIONES_IMAGEN, Evidencia
+from .models import EXTENSIONES_IMAGEN, Evidence
 
 EXTENSIONES_PERMITIDAS = EXTENSIONES_IMAGEN | {'.pdf'}
 
 
 class EvidenciaForm(forms.ModelForm):
     class Meta:
-        model = Evidencia
-        fields = ['descripcion', 'archivo']
+        model = Evidence
+        fields = ['description', 'file']
         widgets = {
-            'descripcion': forms.Textarea(attrs={'rows': 2}),
-            'archivo': forms.ClearableFileInput(attrs={'accept': '.jpg,.jpeg,.png,.pdf'}),
+            'description': forms.Textarea(attrs={'rows': 2}),
+            'file': forms.ClearableFileInput(attrs={'accept': '.jpg,.jpeg,.png,.pdf'}),
         }
-        labels = {'descripcion': 'Descripción'}
-        help_texts = {'archivo': 'JPG, PNG o PDF, máximo 2 MB.'}
+        labels = {'description': 'Descripción'}
+        help_texts = {'file': 'JPG, PNG o PDF, máximo 2 MB.'}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['archivo'].required = True
+        self.fields['file'].required = True
 
-    def clean_archivo(self):
-        archivo = self.cleaned_data.get('archivo')
+    def clean_file(self):
+        archivo = self.cleaned_data.get('file')
         if not archivo:
             raise ValidationError('Debe adjuntar un archivo.')
 

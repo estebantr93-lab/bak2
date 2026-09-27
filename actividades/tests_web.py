@@ -7,12 +7,12 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from PIL import Image
 
-from core.models import Periodo, TipoActividad
-from evidencias.models import Evidencia
-from funcionarios.models import Funcionario
+from core.models import Period, ActivityType
+from evidencias.models import Evidence
+from funcionarios.models import Employee
 from core.testing import CLAVE_TEST, sembrar_datos_demo
 
-from .models import Actividad
+from .models import Activity
 
 MEDIA_TEMPORAL = tempfile.mkdtemp()
 
@@ -27,21 +27,21 @@ class BaseWeb(TestCase):
     @classmethod
     def setUpTestData(cls):
         sembrar_datos_demo()
-        cls.actividad_centro = Actividad.objects.filter(delegacion__nombre='Delegación Centro').first()
-        cls.actividad_norte = Actividad.objects.filter(delegacion__nombre='Delegación Norte').first()
+        cls.actividad_centro = Activity.objects.filter(delegation__name='Delegación Centro').first()
+        cls.actividad_norte = Activity.objects.filter(delegation__name='Delegación Norte').first()
 
     def ingresar(self, username, password):
         self.assertTrue(self.client.login(username=username, password=password))
 
     def datos(self, **extra):
         datos = {
-            'numero': 'act-web-001',
-            'funcionario': Funcionario.objects.get(nombre='Ana Pérez (Centro)').pk,
-            'periodo': Periodo.objects.get(cerrado=False).pk,
-            'tipo_actividad': TipoActividad.objects.get(codigo='ATC-01').pk,
-            'fecha': '2026-07-15',
-            'descripcion': 'Atención registrada desde el CRUD web.',
-            'codigo_evidencia': 'EVID-WEB-001',
+            'number': 'act-web-001',
+            'employee': Employee.objects.get(name='Ana Pérez (Centro)').pk,
+            'period': Period.objects.get(is_closed=False).pk,
+            'activity_type': ActivityType.objects.get(code='ATC-01').pk,
+            'date': '2026-07-15',
+            'description': 'Atención registrada desde el CRUD web.',
+            'evidence_code': 'EVID-WEB-001',
         }
         datos.update(extra)
         return datos
@@ -61,8 +61,8 @@ class ActividadCrudTests(BaseWeb):
         self.ingresar('funcionario_centro', CLAVE_TEST)
         response = self.client.get(reverse('actividad_list'))
         self.assertEqual(response.status_code, 200)
-        self.assertEqual({a.delegacion.nombre for a in response.context['actividades']}, {'Delegación Centro'})
-        self.assertNotContains(response, self.actividad_norte.numero)
+        self.assertEqual({a.delegation.name for a in response.context['activities']}, {'Delegación Centro'})
+        self.assertNotContains(response, self.actividad_norte.number)
 
     def test_page_size_se_guarda_en_la_sesion(self):
         self.ingresar('admin_sgr', CLAVE_TEST)
@@ -78,42 +78,42 @@ class ActividadCrudTests(BaseWeb):
         self.ingresar('funcionario_centro', CLAVE_TEST)
         response = self.client.post(reverse('actividad_create'), self.datos(), follow=True)
         self.assertRedirects(response, reverse('actividad_list'))
-        actividad = Actividad.objects.get(numero='ACT-WEB-001')  # clean_numero normaliza a mayúsculas
-        self.assertEqual(actividad.delegacion.nombre, 'Delegación Centro')
-        self.assertEqual(actividad.estado_validacion, 'pendiente')
+        actividad = Activity.objects.get(number='ACT-WEB-001')  # clean_numero normaliza a mayúsculas
+        self.assertEqual(actividad.delegation.name, 'Delegación Centro')
+        self.assertEqual(actividad.validation_status, 'pending')
         self.assertContains(response, 'registrada correctamente')
 
     def test_formulario_invalido_reabre_el_modal_con_errores(self):
         self.ingresar('funcionario_centro', CLAVE_TEST)
-        response = self.client.post(reverse('actividad_create'), self.datos(numero=self.actividad_centro.numero.lower()))
+        response = self.client.post(reverse('actividad_create'), self.datos(number=self.actividad_centro.number.lower()))
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context['modal_abierto'])
-        self.assertIn('numero', response.context['form'].errors)
+        self.assertIn('number', response.context['form'].errors)
 
     def test_funcionario_no_puede_registrar_a_nombre_de_otro(self):
         self.ingresar('funcionario_centro', CLAVE_TEST)
-        otro = Funcionario.objects.get(nombre='María Soto (Admin Centro)')
-        response = self.client.post(reverse('actividad_create'), self.datos(funcionario=otro.pk))
-        self.assertIn('funcionario', response.context['form'].errors)
+        otro = Employee.objects.get(name='María Soto (Admin Centro)')
+        response = self.client.post(reverse('actividad_create'), self.datos(employee=otro.pk))
+        self.assertIn('employee', response.context['form'].errors)
 
     def test_no_permite_periodo_cerrado(self):
         self.ingresar('admin_centro', CLAVE_TEST)
-        cerrado = Periodo.objects.get(cerrado=True)
-        response = self.client.post(reverse('actividad_create'), self.datos(periodo=cerrado.pk))
-        self.assertIn('periodo', response.context['form'].errors)
+        cerrado = Period.objects.get(is_closed=True)
+        response = self.client.post(reverse('actividad_create'), self.datos(period=cerrado.pk))
+        self.assertIn('period', response.context['form'].errors)
 
     def test_editar_actividad_propia(self):
         self.ingresar('admin_centro', CLAVE_TEST)
         url = reverse('actividad_update', args=[self.actividad_centro.pk])
         self.assertTrue(self.client.get(url).context['modal_abierto'])
         datos = self.datos(
-            numero=self.actividad_centro.numero, codigo_evidencia=self.actividad_centro.codigo_evidencia,
-            descripcion='Descripción editada',
+            number=self.actividad_centro.number, evidence_code=self.actividad_centro.evidence_code,
+            description='Descripción editada',
         )
         response = self.client.post(url, datos)
         self.assertRedirects(response, reverse('actividad_list'))
         self.actividad_centro.refresh_from_db()
-        self.assertEqual(self.actividad_centro.descripcion, 'Descripción editada')
+        self.assertEqual(self.actividad_centro.description, 'Descripción editada')
 
     def test_no_puede_editar_actividad_de_otra_delegacion(self):
         self.ingresar('admin_centro', CLAVE_TEST)
@@ -126,13 +126,13 @@ class ActividadCrudTests(BaseWeb):
         self.assertEqual(self.client.get(url).status_code, 405)
         response = self.client.post(url)
         self.assertRedirects(response, reverse('actividad_list'))
-        self.assertFalse(Actividad.objects.filter(pk=self.actividad_centro.pk).exists())
+        self.assertFalse(Activity.objects.filter(pk=self.actividad_centro.pk).exists())
 
     def test_funcionario_no_tiene_permiso_de_eliminar_aunque_conozca_la_url(self):
         self.ingresar('funcionario_centro', CLAVE_TEST)
         response = self.client.post(reverse('actividad_delete', args=[self.actividad_centro.pk]))
         self.assertEqual(response.status_code, 403)
-        self.assertTrue(Actividad.objects.filter(pk=self.actividad_centro.pk).exists())
+        self.assertTrue(Activity.objects.filter(pk=self.actividad_centro.pk).exists())
 
     def test_admin_no_puede_eliminar_actividad_de_otra_delegacion(self):
         self.ingresar('admin_centro', CLAVE_TEST)
@@ -147,26 +147,26 @@ class EvidenciaArchivoTests(BaseWeb):
         super().tearDownClass()
         shutil.rmtree(MEDIA_TEMPORAL, ignore_errors=True)
 
-    def subir(self, archivo, actividad=None):
-        actividad = actividad or self.actividad_centro
+    def subir(self, archivo, activity=None):
+        activity = activity or self.actividad_centro
         return self.client.post(
-            reverse('evidencias_actividad', args=[actividad.pk]), {'descripcion': 'Foto', 'archivo': archivo},
+            reverse('evidencias_actividad', args=[activity.pk]), {'description': 'Foto', 'file': archivo},
         )
 
     def test_sube_imagen_valida_con_nombre_seguro(self):
         self.ingresar('funcionario_centro', CLAVE_TEST)
         response = self.subir(imagen_png('../../peligroso nombre.png'))
         self.assertRedirects(response, reverse('evidencias_actividad', args=[self.actividad_centro.pk]))
-        evidencia = Evidencia.objects.filter(actividad=self.actividad_centro).exclude(archivo='').get()
-        self.assertTrue(evidencia.archivo.name.startswith('evidencias/'))
-        self.assertNotIn('peligroso', evidencia.archivo.name)
-        self.assertNotIn('..', evidencia.archivo.name)
+        evidencia = Evidence.objects.filter(activity=self.actividad_centro).exclude(file='').get()
+        self.assertTrue(evidencia.file.name.startswith('evidencias/'))
+        self.assertNotIn('peligroso', evidencia.file.name)
+        self.assertNotIn('..', evidencia.file.name)
         self.assertTrue(evidencia.es_imagen)
 
     def test_rechaza_extension_no_permitida(self):
         self.ingresar('funcionario_centro', CLAVE_TEST)
         response = self.subir(SimpleUploadedFile('script.exe', b'MZ...'))
-        self.assertIn('archivo', response.context['form'].errors)
+        self.assertIn('file', response.context['form'].errors)
 
     def test_rechaza_contenido_falso_con_extension_de_imagen(self):
         self.ingresar('funcionario_centro', CLAVE_TEST)
@@ -186,33 +186,33 @@ class EvidenciaArchivoTests(BaseWeb):
 
     def test_no_puede_subir_a_actividad_de_otra_delegacion(self):
         self.ingresar('funcionario_centro', CLAVE_TEST)
-        response = self.subir(imagen_png(), actividad=self.actividad_norte)
+        response = self.subir(imagen_png(), activity=self.actividad_norte)
         self.assertEqual(response.status_code, 404)
 
     def test_eliminar_es_logico_y_conserva_el_archivo(self):
         self.ingresar('admin_centro', CLAVE_TEST)
         self.subir(imagen_png())
-        evidencia = Evidencia.objects.filter(actividad=self.actividad_centro).exclude(archivo='').get()
-        storage, nombre = evidencia.archivo.storage, evidencia.archivo.name
+        evidencia = Evidence.objects.filter(activity=self.actividad_centro).exclude(file='').get()
+        storage, nombre = evidencia.file.storage, evidencia.file.name
         response = self.client.post(reverse('evidencia_delete', args=[evidencia.pk]))
         self.assertEqual(response.status_code, 302)
-        self.assertFalse(Evidencia.objects.filter(pk=evidencia.pk).exists())
-        self.assertIsNotNone(Evidencia.all_objects.get(pk=evidencia.pk).deleted_at)
+        self.assertFalse(Evidence.objects.filter(pk=evidencia.pk).exists())
+        self.assertIsNotNone(Evidence.all_objects.get(pk=evidencia.pk).deleted_at)
         self.assertTrue(storage.exists(nombre))
         # La evidencia eliminada ya no aparece en el listado.
         response = self.client.get(reverse('evidencias_actividad', args=[self.actividad_centro.pk]))
-        self.assertNotIn(evidencia, list(response.context['evidencias']))
+        self.assertNotIn(evidencia, list(response.context['evidence_items']))
 
     def test_hard_delete_borra_el_archivo_fisico(self):
         self.ingresar('admin_centro', CLAVE_TEST)
         self.subir(imagen_png())
-        evidencia = Evidencia.objects.filter(actividad=self.actividad_centro).exclude(archivo='').get()
-        storage, nombre = evidencia.archivo.storage, evidencia.archivo.name
+        evidencia = Evidence.objects.filter(activity=self.actividad_centro).exclude(file='').get()
+        storage, nombre = evidencia.file.storage, evidencia.file.name
         evidencia.hard_delete()
         self.assertFalse(storage.exists(nombre))
 
     def test_funcionario_no_puede_eliminar_evidencia(self):
         self.ingresar('funcionario_centro', CLAVE_TEST)
-        evidencia = Evidencia.objects.filter(actividad=self.actividad_centro).first()
+        evidencia = Evidence.objects.filter(activity=self.actividad_centro).first()
         response = self.client.post(reverse('evidencia_delete', args=[evidencia.pk]))
         self.assertEqual(response.status_code, 403)

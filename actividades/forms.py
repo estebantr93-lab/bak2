@@ -1,7 +1,7 @@
 from django import forms
 from django.core.exceptions import ValidationError
 
-from .models import Actividad
+from .models import Activity
 
 
 class ActividadForm(forms.ModelForm):
@@ -9,7 +9,7 @@ class ActividadForm(forms.ModelForm):
     un ModelForm las ejecuta solo; repetirlas aquí mostraba cada error dos veces."""
 
     class Meta:
-        model = Actividad
+        model = Activity
         fields = '__all__'
 
 
@@ -22,48 +22,48 @@ class ActividadWebForm(ActividadForm):
 
     class Meta(ActividadForm.Meta):
         fields = [
-            'numero', 'funcionario', 'periodo', 'tipo_actividad', 'fecha', 'descripcion',
-            'accion', 'contacto', 'telefono', 'indicador_agenda', 'codigo_evidencia',
+            'number', 'employee', 'period', 'activity_type', 'date', 'description',
+            'action', 'contact', 'phone', 'is_agenda_item', 'evidence_code',
         ]
         labels = {
-            'numero': 'Número', 'periodo': 'Período', 'tipo_actividad': 'Tipo de actividad',
-            'descripcion': 'Descripción', 'accion': 'Acción', 'telefono': 'Teléfono',
-            'indicador_agenda': 'Indicador de agenda', 'codigo_evidencia': 'Código de evidencia',
+            'number': 'Número', 'period': 'Período', 'activity_type': 'Tipo de actividad',
+            'description': 'Descripción', 'action': 'Acción', 'phone': 'Teléfono',
+            'is_agenda_item': 'Indicador de agenda', 'evidence_code': 'Código de evidencia',
         }
         widgets = {
-            'fecha': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
-            'descripcion': forms.Textarea(attrs={'rows': 3}),
+            'date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+            'description': forms.Textarea(attrs={'rows': 3}),
         }
 
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         from core.admin_utils import ROL_FUNCIONARIO, filtrar_por_delegacion, get_rol
-        from core.models import Periodo, TipoActividad
-        from funcionarios.models import Funcionario
+        from core.models import Period, ActivityType
+        from funcionarios.models import Employee
 
-        funcionarios = filtrar_por_delegacion(Funcionario.objects.filter(activo=True), user)
+        funcionarios = filtrar_por_delegacion(Employee.objects.filter(is_active=True), user)
         if get_rol(user) == ROL_FUNCIONARIO:
             # Un funcionario solo registra actividades propias.
             funcionarios = funcionarios.filter(user=user)
-            self.fields['funcionario'].initial = funcionarios.first()
-        self.fields['funcionario'].queryset = funcionarios.select_related('delegacion')
-        self.fields['periodo'].queryset = Periodo.objects.filter(cerrado=False)
-        self.fields['tipo_actividad'].queryset = TipoActividad.objects.filter(activo=True)
-        for campo in ('funcionario', 'periodo', 'tipo_actividad'):
+            self.fields['employee'].initial = funcionarios.first()
+        self.fields['employee'].queryset = funcionarios.select_related('delegation')
+        self.fields['period'].queryset = Period.objects.filter(is_closed=False)
+        self.fields['activity_type'].queryset = ActivityType.objects.filter(is_active=True)
+        for campo in ('employee', 'period', 'activity_type'):
             self.fields[campo].empty_label = 'Seleccione…'
 
-    def clean_numero(self):
+    def clean_number(self):
         # Regla de un solo campo: normaliza y evita duplicados (también contra actividades eliminadas,
         # porque el número sigue ocupado en la base de datos).
-        numero = self.cleaned_data['numero'].strip().upper()
-        duplicado = Actividad.all_objects.filter(numero__iexact=numero).exclude(pk=self.instance.pk)
+        numero = self.cleaned_data['number'].strip().upper()
+        duplicado = Activity.all_objects.filter(number__iexact=numero).exclude(pk=self.instance.pk)
         if duplicado.exists():
             raise ValidationError('Ya existe una actividad con este número.')
         return numero
 
     def clean(self):
         cleaned_data = super().clean()
-        funcionario = cleaned_data.get('funcionario')
+        funcionario = cleaned_data.get('employee')
         if funcionario is not None:
-            self.instance.delegacion = funcionario.delegacion
+            self.instance.delegation = funcionario.delegation
         return cleaned_data
