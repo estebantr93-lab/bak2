@@ -149,6 +149,14 @@ python manage.py seed_data
 
 El comando `seed_data` (definido en `core/management/commands/seed_data.py`) ejecuta, en orden de dependencias, los seeders de `core → funcionarios → medicion → actividades → evidencias → agenda → colaboracion`, creando de forma **idempotente**: 2 delegaciones, 4 cargos, 5 tipos de actividad, 2 períodos (uno cerrado, uno abierto), parámetros, metas/ponderaciones/indicadores, 8 actividades (con evidencias y validaciones) repartidas entre ambas delegaciones, 4 compromisos de agenda (con seguimientos) y los usuarios/grupos de prueba. Al finalizar imprime un resumen de conteos y las credenciales de demostración.
 
+#### Datos de volumen (1.000+ registros)
+
+```bash
+python manage.py seed_data --volumen
+```
+
+Además de la demo, agrega de forma **reproducible** (semilla fija) e **idempotente**, sin duplicar si se vuelve a ejecutar: 16 funcionarios, 500 actividades, ~300 evidencias, ~200 atenciones sociales, 125 compromisos y ~110 seguimientos. En total son **más de 1.300 registros de negocio**, repartidos entre ambas delegaciones y ambos períodos, para probar relaciones, permisos y paginación. El comando muestra el total al terminar. Los funcionarios de volumen no tienen contraseña utilizable: son datos, no cuentas de acceso. El código está en `core/volume_data.py`.
+
 > Para reconstruir desde cero: `DROP DATABASE sgr; CREATE DATABASE sgr CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;` y repetir los pasos 5 y 6.
 
 ### 7. Levantar el servidor

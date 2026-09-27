@@ -9,6 +9,7 @@ from colaboracion.data import build_colaboracion
 from colaboracion.models import Alert, Comment, AuditLog
 from core.data import build_core
 from core.models import Position, Delegation, Parameter, Period, ActivityType
+from core.volume_data import build_volumen
 from evidencias.data import build_evidencias
 from evidencias.models import Evidence, Validation
 from funcionarios.data import CLAVES_GENERADAS, USUARIOS_DEMO, build_funcionarios
@@ -20,6 +21,12 @@ from medicion.models import Goal
 
 class Command(BaseCommand):
     help = 'Carga datos de demostración reproducibles del SGR (idempotente).'
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--volumen', nargs='?', const=500, type=int, default=0, metavar='ACTIVIDADES',
+            help='Agrega datos de volumen (por defecto 500 actividades, más de 1.000 registros de negocio).',
+        )
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -45,6 +52,14 @@ class Command(BaseCommand):
 
         build_colaboracion()
         self.stdout.write(self.style.SUCCESS('  colaboracion: comentario, alerta y traza de ejemplo OK'))
+
+        if options['volumen']:
+            creados = build_volumen(options['volumen'])
+            if creados is None:
+                self.stdout.write('  volumen: ya estaba cargado (no se duplica)')
+            else:
+                detalle = ', '.join(f'{k}: {v}' for k, v in creados.items())
+                self.stdout.write(self.style.SUCCESS(f'  volumen: {sum(creados.values())} registros ({detalle})'))
 
         self._imprimir_resumen()
 
@@ -74,6 +89,11 @@ class Command(BaseCommand):
         for etiqueta, total in conteos:
             self.stdout.write(f'  - {etiqueta}: {total}')
 
+        negocio = sum(total for etiqueta, total in conteos if etiqueta in (
+            'Funcionarios', 'Actividades', 'Atenciones sociales', 'Evidencias', 'Validaciones',
+            'Compromisos', 'Seguimientos de compromiso',
+        ))
+        self.stdout.write(self.style.SUCCESS(f'  Total de registros de negocio: {negocio}'))
         self.stdout.write('')
         self.stdout.write(self.style.MIGRATE_HEADING('Cuentas de prueba (usuario -> rol):'))
         roles = {
