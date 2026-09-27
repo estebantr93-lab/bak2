@@ -155,7 +155,21 @@ El comando `seed_data` (definido en `core/management/commands/seed_data.py`) eje
 python manage.py seed_data --volumen
 ```
 
-Además de la demo, agrega de forma **reproducible** (semilla fija) e **idempotente**, sin duplicar si se vuelve a ejecutar: 16 funcionarios, 500 actividades, ~300 evidencias, ~200 atenciones sociales, 125 compromisos y ~110 seguimientos. En total son **más de 1.300 registros de negocio**, repartidos entre ambas delegaciones y ambos períodos, para probar relaciones, permisos y paginación. El comando muestra el total al terminar. Los funcionarios de volumen no tienen contraseña utilizable: son datos, no cuentas de acceso. El código está en `core/volume_data.py`.
+Además de la demo, agrega de forma **reproducible** (semilla fija) e **idempotente**, sin duplicar si se vuelve a ejecutar, **más de 1.400 registros de negocio** repartidos **en partes iguales entre ambas delegaciones** y entre ambos períodos:
+
+| Por delegación (aprox.) | Centro | Norte |
+| --- | --- | --- |
+| Actividades | 254 | 254 |
+| Evidencias (con archivo PNG/PDF real) | 169 (37) | 179 (48) |
+| Atenciones sociales | 83 | 94 |
+| Compromisos | 64 | 65 |
+| Funcionarios | 10 | 10 |
+
+- Las cuentas de demostración tienen datos propios. `funcionario_centro` y `funcionario_norte` tienen unas 60 actividades cada uno, con evidencias y compromisos. Los admins tienen un bloque menor.
+- Los funcionarios generados tienen cargos operativos (Atención Ciudadana y Social) y no tienen contraseña utilizable: son datos, no cuentas de acceso.
+- Las evidencias aprobadas o rechazadas incluyen su `Validation` hecha por el verificador.
+- Para regenerar desde cero solo el volumen (por ejemplo en AWS): `python manage.py seed_data --rehacer-volumen`.
+- El código está en `core/volume_data.py`.
 
 > Para reconstruir desde cero: `DROP DATABASE sgr; CREATE DATABASE sgr CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;` y repetir los pasos 5 y 6.
 

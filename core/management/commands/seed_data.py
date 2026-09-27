@@ -9,7 +9,7 @@ from colaboracion.data import build_colaboracion
 from colaboracion.models import Alert, Comment, AuditLog
 from core.data import build_core
 from core.models import Position, Delegation, Parameter, Period, ActivityType
-from core.volume_data import build_volumen
+from core.volume_data import borrar_volumen, build_volumen
 from evidencias.data import build_evidencias
 from evidencias.models import Evidence, Validation
 from funcionarios.data import CLAVES_GENERADAS, USUARIOS_DEMO, build_funcionarios
@@ -26,6 +26,10 @@ class Command(BaseCommand):
         parser.add_argument(
             '--volumen', nargs='?', const=500, type=int, default=0, metavar='ACTIVIDADES',
             help='Agrega datos de volumen (por defecto 500 actividades, más de 1.000 registros de negocio).',
+        )
+        parser.add_argument(
+            '--rehacer-volumen', action='store_true',
+            help='Borra los datos de volumen existentes (prefijo VOL-) y los vuelve a generar.',
         )
 
     @transaction.atomic
@@ -53,6 +57,10 @@ class Command(BaseCommand):
         build_colaboracion()
         self.stdout.write(self.style.SUCCESS('  colaboracion: comentario, alerta y traza de ejemplo OK'))
 
+        if options['rehacer_volumen']:
+            borrar_volumen()
+            options['volumen'] = options['volumen'] or 500
+            self.stdout.write('  volumen: datos anteriores eliminados')
         if options['volumen']:
             creados = build_volumen(options['volumen'])
             if creados is None:
