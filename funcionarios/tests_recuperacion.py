@@ -106,3 +106,31 @@ class RecuperacionTests(TestCase):
     def test_login_enlaza_a_recuperacion(self):
         response = self.client.get(reverse('login'))
         self.assertContains(response, reverse('recuperar_solicitar'))
+
+
+class PoliticaDeContrasenaTests(TestCase):
+    def test_validadores_rechazan_claves_debiles(self):
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError
+
+        for debil in ['Corta#1a', 'sinmayuscula#2026', 'SINMINUSCULA#2026', 'SinNumero#Clave', 'SinEspecial2026x']:
+            with self.assertRaises(ValidationError, msg=debil):
+                validate_password(debil)
+        validate_password('Valida#Clave2026')  # cumple todo: no lanza
+
+    def test_recuperacion_pide_la_clave_dos_veces_y_aplica_la_politica(self):
+        from django.contrib.auth.models import User
+
+        sembrar_datos_demo()
+        user = User.objects.get(username='admin_centro')
+        session = self.client.session
+        session['recuperacion_validado'] = {'user_id': user.pk, 'hasta': 9999999999}
+        session.save()
+        response = self.client.post(reverse('recuperar_nueva'), {'new_password1': 'debil123', 'new_password2': 'debil123'})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('new_password2', response.context['form'].errors)
+        response = self.client.post(
+            reverse('recuperar_nueva'), {'new_password1': 'Valida#Clave2026', 'new_password2': 'Otra#Clave2026'},
+        )
+        self.assertIn('new_password2', response.context['form'].errors)  # no coinciden
+        self.assertFalse(User.objects.get(pk=user.pk).check_password('debil123'))

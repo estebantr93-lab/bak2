@@ -197,6 +197,10 @@ Enlace **¿Olvidó su contraseña?** en el login → correo → código de 6 dí
 Solo se guarda el **hash** del código (`PasswordResetCode`). El código vence en **120 s**, es de **uso único**, admite **5 intentos** y pedir uno nuevo invalida los anteriores. La respuesta es siempre genérica («Si el correo corresponde…»).
 En desarrollo el correo se imprime en la terminal de `runserver`. Django 6.1 reemplaza `EMAIL_BACKEND`/`EMAIL_HOST`/... por `MAILERS`, y definir ambos es un error; por eso `settings.py` lee las mismas variables de `.env` (`EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`) dentro de `MAILERS`. Para usar Mailtrap basta con cambiar esas variables.
 
+### Política de contraseñas
+
+`AUTH_PASSWORD_VALIDATORS` exige **mínimo 10 caracteres** (`MinimumLengthValidator`) y **mayúscula, minúscula, número y carácter especial** (`core/validators.py`), además de los validadores de similitud con el usuario y de contraseñas comunes. Se aplica en la recuperación de contraseña, que pide la clave dos veces con `SetPasswordForm`, y en el Admin. Django guarda solo el hash (PBKDF2), nunca el texto plano.
+
 ### CRUD protegido con modal (Clase 7)
 
 `/actividades/` usa `ListView`, `CreateView`, `UpdateView` y `DeleteView` con `LoginRequiredMixin` y `PermissionRequiredMixin`, y el mismo `ActividadWebForm` (ModelForm) para crear y editar. Ese formulario tiene `clean_numero()`, `clean()` y las validaciones del modelo.
