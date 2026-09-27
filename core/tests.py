@@ -4,11 +4,14 @@ from io import StringIO
 from django.contrib.auth.models import Permission, User
 from django.core.management import call_command
 from django.db import connection
+from django.forms import modelform_factory
 from django.test import RequestFactory, TestCase
 
 from .admin_utils import ScopedModelAdmin
-from .forms import PeriodoForm
 from .models import Cargo, Delegacion, Periodo, TipoActividad
+
+
+PeriodoForm = modelform_factory(Periodo, fields='__all__')
 
 
 class PeriodoFormTests(TestCase):
@@ -37,6 +40,19 @@ class PeriodoFormTests(TestCase):
             'tope_maximo': '150.00',
         })
         self.assertFalse(form.is_valid())
+
+    def test_error_de_solapamiento_aparece_una_sola_vez(self):
+        Periodo.objects.create(
+            nombre='Período 1', fecha_inicio=datetime.date(2026, 1, 1),
+            fecha_termino=datetime.date(2026, 6, 30),
+        )
+        form = PeriodoForm(data={
+            'nombre': 'Período 2', 'fecha_inicio': datetime.date(2026, 6, 1),
+            'fecha_termino': datetime.date(2026, 12, 31), 'cerrado': False,
+            'umbral_minimo': '80.00', 'tope_maximo': '150.00',
+        })
+        self.assertFalse(form.is_valid())
+        self.assertEqual(form.non_field_errors(), ['El período se solapa con otro período ya existente.'])
 
     def test_periodo_valido_se_guarda(self):
         form = PeriodoForm(data={

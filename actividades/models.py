@@ -35,10 +35,9 @@ class Actividad(models.Model):
         return self.numero
 
     def clean(self):
+        # codigo_evidencia es obligatorio por el propio campo (blank=False); no se repite aquí.
         if self.periodo_id and self.periodo.cerrado:
-            raise ValidationError('Período cerrado: no se pueden registrar actividades.')
-        if not self.codigo_evidencia:
-            raise ValidationError('El código de evidencia es obligatorio.')
+            raise ValidationError({'periodo': 'Período cerrado: no se pueden registrar actividades.'})
         if self.funcionario_id and self.delegacion_id and self.funcionario.delegacion_id != self.delegacion_id:
             raise ValidationError('La delegación debe coincidir con la delegación del funcionario.')
 

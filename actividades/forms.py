@@ -5,24 +5,12 @@ from .models import Actividad
 
 
 class ActividadForm(forms.ModelForm):
+    """Formulario del Admin. Las reglas de negocio están en Actividad.clean() y
+    un ModelForm las ejecuta solo; repetirlas aquí mostraba cada error dos veces."""
+
     class Meta:
         model = Actividad
         fields = '__all__'
-
-    def clean(self):
-        cleaned_data = super().clean()
-        periodo = cleaned_data.get('periodo')
-        codigo_evidencia = cleaned_data.get('codigo_evidencia')
-        funcionario = cleaned_data.get('funcionario')
-        delegacion = cleaned_data.get('delegacion')
-
-        if periodo and periodo.cerrado:
-            raise ValidationError('Período cerrado: no se pueden registrar actividades.')
-        if not codigo_evidencia:
-            raise ValidationError({'codigo_evidencia': 'El código de evidencia es obligatorio.'})
-        if funcionario and delegacion and funcionario.delegacion_id != delegacion.id:
-            raise ValidationError('La delegación debe coincidir con la delegación del funcionario.')
-        return cleaned_data
 
 
 class ActividadWebForm(ActividadForm):

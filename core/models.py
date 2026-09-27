@@ -72,7 +72,7 @@ class Periodo(models.Model):
 
     def clean(self):
         if self.fecha_inicio and self.fecha_termino and self.fecha_inicio >= self.fecha_termino:
-            raise ValidationError('La fecha de inicio debe ser anterior a la fecha de término.')
+            raise ValidationError({'fecha_termino': 'La fecha de inicio debe ser anterior a la fecha de término.'})
         if self.fecha_inicio and self.fecha_termino:
             solapados = Periodo.objects.filter(
                 fecha_inicio__lte=self.fecha_termino,

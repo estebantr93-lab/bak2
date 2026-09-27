@@ -2,7 +2,6 @@ from django.contrib import admin
 
 from .admin_utils import ScopedModelAdmin
 
-from .forms import PeriodoForm
 from .models import Cargo, Delegacion, Parametro, Periodo, TipoActividad
 
 admin.site.site_header = 'SGR — Delegaciones Municipales de La Serena'
@@ -37,7 +36,6 @@ class TipoActividadAdmin(admin.ModelAdmin):
 
 @admin.register(Periodo)
 class PeriodoAdmin(admin.ModelAdmin):
-    form = PeriodoForm
     list_display = ('nombre', 'fecha_inicio', 'fecha_termino', 'cerrado', 'umbral_minimo', 'tope_maximo')
     search_fields = ('nombre',)
     list_filter = ('cerrado',)

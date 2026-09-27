@@ -49,10 +49,15 @@ class ActividadFormTests(TestCase):
         )
         form = ActividadForm(data=self._datos_base(periodo=periodo_cerrado.pk))
         self.assertFalse(form.is_valid())
+        # El error aparece una sola vez y junto al campo, no duplicado.
+        self.assertEqual(form.errors['periodo'], ['Período cerrado: no se pueden registrar actividades.'])
+        self.assertEqual(form.non_field_errors(), [])
 
     def test_codigo_evidencia_obligatorio(self):
         form = ActividadForm(data=self._datos_base(codigo_evidencia=''))
         self.assertFalse(form.is_valid())
+        self.assertEqual(len(form.errors['codigo_evidencia']), 1)
+        self.assertEqual(form.non_field_errors(), [])
 
     def test_actividad_valida_se_guarda(self):
         form = ActividadForm(data=self._datos_base())

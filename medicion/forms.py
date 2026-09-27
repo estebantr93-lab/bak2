@@ -14,16 +14,11 @@ class MetaForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
         ponderador = cleaned_data.get('ponderador')
-        meta = cleaned_data.get('meta')
         cargo = cleaned_data.get('cargo')
         periodo = cleaned_data.get('periodo')
 
-        if ponderador is not None and ponderador <= 0:
-            raise ValidationError({'ponderador': 'El ponderador debe ser mayor a 0.'})
-        if meta is not None and meta <= 0:
-            raise ValidationError({'meta': 'La meta debe ser mayor a 0.'})
-
-        if cargo and periodo and ponderador is not None:
+        # Meta > 0 y ponderador > 0 los valida Meta.clean(); aquí solo la regla entre registros.
+        if cargo and periodo and ponderador is not None and ponderador > 0:
             otras = MetaModel.objects.filter(cargo=cargo, periodo=periodo).exclude(pk=self.instance.pk)
             suma = sum((m.ponderador for m in otras), Decimal('0')) + ponderador
             if suma > 100:

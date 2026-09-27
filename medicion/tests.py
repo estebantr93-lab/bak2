@@ -36,6 +36,16 @@ class MetaFormTests(TestCase):
         })
         self.assertFalse(form.is_valid())
 
+    def test_ponderador_cero_muestra_un_solo_error(self):
+        form = MetaForm(data={
+            'cargo': self.cargo.pk, 'periodo': self.periodo.pk, 'tipo_actividad': self.tipo1.pk,
+            'meta': 0, 'ponderador': '0',
+        })
+        self.assertFalse(form.is_valid())
+        self.assertEqual(form.errors['ponderador'], ['El ponderador debe ser mayor a 0.'])
+        self.assertEqual(form.errors['meta'], ['La meta debe ser mayor a 0.'])
+        self.assertEqual(form.non_field_errors(), [])
+
     def test_ponderador_valido_dentro_de_100(self):
         MetaModel.objects.create(cargo=self.cargo, periodo=self.periodo, tipo_actividad=self.tipo1, meta=10, ponderador=Decimal('60'))
         form = MetaForm(data={

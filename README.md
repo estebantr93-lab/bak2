@@ -49,7 +49,7 @@ Proyecto_Integrado_SGR/
 ├── medicion/        # Meta, Ponderacion, Indicador + fórmulas de cálculo (services.py)
 ├── monitoreo/       # TableroPanel
 ├── dashboard/       # Dashboard de resumen por funcionario y rol (services.py)
-├── reportes/        # Servicios de exportación (sin modelos propios)
+├── reportes/        # Servicios de exportación (sin modelos ni vistas propias todavía)
 ├── colaboracion/    # Comentario, Alerta, TrazaAuditoria
 ├── templates/       # landing, base, registration/ (login y recuperación), dashboard/, actividades/, evidencias/
 ├── static/          # static/css/style.css y static/js/confirmar.js (SweetAlert2)

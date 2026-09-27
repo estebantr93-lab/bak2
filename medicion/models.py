@@ -26,10 +26,13 @@ class Meta(models.Model):
         return f'{self.cargo} - {self.periodo} - {self.tipo_actividad}'
 
     def clean(self):
+        errores = {}
         if self.ponderador is not None and self.ponderador <= 0:
-            raise ValidationError('El ponderador debe ser mayor a 0.')
+            errores['ponderador'] = 'El ponderador debe ser mayor a 0.'
         if self.meta is not None and self.meta <= 0:
-            raise ValidationError('La meta debe ser mayor a 0.')
+            errores['meta'] = 'La meta debe ser mayor a 0.'
+        if errores:
+            raise ValidationError(errores)
 
 
 class Ponderacion(models.Model):
