@@ -1,4 +1,22 @@
 from django import forms
+from django.contrib.auth.forms import AuthenticationForm
+
+from core.admin_utils import tiene_acceso_al_sistema
+
+
+class LoginForm(AuthenticationForm):
+    error_messages = {
+        **AuthenticationForm.error_messages,
+        # Genérico: no revela cuál de las dos credenciales falló.
+        'invalid_login': 'Usuario o contraseña incorrectos.',
+        'sin_rol': 'Su cuenta no tiene un rol asignado. Contacte al administrador del sistema.',
+    }
+
+    def confirm_login_allowed(self, user):
+        super().confirm_login_allowed(user)  # rechaza cuentas inactivas
+        # Se evalúa con la contraseña ya verificada, así que no revela qué usuarios existen.
+        if not tiene_acceso_al_sistema(user):
+            raise forms.ValidationError(self.error_messages['sin_rol'], code='sin_rol')
 
 
 class SolicitarCodigoForm(forms.Form):

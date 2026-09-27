@@ -16,11 +16,6 @@
                     </div>
                 {% endif %}
 
-                {% if form.errors %}
-                    {# El mensaje no revela cuál de las dos credenciales falló. #}
-                    <div class="alert alert-danger small">Usuario o contraseña incorrectos.</div>
-                {% endif %}
-
                 <form method="post">
                     {% csrf_token %}
                     {% include "includes/form_campos.html" %}

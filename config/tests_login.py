@@ -81,3 +81,59 @@ class ConfiguracionSesionTests(TestCase):
         self.assertEqual(settings.SESSION_COOKIE_SAMESITE, 'Lax')
         self.assertEqual(settings.LOGIN_REDIRECT_URL, 'dashboard')
 
+
+
+class AccesoPorRolEnLoginTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command('seed_data', stdout=StringIO())
+
+    def _ingresar(self, username, password):
+        return self.client.post(reverse('login'), {'username': username, 'password': password}, follow=True)
+
+    def test_usuario_sin_rol_no_puede_iniciar_sesion(self):
+        from django.contrib.auth.models import User
+
+        User.objects.create_user(username='sin_rol', password='Clave#Segura2026')
+        response = self._ingresar('sin_rol', 'Clave#Segura2026')
+        self.assertContains(response, 'no tiene un rol asignado')
+        self.assertNotIn('_auth_user_id', self.client.session)
+
+    def test_funcionario_sin_perfil_no_puede_iniciar_sesion(self):
+        from django.contrib.auth.models import Group, User
+
+        user = User.objects.create_user(username='sin_perfil', password='Clave#Segura2026')
+        user.groups.add(Group.objects.get(name='Funcionarios'))
+        response = self._ingresar('sin_perfil', 'Clave#Segura2026')
+        self.assertContains(response, 'no tiene un rol asignado')
+        self.assertNotIn('_auth_user_id', self.client.session)
+
+    def test_verificador_sin_perfil_si_puede_iniciar_sesion(self):
+        # El verificador es un rol global: no necesita perfil de delegación.
+        response = self._ingresar('verificador_leia', 'Verifica#2026SGR')
+        self.assertRedirects(response, reverse('dashboard'))
+
+    def test_contrasena_incorrecta_muestra_un_solo_mensaje_generico(self):
+        response = self._ingresar('admin_centro', 'incorrecta')
+        self.assertContains(response, 'Usuario o contraseña incorrectos.', count=1)
+        self.assertNotContains(response, 'rol asignado')
+
+
+class MensajesYPagina403Tests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command('seed_data', stdout=StringIO())
+
+    def test_mensaje_de_error_usa_la_clase_danger_de_bootstrap(self):
+        response = self.client.get(reverse('recuperar_nueva'), follow=True)
+        self.assertContains(response, 'La validación expiró')
+        self.assertContains(response, 'alert-danger')
+        self.assertNotContains(response, 'alert-error')
+
+    def test_403_usa_la_plantilla_del_sitio(self):
+        self.client.login(username='verificador_leia', password='Verifica#2026SGR')
+        response = self.client.get(reverse('actividad_list'))
+        self.assertEqual(response.status_code, 403)
+        self.assertTemplateUsed(response, '403.html')
+        self.assertContains(response, 'Acceso denegado', status_code=403)
+        self.assertContains(response, reverse('dashboard'), status_code=403)

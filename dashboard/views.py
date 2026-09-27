@@ -2,7 +2,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import render
 
-from core.admin_utils import ROLES_ETIQUETAS, es_usuario_sin_restriccion, get_rol, get_usuario_delegacion
+from core.admin_utils import ROLES_ETIQUETAS, get_rol, get_usuario_delegacion, tiene_acceso_al_sistema
 from core.models import Periodo
 
 from .services import construir_dashboard, periodo_por_defecto
@@ -30,11 +30,12 @@ def _periodo_elegido(request, periodos):
 
 @login_required
 def dashboard(request):
+    # Autenticado no basta: sin rol, o sin perfil de delegación (salvo roles globales), no hay acceso.
+    # El login ya lo impide; esto cubre sesiones anteriores a un cambio de rol.
+    if not tiene_acceso_al_sistema(request.user):
+        raise PermissionDenied('La cuenta no posee un perfil habilitado.')
     rol = get_rol(request.user)
     delegacion = get_usuario_delegacion(request.user)
-    # Autenticado no basta: sin rol, o sin perfil de delegación (salvo roles globales), no hay acceso.
-    if rol is None or (delegacion is None and not es_usuario_sin_restriccion(request.user)):
-        raise PermissionDenied('La cuenta no posee un perfil habilitado.')
 
     periodos = Periodo.objects.all()
     periodo = _periodo_elegido(request, periodos)

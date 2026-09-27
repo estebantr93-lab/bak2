@@ -17,8 +17,11 @@ Including another URLconf
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.contrib.auth import views as auth_views
 from django.urls import include, path
 from django.views.generic import RedirectView
+
+from funcionarios.forms import LoginForm
 
 from .views import inicio
 
@@ -28,7 +31,10 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     # Recuperación con código temporal (antes del include para no chocar con las rutas de Django).
     path('accounts/recuperar/', include('funcionarios.urls')),
-    # login, logout y gestión de contraseña incluidas por Django.
+    # Mismo LoginView de Django, con un formulario que rechaza cuentas sin rol.
+    # Va antes del include para reemplazar solo la ruta 'login'.
+    path('accounts/login/', auth_views.LoginView.as_view(authentication_form=LoginForm), name='login'),
+    # logout y gestión de contraseña incluidas por Django.
     path('accounts/', include('django.contrib.auth.urls')),
     path('actividades/', include('actividades.urls')),
     path('evidencias/', include('evidencias.urls')),

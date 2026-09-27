@@ -55,6 +55,13 @@ def es_usuario_sin_restriccion(user):
     return get_rol(user) in (ROL_SUPERADMIN, ROL_VERIFICADOR)
 
 
+def tiene_acceso_al_sistema(user):
+    """Puede usar el sistema quien tiene rol y, salvo los roles globales, un perfil con delegación."""
+    if get_rol(user) is None:
+        return False
+    return es_usuario_sin_restriccion(user) or get_usuario_delegacion(user) is not None
+
+
 def filtrar_por_delegacion(queryset, user, campo='delegacion'):
     """Scoping para vistas fuera del Admin: mismo criterio que ScopedModelAdmin."""
     if es_usuario_sin_restriccion(user):

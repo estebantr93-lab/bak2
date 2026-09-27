@@ -197,6 +197,15 @@ LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
 
 
+# Mensajes: el nivel ERROR usa la clase "danger" de Bootstrap (alert-error no existe).
+from django.contrib.messages import constants as message_constants  # noqa: E402
+
+MESSAGE_TAGS = {
+    message_constants.DEBUG: 'secondary',
+    message_constants.ERROR: 'danger',
+}
+
+
 # Sesiones y cookies: COOKIE_SECURE=True solo en producción con HTTPS.
 COOKIE_SECURE = os.getenv('COOKIE_SECURE', 'False').lower() == 'true'
 SESSION_COOKIE_AGE = 60 * 60 * 2  # 2 horas
