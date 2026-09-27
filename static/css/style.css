@@ -30,3 +30,8 @@ body { background: var(--sgr-fondo); }
 
 .evidencia-img { height: 180px; object-fit: cover; }
 .evidencia-sin-img { height: 180px; display: flex; align-items: center; justify-content: center; background: #f3e9df; }
+
+.miniatura { height: 40px; width: 56px; object-fit: cover; border-radius: 4px; }
+.estado-registered { background: #6c757d; }
+.estado-in_progress { background: #0d6efd; }
+.estado-done { background: #198754; }

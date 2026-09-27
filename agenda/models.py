@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 
 from core.models import Delegation
@@ -33,6 +34,12 @@ class Commitment(SoftDeleteModel):
 
     def __str__(self):
         return self.title
+
+    def clean(self):
+        if self.responsible_id and self.delegation_id and self.responsible.delegation_id != self.delegation_id:
+            raise ValidationError({'responsible': 'El responsable debe pertenecer a la delegación del compromiso.'})
+        if self.status == 'done' and not self.notes.strip():
+            raise ValidationError({'notes': 'Para marcar el compromiso como realizado debe registrar observaciones.'})
 
 
 class CommitmentFollowUp(SoftDeleteModel):

@@ -1,4 +1,5 @@
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 from core.models import Delegation, Period, ActivityType
@@ -50,7 +51,9 @@ class SocialCase(SoftDeleteModel):
     activity = models.ForeignKey(
         Activity, verbose_name='actividad', on_delete=models.CASCADE, related_name='social_cases', limit_choices_to={'deleted_at__isnull': True},
     )
-    step_number = models.PositiveSmallIntegerField('número de gestión')
+    step_number = models.PositiveSmallIntegerField(
+        'número de gestión', validators=[MinValueValidator(1), MaxValueValidator(3)],
+    )
     description = models.TextField('descripción')
 
     class Meta:
@@ -66,8 +69,8 @@ class SocialCase(SoftDeleteModel):
         return f'{self.activity.number} - Gestión {self.step_number}'
 
     def clean(self):
-        if self.step_number and (self.step_number < 1 or self.step_number > 3):
-            raise ValidationError('El número de gestión debe estar entre 1 y 3.')
+        if self.activity_id and self.activity.activity_type.category != 'social':
+            raise ValidationError({'activity': 'Solo las actividades de tipo "Atención social" admiten gestiones.'})
         if self.activity_id:
             existentes = SocialCase.objects.filter(activity=self.activity).exclude(pk=self.pk).count()
             if existentes >= 3:

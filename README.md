@@ -165,8 +165,7 @@ El proyecto expone estas rutas:
 | **http://127.0.0.1:8000/accounts/login/** | Login (`django.contrib.auth.urls`). Tras ingresar redirige al dashboard (o a `?next=`). |
 | **http://127.0.0.1:8000/accounts/logout/** | Cierre de sesión (solo `POST`, botón en la barra superior). |
 | **http://127.0.0.1:8000/accounts/recuperar/** | Recuperación de contraseña con código temporal de 6 dígitos. |
-| **http://127.0.0.1:8000/actividades/** | CRUD protegido de actividades (modal para crear/editar, eliminar por POST). |
-| **http://127.0.0.1:8000/evidencias/actividad/&lt;id&gt;/** | Evidencias de una actividad: carga de archivos JPG/PNG/PDF y eliminación. |
+| **http://127.0.0.1:8000/actividades/**, **/actividades/atenciones/**, **/evidencias/**, **/compromisos/** | CRUD protegidos con exportación a Excel. |
 | **http://127.0.0.1:8000/dashboard/** | Dashboard: resumen por funcionario agrupado por rol, acotado a lo que el usuario puede ver. |
 | **http://127.0.0.1:8000/admin/** | Django Admin. `/admin/login/` redirige al login propio. |
 
@@ -201,11 +200,22 @@ En desarrollo el correo se imprime en la terminal de `runserver`. Django 6.1 ree
 
 `AUTH_PASSWORD_VALIDATORS` exige **mínimo 10 caracteres** (`MinimumLengthValidator`) y **mayúscula, minúscula, número y carácter especial** (`core/validators.py`), además de los validadores de similitud con el usuario y de contraseñas comunes. Se aplica en la recuperación de contraseña, que pide la clave dos veces con `SetPasswordForm`, y en el Admin. Django guarda solo el hash (PBKDF2), nunca el texto plano.
 
-### CRUD protegido con modal (Clase 7)
+### CRUD protegidos, paginación y Excel (Clase 7 + investigación)
 
-`/actividades/` usa `ListView`, `CreateView`, `UpdateView` y `DeleteView` con `LoginRequiredMixin` y `PermissionRequiredMixin`, y el mismo `ActividadWebForm` (ModelForm) para crear y editar. Ese formulario tiene `clean_numero()`, `clean()` y las validaciones del modelo.
-Crear y editar se hacen en un modal de Bootstrap. Si hay errores, la misma plantilla vuelve a mostrarse con el modal abierto. Cada operación conserva su URL (`/actividades/nueva/`, `/<id>/editar/`, `/<id>/eliminar/`).
-Eliminar funciona solo por POST y exige `delete_actividad`, que tienen los administradores y no los funcionarios. Ocultar un botón no protege nada: cada vista vuelve a verificar el permiso y el alcance, y responde 403 o 404.
+Hay cuatro CRUD completos (crear, listar, editar y eliminar lógicamente) construidos sobre una base común, `core/crud.py`. Cada entidad solo declara su modelo, columnas, formulario (ModelForm) y permisos:
+
+| CRUD | URL | Validaciones de servidor destacadas |
+| --- | --- | --- |
+| Actividades | `/actividades/` | número único (también contra eliminadas), período cerrado, funcionario de la misma delegación |
+| Atenciones sociales | `/actividades/atenciones/` | gestión 1 a 3 (validadores de rango), máximo 3 por actividad, sin duplicados, solo actividades de tipo social |
+| Evidencias (con archivo) | `/evidencias/` | archivo obligatorio al crear, 2 MB, extensión y contenido real; solo el verificador cambia el estado |
+| Compromisos | `/compromisos/` | título mínimo, vencimiento no pasado, responsable de la misma delegación, "realizado" exige observaciones |
+
+- **Seguridad por capas en cada vista:** `LoginRequiredMixin` (anónimo → login), `PermissionRequiredMixin` (sin permiso → 403) y scoping por delegación en `get_queryset` (un objeto de otra delegación → 404). Ocultar un botón no protege nada; cada vista vuelve a verificar.
+- **Modal:** crear y editar usan el mismo ModelForm en un modal de Bootstrap. Si hay errores, la misma plantilla se vuelve a mostrar con el modal abierto. Cada operación conserva su URL (`nueva/`, `<id>/editar/`, `<id>/eliminar/`).
+- **Eliminar:** solo por POST con CSRF, previa confirmación con SweetAlert2 (`static/js/confirmar.js`). El resultado es un **borrado lógico**.
+- **Paginación:** 5, 15 o 30 registros por página. La elección se guarda en `request.session['page_size']` y aplica a todos los listados. Los valores no permitidos se ignoran.
+- **Exportar a Excel:** el botón "Exportar Excel" descarga un `.xlsx` generado con **openpyxl** (`CrudExportView`), con encabezados y los datos del **mismo QuerySet del listado**. Por eso respeta permisos, scoping por delegación y borrado lógico. El archivo se arma en memoria: `Workbook()` → `hoja.append(fila)` → `libro.save(response)`.
 
 ### Borrado lógico (`deleted_at`)
 
