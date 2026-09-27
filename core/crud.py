@@ -14,6 +14,7 @@ Cada CRUD declara su modelo, columnas, formulario y permisos; esta base aporta l
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
+from django.core.exceptions import PermissionDenied
 from django.contrib.messages.views import SuccessMessageMixin
 from django.core.paginator import Paginator
 from django.urls import reverse
@@ -23,7 +24,7 @@ from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
 from reportes.services import as_text, respuesta_xlsx, valor_excel
 
-from .admin_utils import filtrar_por_delegacion
+from .admin_utils import filtrar_por_delegacion, solo_propios
 
 PAGE_SIZES = [5, 15, 30]
 PAGE_SIZE_DEFAULT = 15
@@ -79,6 +80,7 @@ class CrudConfig:
     context_object_name = 'objects'
     filters = {}                     # parámetros GET permitidos → lookup (por ejemplo {'activity': 'activity_id'})
     row_links = []                   # [(texto, nombre_url, parametro_get, permiso)] enlaces extra por fila
+    owner_field = None               # ruta al Employee dueño: el rol funcionario solo modifica lo suyo
 
     @property
     def fin(self):
@@ -100,6 +102,22 @@ class CrudConfig:
                 qs = qs.filter(**{lookup: valor})
         return qs
 
+    def get_editable_queryset(self):
+        """Registros que el usuario puede editar o eliminar (subconjunto de lo que puede ver)."""
+        qs = self.get_queryset()
+        return solo_propios(qs, self.request.user, self.owner_field) if self.owner_field else qs
+
+    def motivo_no_modificable(self, obj):
+        """Regla de negocio propia de cada entidad; devuelve un texto si el registro no se puede modificar."""
+        return None
+
+    def check_modificable(self, obj):
+        if not self.get_editable_queryset().filter(pk=obj.pk).exists():
+            raise PermissionDenied('Solo puede modificar sus propios registros.')
+        motivo = self.motivo_no_modificable(obj)
+        if motivo:
+            raise PermissionDenied(motivo)
+
     def active_filters(self):
         return {p: self.request.GET[p] for p in self.filters if self.request.GET.get(p, '').isdigit()}
 
@@ -108,6 +126,7 @@ class CrudConfig:
 
     def build_rows(self, objetos):
         user = self.request.user
+        editables = set(self.get_editable_queryset().filter(pk__in=[o.pk for o in objetos]).values_list('pk', flat=True))
         filas = []
         for obj in objetos:
             celdas = []
@@ -122,6 +141,7 @@ class CrudConfig:
                 for texto, nombre, param, permiso in self.row_links if user.has_perm(permiso)
             ]
             filas.append({'obj': obj, 'cells': celdas, 'links': enlaces,
+                          'editable': obj.pk in editables and not self.motivo_no_modificable(obj),
                           'update_url': self.url('update', obj.pk), 'delete_url': self.url('delete', obj.pk)})
         return filas
 
@@ -211,6 +231,11 @@ class CrudUpdateView(CrudFormView, UpdateView):
     def get_permission_required(self):
         return (self.perm('change'),)
 
+    def get_object(self, queryset=None):
+        obj = super().get_object(queryset)  # fuera de su delegación → 404
+        self.check_modificable(obj)         # de otro funcionario o bloqueado por regla → 403
+        return obj
+
     def get_context_data(self, **kwargs):
         contexto = super().get_context_data(**kwargs)
         contexto['modal_titulo'] = f'Editar {self.singular}'
@@ -225,6 +250,11 @@ class CrudDeleteView(ScopedCrudMixin, CrudConfig, DeleteView):
 
     def get_permission_required(self):
         return (self.perm('delete'),)
+
+    def get_object(self, queryset=None):
+        obj = super().get_object(queryset)
+        self.check_modificable(obj)
+        return obj
 
     def get_form_class(self):
         # DeleteView valida un formulario vacío (solo CSRF), no el ModelForm de la entidad.
