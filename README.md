@@ -95,7 +95,7 @@ cp .env.example .env
 Valores documentados en `.env.example`:
 
 ```
-SECRET_KEY=change-this-secret-key-in-your-local-env
+SECRET_KEY=<generar una propia, ver .env.example>
 DEBUG=True
 ALLOWED_HOSTS=localhost,127.0.0.1
 DB_ENGINE=django.db.backends.mysql
@@ -207,16 +207,16 @@ SweetAlert2 (`static/js/confirmar.js`) pide confirmación antes de eliminar. Es 
 
 ## Cuentas de prueba
 
-Cuentas de demostración creadas por `seed_data` (no personales; contraseñas ficticias solo para uso académico):
+`seed_data` crea estas cuentas de demostración. **Las contraseñas no están en el repositorio**: se definen en el `.env` con `DEMO_PASSWORD` (común a todas) o `DEMO_PASSWORD_<USUARIO>` (por ejemplo `DEMO_PASSWORD_ADMIN_CENTRO`). Si el `.env` no las define, `seed_data` genera contraseñas aleatorias y las muestra **una sola vez** en la terminal. Las contraseñas se entregan al docente en la demostración.
 
-| Usuario | Contraseña | Rol / grupo | Alcance en el Admin |
-| --- | --- | --- | --- |
-| `admin_sgr` | `Admin#2026SGR` | Administrador general (superusuario) | Acceso total a todas las delegaciones y modelos |
-| `admin_centro` | `AdminCentro#2026SGR` | Administrador de delegación — grupo `Administradores` (Centro) | Gestiona actividades, evidencias, compromisos y funcionarios **solo de Centro**; no ve nada de Norte ni administra usuarios |
-| `admin_norte` | `AdminNorte#2026SGR` | Administrador de delegación — grupo `Administradores` (Norte) | Igual que el anterior, **solo Norte** |
-| `funcionario_centro` | `Centro#2026SGR` | Funcionario — grupo `Funcionarios` (Delegación Centro) | Solo ve/edita actividades, evidencias, atenciones sociales, compromisos y seguimientos de **Centro** |
-| `funcionario_norte` | `Norte#2026SGR` | Funcionario — grupo `Funcionarios` (Delegación Norte) | Solo ve/edita registros de **Norte** |
-| `verificador_leia` | `Verifica#2026SGR` | Verificador — grupo `Verificadores` | Ve evidencias de todas las delegaciones; único rol con permiso para ejecutar la acción "Aprobar evidencias seleccionadas" |
+| Usuario | Rol / grupo | Alcance |
+| --- | --- | --- |
+| `admin_sgr` | Administrador general (superusuario) | Acceso total a todas las delegaciones y modelos |
+| `admin_centro` | Administrador de delegación — grupo `Administradores` (Centro) | Gestiona actividades, evidencias, compromisos y funcionarios **solo de Centro**; no ve nada de Norte ni administra usuarios |
+| `admin_norte` | Administrador de delegación — grupo `Administradores` (Norte) | Igual que el anterior, **solo Norte** |
+| `funcionario_centro` | Funcionario — grupo `Funcionarios` (Centro) | Registra y ve actividades de **Centro**; no puede eliminar |
+| `funcionario_norte` | Funcionario — grupo `Funcionarios` (Norte) | Igual, solo **Norte** |
+| `verificador_leia` | Verificador — grupo `Verificadores` | Ve evidencias de todas las delegaciones y las aprueba |
 
 ## Comandos de verificación
 

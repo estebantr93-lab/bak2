@@ -11,7 +11,7 @@ from core.data import build_core
 from core.models import Cargo, Delegacion, Parametro, Periodo, TipoActividad
 from evidencias.data import build_evidencias
 from evidencias.models import Evidencia, Validacion
-from funcionarios.data import CREDENCIALES_DEMO, build_funcionarios
+from funcionarios.data import CLAVES_GENERADAS, USUARIOS_DEMO, build_funcionarios
 from funcionarios.models import Funcionario
 from medicion.data import build_medicion
 from medicion.models import Indicador, Ponderacion
@@ -75,7 +75,7 @@ class Command(BaseCommand):
             self.stdout.write(f'  - {etiqueta}: {total}')
 
         self.stdout.write('')
-        self.stdout.write(self.style.MIGRATE_HEADING('Cuentas de prueba (usuario / contraseña / rol):'))
+        self.stdout.write(self.style.MIGRATE_HEADING('Cuentas de prueba (usuario -> rol):'))
         roles = {
             'admin_sgr': 'Administrador general (superusuario) — acceso total',
             'admin_centro': 'Administrador Delegación Centro — solo ve y gestiona Centro',
@@ -84,7 +84,18 @@ class Command(BaseCommand):
             'funcionario_norte': 'Funcionario Delegación Norte — acceso limitado a su delegación',
             'verificador_leia': 'Verificador — revisión y aprobación de evidencias en todas las delegaciones',
         }
-        for usuario, password in CREDENCIALES_DEMO.items():
-            self.stdout.write(f'  - {usuario} / {password} -> {roles[usuario]}')
+        for usuario in USUARIOS_DEMO:
+            self.stdout.write(f'  - {usuario} -> {roles[usuario]}')
+        if CLAVES_GENERADAS:
+            # Solo ocurre si el .env no define DEMO_PASSWORD: se muestran una única vez.
+            self.stdout.write('')
+            self.stdout.write(self.style.WARNING(
+                'DEMO_PASSWORD no está definido: se generaron contraseñas aleatorias (anótelas, no se vuelven a mostrar):'
+            ))
+            for usuario, clave in CLAVES_GENERADAS.items():
+                self.stdout.write(f'  - {usuario}: {clave}')
+            CLAVES_GENERADAS.clear()
+        else:
+            self.stdout.write('Contraseñas: las definidas en el .env (DEMO_PASSWORD / DEMO_PASSWORD_<USUARIO>).')
         self.stdout.write('')
         self.stdout.write(self.style.SUCCESS('Carga de datos de demostración completada.'))

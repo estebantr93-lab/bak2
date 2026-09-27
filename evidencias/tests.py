@@ -1,16 +1,15 @@
 import datetime
-from io import StringIO
 
 from django.contrib.auth.models import Permission, User
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.messages.storage.fallback import FallbackStorage
-from django.core.management import call_command
 from django.db import IntegrityError, transaction
 from django.test import RequestFactory, TestCase
 
 from core.models import Cargo, Delegacion, TipoActividad
 from funcionarios.models import Funcionario
 from actividades.models import Actividad
+from core.testing import CLAVE_TEST, sembrar_datos_demo
 
 from .admin import EvidenciaAdmin
 from .models import Evidencia, Validacion
@@ -102,26 +101,26 @@ class EvidenciaUnicidadTests(TestCase):
 class RevisionEnVivoEvidenciasTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        call_command('seed_data', stdout=StringIO())
+        sembrar_datos_demo()
 
     def test_admin_sgr_ve_evidencias_de_ambas_delegaciones(self):
-        self.client.login(username='admin_sgr', password='Admin#2026SGR')
+        self.client.login(username='admin_sgr', password=CLAVE_TEST)
         response = self.client.get('/admin/evidencias/evidencia/')
         self.assertContains(response, 'EVID-CEN-001')
         self.assertContains(response, 'EVID-NOR-001')
 
     def test_funcionario_centro_no_ve_evidencias_de_norte(self):
-        self.client.login(username='funcionario_centro', password='Centro#2026SGR')
+        self.client.login(username='funcionario_centro', password=CLAVE_TEST)
         response = self.client.get('/admin/evidencias/evidencia/')
         self.assertContains(response, 'EVID-CEN-001')
         self.assertNotContains(response, 'EVID-NOR-001')
 
     def test_funcionario_centro_no_ve_la_accion_de_aprobar(self):
-        self.client.login(username='funcionario_centro', password='Centro#2026SGR')
+        self.client.login(username='funcionario_centro', password=CLAVE_TEST)
         response = self.client.get('/admin/evidencias/evidencia/')
         self.assertNotContains(response, 'Aprobar evidencias seleccionadas')
 
     def test_verificador_si_ve_la_accion_de_aprobar(self):
-        self.client.login(username='verificador_leia', password='Verifica#2026SGR')
+        self.client.login(username='verificador_leia', password=CLAVE_TEST)
         response = self.client.get('/admin/evidencias/evidencia/')
         self.assertContains(response, 'Aprobar evidencias seleccionadas')

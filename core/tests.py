@@ -7,6 +7,8 @@ from django.db import connection
 from django.forms import modelform_factory
 from django.test import RequestFactory, TestCase
 
+from core.testing import sembrar_datos_demo
+
 from .admin_utils import ScopedModelAdmin
 from .models import Cargo, Delegacion, Periodo, TipoActividad
 
@@ -196,22 +198,44 @@ class BaseDatosEstructuraTests(TestCase):
 
 class SeedDataTests(TestCase):
     def test_seed_data_crea_las_cuentas_de_prueba(self):
-        call_command('seed_data', stdout=StringIO())
+        sembrar_datos_demo()
         for username in ['admin_sgr', 'funcionario_centro', 'funcionario_norte', 'verificador_leia']:
             self.assertTrue(User.objects.filter(username=username).exists())
 
     def test_seed_data_crea_datos_en_dos_delegaciones(self):
         from actividades.models import Actividad
 
-        call_command('seed_data', stdout=StringIO())
+        sembrar_datos_demo()
         self.assertTrue(Actividad.objects.filter(delegacion__nombre='Delegación Centro').exists())
         self.assertTrue(Actividad.objects.filter(delegacion__nombre='Delegación Norte').exists())
 
     def test_seed_data_es_idempotente(self):
         from actividades.models import Actividad
 
-        call_command('seed_data', stdout=StringIO())
+        sembrar_datos_demo()
         total_1 = Actividad.objects.count()
-        call_command('seed_data', stdout=StringIO())
+        sembrar_datos_demo()
         total_2 = Actividad.objects.count()
         self.assertEqual(total_1, total_2)
+
+
+class SecretosTests(TestCase):
+    def test_sin_demo_password_se_generan_claves_aleatorias_y_fuertes(self):
+        import os
+        from unittest import mock
+
+        salida = StringIO()
+        entorno = {k: v for k, v in os.environ.items() if not k.startswith('DEMO_PASSWORD')}
+        with mock.patch.dict(os.environ, entorno, clear=True):
+            call_command('seed_data', stdout=salida)
+        texto = salida.getvalue()
+        self.assertIn('se generaron contraseñas aleatorias', texto)
+        user = User.objects.get(username='admin_centro')
+        clave = texto.split('admin_centro: ')[1].split()[0]
+        self.assertTrue(user.check_password(clave))
+        self.assertGreaterEqual(len(clave), 10)
+
+    def test_no_hay_contrasenas_de_demo_en_el_codigo(self):
+        from funcionarios import data
+
+        self.assertFalse(hasattr(data, 'CREDENCIALES_DEMO'))

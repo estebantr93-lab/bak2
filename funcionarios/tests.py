@@ -1,10 +1,9 @@
-from io import StringIO
 
 from django.contrib.auth.models import Group, Permission, User
-from django.core.management import call_command
 from django.test import TestCase
 
 from core.models import Cargo, Delegacion
+from core.testing import sembrar_datos_demo
 
 from .models import Funcionario
 from .security import configurar_grupos_y_permisos
@@ -56,20 +55,20 @@ class GruposYPermisosTests(TestCase):
 
 class SeedFuncionariosTests(TestCase):
     def test_seed_asigna_delegacion_correcta_a_cada_funcionario(self):
-        call_command('seed_data', stdout=StringIO())
+        sembrar_datos_demo()
         centro = Funcionario.objects.get(nombre='Ana Pérez (Centro)')
         norte = Funcionario.objects.get(nombre='Carlos Rojas (Norte)')
         self.assertEqual(centro.delegacion.nombre, 'Delegación Centro')
         self.assertEqual(norte.delegacion.nombre, 'Delegación Norte')
 
     def test_funcionario_centro_pertenece_al_grupo_funcionarios(self):
-        call_command('seed_data', stdout=StringIO())
+        sembrar_datos_demo()
         user = User.objects.get(username='funcionario_centro')
         self.assertTrue(user.groups.filter(name='Funcionarios').exists())
         self.assertFalse(user.is_superuser)
 
     def test_admin_sgr_es_superusuario(self):
-        call_command('seed_data', stdout=StringIO())
+        sembrar_datos_demo()
         user = User.objects.get(username='admin_sgr')
         self.assertTrue(user.is_superuser)
         self.assertTrue(user.is_staff)
