@@ -1,14 +1,14 @@
-from io import StringIO
 
-from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
+
+from core.testing import CLAVE_TEST, sembrar_datos_demo
 
 
 class LoginTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        call_command('seed_data', stdout=StringIO())
+        sembrar_datos_demo()
 
     def test_pagina_de_login_responde(self):
         response = self.client.get(reverse('login'))
@@ -17,7 +17,7 @@ class LoginTests(TestCase):
 
     def test_login_correcto_redirige_al_dashboard(self):
         response = self.client.post(reverse('login'), {
-            'username': 'admin_centro', 'password': 'AdminCentro#2026SGR',
+            'username': 'admin_centro', 'password': CLAVE_TEST,
         })
         self.assertRedirects(response, reverse('dashboard'))
 
@@ -30,7 +30,7 @@ class LoginTests(TestCase):
 
     def test_login_respeta_next(self):
         response = self.client.post(reverse('login'), {
-            'username': 'admin_sgr', 'password': 'Admin#2026SGR', 'next': '/admin/',
+            'username': 'admin_sgr', 'password': CLAVE_TEST, 'next': '/admin/',
         })
         self.assertRedirects(response, '/admin/')
 
@@ -43,26 +43,26 @@ class LoginTests(TestCase):
         self.assertTemplateUsed(response, 'registration/login.html')
 
     def test_logout_por_post_redirige_al_login(self):
-        self.client.login(username='admin_centro', password='AdminCentro#2026SGR')
+        self.client.login(username='admin_centro', password=CLAVE_TEST)
         response = self.client.post(reverse('logout'))
         self.assertRedirects(response, reverse('login'))
         self.assertNotIn('_auth_user_id', self.client.session)
 
     def test_login_muestra_mensaje_de_bienvenida(self):
         response = self.client.post(reverse('login'), {
-            'username': 'admin_centro', 'password': 'AdminCentro#2026SGR',
+            'username': 'admin_centro', 'password': CLAVE_TEST,
         }, follow=True)
         self.assertContains(response, 'Bienvenido/a')
 
     def test_logout_muestra_mensaje_y_limpia_la_sesion(self):
-        self.client.login(username='admin_centro', password='AdminCentro#2026SGR')
+        self.client.login(username='admin_centro', password=CLAVE_TEST)
         self.client.get(reverse('dashboard'), {'periodo': 1})
         response = self.client.post(reverse('logout'), follow=True)
         self.assertContains(response, 'Sesión cerrada correctamente.')
         self.assertNotIn('dashboard_periodo_id', self.client.session)
 
     def test_logout_por_get_no_esta_permitido(self):
-        self.client.login(username='admin_centro', password='AdminCentro#2026SGR')
+        self.client.login(username='admin_centro', password=CLAVE_TEST)
         response = self.client.get(reverse('logout'))
         self.assertEqual(response.status_code, 405)
 
@@ -86,7 +86,7 @@ class ConfiguracionSesionTests(TestCase):
 class AccesoPorRolEnLoginTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        call_command('seed_data', stdout=StringIO())
+        sembrar_datos_demo()
 
     def _ingresar(self, username, password):
         return self.client.post(reverse('login'), {'username': username, 'password': password}, follow=True)
@@ -110,7 +110,7 @@ class AccesoPorRolEnLoginTests(TestCase):
 
     def test_verificador_sin_perfil_si_puede_iniciar_sesion(self):
         # El verificador es un rol global: no necesita perfil de delegación.
-        response = self._ingresar('verificador_leia', 'Verifica#2026SGR')
+        response = self._ingresar('verificador_leia', CLAVE_TEST)
         self.assertRedirects(response, reverse('dashboard'))
 
     def test_contrasena_incorrecta_muestra_un_solo_mensaje_generico(self):
@@ -122,7 +122,7 @@ class AccesoPorRolEnLoginTests(TestCase):
 class MensajesYPagina403Tests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        call_command('seed_data', stdout=StringIO())
+        sembrar_datos_demo()
 
     def test_mensaje_de_error_usa_la_clase_danger_de_bootstrap(self):
         response = self.client.get(reverse('recuperar_nueva'), follow=True)
@@ -131,7 +131,7 @@ class MensajesYPagina403Tests(TestCase):
         self.assertNotContains(response, 'alert-error')
 
     def test_403_usa_la_plantilla_del_sitio(self):
-        self.client.login(username='verificador_leia', password='Verifica#2026SGR')
+        self.client.login(username='verificador_leia', password=CLAVE_TEST)
         response = self.client.get(reverse('actividad_list'))
         self.assertEqual(response.status_code, 403)
         self.assertTemplateUsed(response, '403.html')

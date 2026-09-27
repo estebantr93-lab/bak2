@@ -1,14 +1,13 @@
 import datetime
-from io import StringIO
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from django.core.management import call_command
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 
 from core.models import Cargo, Delegacion, Periodo, TipoActividad
 from funcionarios.models import Funcionario
+from core.testing import CLAVE_TEST, sembrar_datos_demo
 
 from .forms import ActividadForm
 from .models import Actividad, AtencionSocial
@@ -121,22 +120,22 @@ class ActividadUnicidadTests(TestCase):
 class RevisionEnVivoActividadesTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        call_command('seed_data', stdout=StringIO())
+        sembrar_datos_demo()
 
     def test_funcionario_centro_no_accede_a_actividad_de_norte_por_url(self):
         actividad_norte = Actividad.objects.filter(delegacion__nombre='Delegación Norte').first()
-        self.client.login(username='funcionario_centro', password='Centro#2026SGR')
+        self.client.login(username='funcionario_centro', password=CLAVE_TEST)
         response = self.client.get(f'/admin/actividades/actividad/{actividad_norte.pk}/change/')
         self.assertNotEqual(response.status_code, 200)
 
     def test_admin_sgr_ve_actividades_de_ambas_delegaciones(self):
-        self.client.login(username='admin_sgr', password='Admin#2026SGR')
+        self.client.login(username='admin_sgr', password=CLAVE_TEST)
         response = self.client.get('/admin/actividades/actividad/')
         self.assertContains(response, 'ACT-2026-001')
         self.assertContains(response, 'ACT-2026-005')
 
     def test_funcionario_centro_solo_ve_actividades_de_centro(self):
-        self.client.login(username='funcionario_centro', password='Centro#2026SGR')
+        self.client.login(username='funcionario_centro', password=CLAVE_TEST)
         response = self.client.get('/admin/actividades/actividad/')
         self.assertContains(response, 'ACT-2026-001')
         self.assertNotContains(response, 'ACT-2026-005')
@@ -156,7 +155,7 @@ class RevisionEnVivoActividadesTests(TestCase):
         from core.models import Delegacion
         from funcionarios.models import Funcionario
 
-        self.client.login(username='funcionario_centro', password='Centro#2026SGR')
+        self.client.login(username='funcionario_centro', password=CLAVE_TEST)
         norte = Delegacion.objects.get(nombre='Delegación Norte')
         func_norte = Funcionario.objects.get(nombre='Carlos Rojas (Norte)')
         tipo_id = Actividad.objects.first().tipo_actividad_id
@@ -168,7 +167,7 @@ class RevisionEnVivoActividadesTests(TestCase):
         self.assertFalse(Actividad.objects.filter(numero='ACT-NUEVA').exists())
 
     def test_funcionario_centro_no_puede_aprobar_su_propia_actividad(self):
-        self.client.login(username='funcionario_centro', password='Centro#2026SGR')
+        self.client.login(username='funcionario_centro', password=CLAVE_TEST)
         actividad = Actividad.objects.filter(
             delegacion__nombre='Delegación Centro', estado_validacion='pendiente',
         ).first()
@@ -184,7 +183,7 @@ class RevisionEnVivoActividadesTests(TestCase):
         self.assertEqual(actividad.estado_validacion, 'pendiente')
 
     def test_autocomplete_de_funcionario_funciona_para_el_limitado(self):
-        self.client.login(username='funcionario_centro', password='Centro#2026SGR')
+        self.client.login(username='funcionario_centro', password=CLAVE_TEST)
         response = self.client.get('/admin/autocomplete/', {
             'term': '', 'app_label': 'actividades', 'model_name': 'actividad', 'field_name': 'funcionario',
         })

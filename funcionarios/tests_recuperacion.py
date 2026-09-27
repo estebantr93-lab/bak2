@@ -1,13 +1,13 @@
 import re
 from datetime import timedelta
-from io import StringIO
 
 from django.contrib.auth.models import User
 from django.core import mail
-from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+
+from core.testing import sembrar_datos_demo
 
 from .models import CodigoRecuperacion
 
@@ -19,7 +19,7 @@ NUEVA = 'NuevaClave#2026sgr'
 class RecuperacionTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        call_command('seed_data', stdout=StringIO())
+        sembrar_datos_demo()
 
     def _solicitar(self, email=EMAIL):
         return self.client.post(reverse('recuperar_solicitar'), {'email': email}, follow=True)

@@ -1,7 +1,5 @@
-from io import StringIO
 
 from django.contrib.auth.models import User
-from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 
@@ -16,12 +14,13 @@ from core.admin_utils import (
 from core.models import Delegacion
 from evidencias.models import Evidencia
 from funcionarios.models import Funcionario
+from core.testing import CLAVE_TEST, sembrar_datos_demo
 
 
 class RolesTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        call_command('seed_data', stdout=StringIO())
+        sembrar_datos_demo()
 
     def test_rol_de_cada_cuenta_demo(self):
         esperados = {
@@ -52,7 +51,7 @@ class RolesTests(TestCase):
 class DashboardTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        call_command('seed_data', stdout=StringIO())
+        sembrar_datos_demo()
 
     def _ingresar(self, username, password):
         self.assertTrue(self.client.login(username=username, password=password))
@@ -63,7 +62,7 @@ class DashboardTests(TestCase):
         self.assertRedirects(response, reverse('login') + '?next=' + reverse('dashboard'))
 
     def test_admin_centro_solo_ve_su_delegacion(self):
-        response = self._ingresar('admin_centro', 'AdminCentro#2026SGR')
+        response = self._ingresar('admin_centro', CLAVE_TEST)
         self.assertContains(response, 'Ana Pérez (Centro)')
         self.assertContains(response, 'María Soto (Admin Centro)')
         self.assertNotContains(response, 'Carlos Rojas (Norte)')
@@ -73,13 +72,13 @@ class DashboardTests(TestCase):
         self.assertEqual(nombres, ['Delegación Centro'])
 
     def test_admin_norte_solo_ve_su_delegacion(self):
-        response = self._ingresar('admin_norte', 'AdminNorte#2026SGR')
+        response = self._ingresar('admin_norte', CLAVE_TEST)
         self.assertContains(response, 'Carlos Rojas (Norte)')
         self.assertNotContains(response, 'Ana Pérez (Centro)')
         self.assertNotContains(response, 'Delegación Centro')
 
     def test_resumen_agrupado_por_rol(self):
-        response = self._ingresar('admin_centro', 'AdminCentro#2026SGR')
+        response = self._ingresar('admin_centro', CLAVE_TEST)
         grupos = response.context['secciones'][0]['grupos']
         self.assertEqual([g['rol'] for g in grupos], [ROL_ADMIN_DELEGACION, ROL_FUNCIONARIO])
         fila_ana = grupos[1]['filas'][0]
@@ -97,14 +96,14 @@ class DashboardTests(TestCase):
         )
 
     def test_funcionario_solo_ve_su_propio_resumen(self):
-        response = self._ingresar('funcionario_centro', 'Centro#2026SGR')
+        response = self._ingresar('funcionario_centro', CLAVE_TEST)
         self.assertContains(response, 'Ana Pérez (Centro)')
         self.assertNotContains(response, 'María Soto (Admin Centro)')
         self.assertNotContains(response, 'Carlos Rojas (Norte)')
         self.assertEqual(response.context['totales']['funcionarios'], 1)
 
     def test_superadmin_ve_ambas_delegaciones(self):
-        response = self._ingresar('admin_sgr', 'Admin#2026SGR')
+        response = self._ingresar('admin_sgr', CLAVE_TEST)
         nombres = [s['delegacion'].nombre for s in response.context['secciones']]
         self.assertEqual(nombres, ['Delegación Centro', 'Delegación Norte'])
         self.assertEqual(response.context['totales']['funcionarios'], 4)
@@ -126,7 +125,7 @@ class DashboardTests(TestCase):
         from core.models import Periodo
 
         cerrado = Periodo.objects.get(cerrado=True)
-        self.client.login(username='admin_centro', password='AdminCentro#2026SGR')
+        self.client.login(username='admin_centro', password=CLAVE_TEST)
         self.client.get(reverse('dashboard'), {'periodo': cerrado.pk})
         self.assertEqual(self.client.session['dashboard_periodo_id'], cerrado.pk)
         # Sin parámetro, la siguiente visita usa el período recordado.
@@ -139,10 +138,10 @@ class AislamientoAdminPorDelegacionTests(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        call_command('seed_data', stdout=StringIO())
+        sembrar_datos_demo()
 
     def setUp(self):
-        self.client.login(username='admin_centro', password='AdminCentro#2026SGR')
+        self.client.login(username='admin_centro', password=CLAVE_TEST)
 
     def test_admin_centro_solo_lista_actividades_de_centro(self):
         response = self.client.get('/admin/actividades/actividad/')
