@@ -71,8 +71,8 @@ Los nombres técnicos de **modelos, campos, tablas y valores internos de choices
 ### 1. Clonar el repositorio
 
 ```bash
-git clone https://github.com/ChristianInacapBarrera/Proyecto_Integrado_SGR.git
-cd Proyecto_Integrado_SGR
+git clone https://github.com/estebantr93-lab/bak2.git
+cd bak2
 ```
 
 ### 2. Crear y activar el entorno virtual
@@ -225,6 +225,7 @@ Hay cuatro CRUD completos (crear, listar, editar y eliminar lógicamente) constr
 | Evidencias (con archivo) | `/evidencias/` | archivo obligatorio al crear, 2 MB, extensión y contenido real; solo el verificador cambia el estado |
 | Compromisos | `/compromisos/` | título mínimo, vencimiento no pasado, responsable de la misma delegación, "realizado" exige observaciones |
 
+- **Propiedad (rol funcionario):** ve toda su delegación, pero solo edita lo propio (`owner_field` y `solo_propios`). Una actividad de un **período cerrado** no se edita ni se elimina (403), y el período es obligatorio en el formulario.
 - **Seguridad por capas en cada vista:** `LoginRequiredMixin` (anónimo → login), `PermissionRequiredMixin` (sin permiso → 403) y scoping por delegación en `get_queryset` (un objeto de otra delegación → 404). Ocultar un botón no protege nada; cada vista vuelve a verificar.
 - **Modal:** crear y editar usan el mismo ModelForm en un modal de Bootstrap. Si hay errores, la misma plantilla se vuelve a mostrar con el modal abierto. Cada operación conserva su URL (`nueva/`, `<id>/editar/`, `<id>/eliminar/`).
 - **Eliminar:** solo por POST con CSRF, previa confirmación con SweetAlert2 (`static/js/confirmar.js`). El resultado es un **borrado lógico**.
@@ -261,7 +262,7 @@ Arquitectura: **nginx** (puerto 80) sirve `/static/` y `/media/` y reenvía el r
    ```
    El script instala los paquetes, clona en `/srv/sgr` y crea el entorno virtual. También genera un `.env` de producción con `SECRET_KEY` aleatoria, `DEBUG=False` y la IP en `ALLOWED_HOSTS`/`CSRF_TRUSTED_ORIGINS`. Después ejecuta `migrate`, `collectstatic` y `seed_data --volumen`, y deja gunicorn y nginx activos.
    Con RDS, la primera ejecución se detiene para que complete `DB_HOST`, `DB_USER` y `DB_PASSWORD` en `/srv/sgr/.env`; luego se vuelve a ejecutar.
-3. **Contraseñas de demo:** defina `DEMO_PASSWORD` en `/srv/sgr/.env` **antes** del paso 2. Si no, `seed_data` muestra contraseñas aleatorias una sola vez en la salida del script.
+3. **Contraseñas de demo:** páselas al script como variable de entorno: `DEMO_PASSWORD='<clave nueva>' bash setup_ec2.sh ...`. El script la guarda en `/srv/sgr/.env`. Si no la pasa, `seed_data` genera contraseñas aleatorias y las muestra **una sola vez** en la salida: anótelas. No reutilice contraseñas antiguas del historial de Git.
 4. **Correo de recuperación:** con el backend de consola, el código aparece en `sudo journalctl -u gunicorn-sgr -f`. Para recibirlo por correo, configure SMTP (por ejemplo Mailtrap) con `EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend` y `EMAIL_HOST`/`EMAIL_PORT`/`EMAIL_HOST_USER`/`EMAIL_HOST_PASSWORD`, y luego `sudo systemctl restart gunicorn-sgr`.
 
 **Actualizar tras un nuevo push:**
@@ -286,7 +287,7 @@ sudo systemctl restart gunicorn-sgr
 | `admin_sgr` | Administrador general (superusuario) | Acceso total a todas las delegaciones y modelos |
 | `admin_centro` | Administrador de delegación — grupo `Administradores` (Centro) | Gestiona actividades, evidencias, compromisos y funcionarios **solo de Centro**; no ve nada de Norte ni administra usuarios |
 | `admin_norte` | Administrador de delegación — grupo `Administradores` (Norte) | Igual que el anterior, **solo Norte** |
-| `funcionario_centro` | Funcionario — grupo `Funcionarios` (Centro) | Registra y ve actividades de **Centro**; no puede eliminar |
+| `funcionario_centro` | Funcionario — grupo `Funcionarios` (Centro) | Ve las actividades de **Centro**, pero solo registra y edita las **propias** (las ajenas dan 403); no puede eliminar |
 | `funcionario_norte` | Funcionario — grupo `Funcionarios` (Norte) | Igual, solo **Norte** |
 | `verificador_leia` | Verificador — grupo `Verificadores` | Ve evidencias de todas las delegaciones y las aprueba |
 
@@ -297,7 +298,7 @@ python manage.py check                      # configuración
 python manage.py makemigrations --check     # modelos y migraciones sincronizados
 python manage.py migrate                    # aplica migraciones
 python manage.py seed_data --volumen        # demo + 1.400 registros (idempotente)
-python manage.py test                       # 170 pruebas automáticas
+python manage.py test                       # pruebas automáticas
 python manage.py runserver                  # servidor de desarrollo
 ```
 

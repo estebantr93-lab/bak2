@@ -22,6 +22,7 @@ class EvidenceCrud(CrudConfig):
     url_prefix = 'evidencia'
     context_object_name = 'evidence_items'
     filters = {'activity': 'activity_id'}  # /evidencias/?activity=<id> desde el listado de actividades
+    owner_field = 'activity__employee'
     columns = [
         Column('Código', 'unique_code'),
         Column('Actividad', 'activity.number'),

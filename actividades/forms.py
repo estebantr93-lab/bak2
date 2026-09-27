@@ -48,6 +48,7 @@ class ActividadWebForm(ActividadForm):
             self.fields['employee'].initial = funcionarios.first()
         self.fields['employee'].queryset = funcionarios.select_related('delegation')
         self.fields['period'].queryset = Period.objects.filter(is_closed=False)
+        self.fields['period'].required = True  # sin período se podría esquivar el cierre
         self.fields['activity_type'].queryset = ActivityType.objects.filter(is_active=True)
         for campo in ('employee', 'period', 'activity_type'):
             self.fields[campo].empty_label = 'Seleccione…'
@@ -81,8 +82,20 @@ class SocialCaseForm(forms.ModelForm):
 
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
-        from core.admin_utils import filtrar_por_delegacion
+        from core.admin_utils import filtrar_por_delegacion, solo_propios
 
         actividades = Activity.objects.filter(activity_type__category='social').select_related('delegation')
-        self.fields['activity'].queryset = filtrar_por_delegacion(actividades, user)
+        self.fields['activity'].queryset = solo_propios(filtrar_por_delegacion(actividades, user), user, 'employee')
         self.fields['activity'].empty_label = 'Seleccione…'
+
+    def clean(self):
+        cleaned_data = super().clean()
+        actividad, paso = cleaned_data.get('activity'), cleaned_data.get('step_number')
+        if self.instance.pk is None and actividad and paso:
+            # La fila eliminada lógicamente sigue ocupando (actividad, número) en la BD: se reactiva
+            # con los datos nuevos en vez de rechazar el registro con «ya existe».
+            eliminada = SocialCase.all_objects.filter(activity=actividad, step_number=paso, deleted_at__isnull=False).first()
+            if eliminada:
+                eliminada.deleted_at = None
+                self.instance = eliminada
+        return cleaned_data

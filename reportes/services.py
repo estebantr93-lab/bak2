@@ -45,6 +45,10 @@ def respuesta_xlsx(titulo, encabezados, filas, nombre_archivo):
         celda.fill = PatternFill('solid', fgColor='AD0000')
     for fila in filas:
         hoja.append(fila)
+        for celda in hoja[hoja.max_row]:
+            # openpyxl interpreta como fórmula todo texto que empieza con '=' (inyección de fórmulas).
+            if isinstance(celda.value, str) and celda.value.startswith('='):
+                celda.data_type = 's'
     for i, encabezado in enumerate(encabezados, start=1):
         hoja.column_dimensions[get_column_letter(i)].width = max(12, len(encabezado) + 4)
     hoja.freeze_panes = 'A2'

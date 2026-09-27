@@ -41,6 +41,10 @@ class Activity(SoftDeleteModel):
 
     def clean(self):
         # evidence_code es obligatorio por el propio campo (blank=False); no se repite aquí.
+        if self.pk:
+            original = Activity.all_objects.filter(pk=self.pk).values('period_id', 'period__is_closed').first()
+            if original and original['period__is_closed'] and original['period_id'] != self.period_id:
+                raise ValidationError({'period': 'La actividad pertenece a un período cerrado: no se puede cambiar de período.'})
         if self.period_id and self.period.is_closed:
             raise ValidationError({'period': 'Período cerrado: no se pueden registrar actividades.'})
         if self.employee_id and self.delegation_id and self.employee.delegation_id != self.delegation_id:

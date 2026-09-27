@@ -2,7 +2,10 @@
 # Instalación del SGR en una instancia EC2 de AWS Academy con Ubuntu Server 24.04 LTS.
 # Uso (en la instancia, como usuario ubuntu):
 #   curl -O <url-cruda-de-este-archivo>   (o copiarlo con scp)
-#   bash setup_ec2.sh <url-del-repositorio> <rama> [--db-local]
+#   DEMO_PASSWORD='<clave-nueva>' bash setup_ec2.sh <url-del-repositorio> <rama> [--db-local]
+#
+# DEMO_PASSWORD (opcional) queda en el .env y es la contraseña de las cuentas de demostración;
+# si no se entrega, seed_data genera contraseñas aleatorias y las muestra una sola vez.
 #
 # --db-local instala MariaDB 10.11 en la misma instancia (útil si el Learner Lab no ofrece
 # RDS MySQL 8.4 / MariaDB 10.11, que son las versiones mínimas de Django 6.1).
@@ -46,6 +49,11 @@ if [[ ! -f .env ]]; then
     sed -i "s|^DEBUG=.*|DEBUG=False|" .env
     sed -i "s|^ALLOWED_HOSTS=.*|ALLOWED_HOSTS=localhost,127.0.0.1,${IP}|" .env
     sed -i "s|^CSRF_TRUSTED_ORIGINS=.*|CSRF_TRUSTED_ORIGINS=http://${IP}|" .env
+    if [[ -n "${DEMO_PASSWORD:-}" ]]; then
+        # Se escapan &, | y \ para que sed no altere claves con símbolos.
+        CLAVE_ESC=$(printf '%s' "$DEMO_PASSWORD" | sed 's/[&|\\]/\\&/g')
+        sed -i "s|^DEMO_PASSWORD=.*|DEMO_PASSWORD=${CLAVE_ESC}|" .env
+    fi
     if [[ "$DB_LOCAL" == "--db-local" ]]; then
         DBPASS=$(.venv/bin/python -c "import secrets; print(secrets.token_urlsafe(18))")
         sudo mariadb -e "CREATE DATABASE IF NOT EXISTS sgr CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

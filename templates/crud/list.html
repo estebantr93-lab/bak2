@@ -61,10 +61,10 @@
                         {% for link in row.links %}
                             <a class="btn btn-outline-secondary btn-sm" href="{{ link.url }}">{{ link.text }}</a>
                         {% endfor %}
-                        {% if can_change %}
+                        {% if can_change and row.editable %}
                             <a class="btn btn-outline-primary btn-sm" href="{{ row.update_url }}{% if filters_query %}?{{ filters_query }}{% endif %}">Editar</a>
                         {% endif %}
-                        {% if can_delete %}
+                        {% if can_delete and row.editable %}
                             <form method="post" action="{{ row.delete_url }}" class="d-inline"
                                   data-confirmar="¿Eliminar {{ singular }} «{{ row.obj }}»? Dejará de mostrarse en el sistema.">
                                 {% csrf_token %}

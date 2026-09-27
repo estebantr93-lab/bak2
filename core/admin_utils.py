@@ -74,6 +74,17 @@ def tiene_acceso_al_sistema(user):
     return es_usuario_sin_restriccion(user) or get_usuario_delegacion(user) is not None
 
 
+def solo_propios(queryset, user, campo_funcionario):
+    """El funcionario ve toda su delegación, pero solo modifica lo suyo.
+
+    `campo_funcionario` es la ruta hasta el Employee dueño (por ejemplo 'employee' o 'activity__employee').
+    Para los demás roles no cambia el queryset.
+    """
+    if get_rol(user) == ROL_FUNCIONARIO:
+        return queryset.filter(**{f'{campo_funcionario}__user': user})
+    return queryset
+
+
 def filtrar_por_delegacion(queryset, user, campo='delegation'):
     """Scoping para vistas fuera del Admin: mismo criterio que ScopedModelAdmin."""
     if es_usuario_sin_restriccion(user):

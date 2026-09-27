@@ -50,17 +50,26 @@ class SoftDeleteModel(models.Model):
     def eliminado(self):
         return self.deleted_at is not None
 
-    def soft_delete(self):
+    def soft_delete(self, momento=None):
         if self.deleted_at is not None:
             return
-        self.deleted_at = timezone.now()
+        # Toda la cascada usa el mismo instante: así restore() sabe qué hijos cayeron con el padre.
+        self.deleted_at = momento or timezone.now()
         self.save(update_fields=['deleted_at'])
         for relacion in self.soft_delete_cascade:
-            getattr(self, relacion).all().delete()
+            for hijo in getattr(self, relacion).filter(deleted_at__isnull=True):
+                hijo.soft_delete(self.deleted_at)
 
     def restore(self):
+        """Recupera el registro y los hijos que se eliminaron junto con él (no los que ya estaban eliminados)."""
+        momento = self.deleted_at
         self.deleted_at = None
         self.save(update_fields=['deleted_at'])
+        if momento is None:
+            return
+        for relacion in self.soft_delete_cascade:
+            for hijo in getattr(self, relacion).filter(deleted_at=momento):
+                hijo.restore()
 
     def delete(self, using=None, keep_parents=False):
         self.soft_delete()
