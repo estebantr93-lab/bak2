@@ -24,7 +24,7 @@ from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
 from reportes.services import as_text, respuesta_xlsx, valor_excel
 
-from .admin_utils import filtrar_por_delegacion, solo_propios
+from .admin_utils import filtrar_por_delegacion, modificables, motivo_no_modificable
 
 PAGE_SIZES = [5, 15, 30]
 PAGE_SIZE_DEFAULT = 15
@@ -80,7 +80,6 @@ class CrudConfig:
     context_object_name = 'objects'
     filters = {}                     # parámetros GET permitidos → lookup (por ejemplo {'activity': 'activity_id'})
     row_links = []                   # [(texto, nombre_url, parametro_get, permiso)] enlaces extra por fila
-    owner_field = None               # ruta al Employee dueño: el rol funcionario solo modifica lo suyo
 
     @property
     def fin(self):
@@ -103,18 +102,13 @@ class CrudConfig:
         return qs
 
     def get_editable_queryset(self):
-        """Registros que el usuario puede editar o eliminar (subconjunto de lo que puede ver)."""
-        qs = self.get_queryset()
-        return solo_propios(qs, self.request.user, self.owner_field) if self.owner_field else qs
-
-    def motivo_no_modificable(self, obj):
-        """Regla de negocio propia de cada entidad; devuelve un texto si el registro no se puede modificar."""
-        return None
+        """Registros que el usuario puede editar o eliminar: política única de core/admin_utils."""
+        return modificables(self.get_queryset(), self.request.user)
 
     def check_modificable(self, obj):
         if not self.get_editable_queryset().filter(pk=obj.pk).exists():
             raise PermissionDenied('Solo puede modificar sus propios registros.')
-        motivo = self.motivo_no_modificable(obj)
+        motivo = motivo_no_modificable(obj)
         if motivo:
             raise PermissionDenied(motivo)
 
@@ -141,7 +135,7 @@ class CrudConfig:
                 for texto, nombre, param, permiso in self.row_links if user.has_perm(permiso)
             ]
             filas.append({'obj': obj, 'cells': celdas, 'links': enlaces,
-                          'editable': obj.pk in editables and not self.motivo_no_modificable(obj),
+                          'editable': obj.pk in editables and not motivo_no_modificable(obj),
                           'update_url': self.url('update', obj.pk), 'delete_url': self.url('delete', obj.pk)})
         return filas
 

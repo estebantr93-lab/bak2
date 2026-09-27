@@ -140,3 +140,79 @@ class RevisionCompaneroTests(SesionTestMixin, TestCase):
         Activity.all_objects.get(pk=actividad.pk).restore()
         self.assertIsNone(Evidence.all_objects.get(pk=junto.pk).deleted_at)
         self.assertIsNotNone(Evidence.all_objects.get(pk=previa.pk).deleted_at)  # esta ya estaba eliminada
+
+
+class PoliticaUnicaEnElAdminTests(SesionTestMixin, TestCase):
+    """La misma regla de modificación rige en el CRUD web y en el Django Admin (todas las vías)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        sembrar_datos_demo()
+        cls.ana = Employee.objects.get(name='Ana Pérez (Centro)')
+        cls.maria = Employee.objects.get(name='María Soto (Admin Centro)')
+        cls.abierto = Period.objects.get(is_closed=False)
+        cls.cerrado = Period.objects.get(is_closed=True)
+        tipo = ActivityType.objects.get(code='ATC-01')
+        cls.ajena = Activity.objects.create(
+            number='ADM-AJENA', employee=cls.maria, delegation=cls.maria.delegation, period=cls.abierto,
+            activity_type=tipo, date=datetime.date(2026, 7, 1), description='De María', evidence_code='EV-ADM-AJ',
+        )
+        cls.propia = Activity.objects.filter(employee=cls.ana, period=cls.abierto).first()
+        cls.cerrada = Activity.objects.create(
+            number='ADM-CERR', employee=cls.ana, delegation=cls.ana.delegation, period=cls.cerrado,
+            activity_type=tipo, date=datetime.date(2026, 2, 1), description='Cerrada', evidence_code='EV-ADM-CE',
+        )
+
+    def _post_admin(self, actividad, **extra):
+        datos = {
+            'number': actividad.number, 'employee': actividad.employee_id, 'delegation': actividad.delegation_id,
+            'period': actividad.period_id, 'activity_type': actividad.activity_type_id,
+            'date': actividad.date.isoformat(), 'description': 'cambiada', 'evidence_code': actividad.evidence_code,
+            'validation_status': actividad.validation_status,
+            'evidence_items-TOTAL_FORMS': 0, 'evidence_items-INITIAL_FORMS': 0,
+        }
+        datos.update(extra)
+        return self.client.post(f'/admin/actividades/activity/{actividad.pk}/change/', datos)
+
+    def test_admin_funcionario_ve_la_actividad_ajena_en_solo_lectura_y_no_puede_guardarla(self):
+        self.ingresar('funcionario_centro')
+        response = self.client.get(f'/admin/actividades/activity/{self.ajena.pk}/change/')
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context['has_change_permission'])
+        self.assertEqual(self._post_admin(self.ajena, employee=self.ana.pk).status_code, 403)
+        self.ajena.refresh_from_db()
+        self.assertEqual((self.ajena.employee, self.ajena.description), (self.maria, 'De María'))
+
+    def test_admin_funcionario_si_modifica_la_suya(self):
+        self.ingresar('funcionario_centro')
+        response = self.client.get(f'/admin/actividades/activity/{self.propia.pk}/change/')
+        self.assertTrue(response.context['has_change_permission'])
+
+    def test_admin_periodo_cerrado_no_se_edita_ni_elimina_ni_siquiera_el_superusuario(self):
+        for username in ('admin_centro', 'admin_sgr'):
+            self.ingresar(username)
+            response = self.client.get(f'/admin/actividades/activity/{self.cerrada.pk}/change/')
+            self.assertFalse(response.context['has_change_permission'], username)
+            self.assertEqual(self.client.post(
+                f'/admin/actividades/activity/{self.cerrada.pk}/delete/', {'post': 'yes'}).status_code, 403, username)
+            self.assertIsNone(Activity.all_objects.get(pk=self.cerrada.pk).deleted_at)
+
+    def test_admin_borrado_masivo_omite_lo_que_no_se_puede_modificar(self):
+        self.ingresar('admin_centro')
+        self.client.post('/admin/actividades/activity/', {
+            'action': 'delete_selected', '_selected_action': [self.cerrada.pk], 'post': 'yes',
+        })
+        self.assertIsNone(Activity.all_objects.get(pk=self.cerrada.pk).deleted_at)
+
+    def test_admin_opciones_y_autocompletado_solo_ofrecen_lo_propio(self):
+        self.ingresar('funcionario_centro')
+        # Formulario de alta de evidencia en el Admin: el campo 'activity' solo acepta actividades propias.
+        response = self.client.get('/admin/evidencias/evidence/add/')
+        opciones = response.context['adminform'].form.fields['activity'].queryset
+        self.assertEqual(set(opciones.values_list('employee_id', flat=True)), {self.ana.pk})
+        # El autocompletado de ese campo tampoco ofrece actividades ajenas.
+        response = self.client.get('/admin/autocomplete/', {
+            'term': 'ADM', 'app_label': 'evidencias', 'model_name': 'evidence', 'field_name': 'activity',
+        })
+        numeros = {item['text'] for item in response.json()['results']}
+        self.assertNotIn('ADM-AJENA', numeros)

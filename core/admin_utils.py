@@ -77,12 +77,36 @@ def tiene_acceso_al_sistema(user):
 def solo_propios(queryset, user, campo_funcionario):
     """El funcionario ve toda su delegación, pero solo modifica lo suyo.
 
-    `campo_funcionario` es la ruta hasta el Employee dueño (por ejemplo 'employee' o 'activity__employee').
-    Para los demás roles no cambia el queryset.
+    `campo_funcionario` es la ruta hasta el Employee dueño ('employee', 'activity__employee'...);
+    '' indica que el queryset ya es de Employee. Para los demás roles no cambia el queryset.
     """
     if get_rol(user) == ROL_FUNCIONARIO:
-        return queryset.filter(**{f'{campo_funcionario}__user': user})
+        return queryset.filter(**{f'{campo_funcionario}__user' if campo_funcionario else 'user': user})
     return queryset
+
+
+# ---------------------------------------------------------------------------------------------------
+# Política única de modificación. La usan el CRUD web (core/crud.py) y el Admin (ScopedModelAdmin),
+# así una regla nueva no puede quedar aplicada en un lado y olvidada en el otro.
+#   - Delegación: lo decide el scoping (filtrar_por_delegacion / ScopedModelAdmin.get_queryset).
+#   - Propiedad: Model.owner_field (ruta al Employee dueño) → el rol funcionario solo modifica lo suyo.
+#   - Regla de negocio: Model.motivo_no_modificable() (por ejemplo, período cerrado).
+# ---------------------------------------------------------------------------------------------------
+def modificables(queryset, user):
+    """Filtra por propiedad según el owner_field declarado en el modelo del queryset."""
+    campo = getattr(queryset.model, 'owner_field', None)
+    return queryset if campo is None else solo_propios(queryset, user, campo)
+
+
+def motivo_no_modificable(obj):
+    metodo = getattr(obj, 'motivo_no_modificable', None)
+    return metodo() if metodo else None
+
+
+def puede_modificar(user, obj):
+    if motivo_no_modificable(obj):
+        return False
+    return modificables(type(obj)._default_manager.filter(pk=obj.pk), user).exists()
 
 
 def filtrar_por_delegacion(queryset, user, campo='delegation'):
@@ -125,6 +149,9 @@ class ScopedModelAdmin:
                     kwargs['queryset'] = relacionado.objects.filter(pk=delegacion.pk)
                 elif any(campo.name == 'delegation' for campo in relacionado._meta.fields):
                     kwargs['queryset'] = relacionado.objects.filter(delegation=delegacion)
+            if 'queryset' in kwargs or getattr(db_field.related_model, 'owner_field', None) is not None:
+                base = kwargs.get('queryset', db_field.related_model._default_manager.all())
+                kwargs['queryset'] = modificables(base, request.user)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     def has_add_permission(self, request):
@@ -149,12 +176,20 @@ class ScopedModelAdmin:
                 return False
         return getattr(valor, 'pk', valor) == delegacion.pk
 
+    def _puede_modificar(self, request, obj):
+        return obj is None or (self._objeto_en_alcance(request, obj) and puede_modificar(request.user, obj))
+
     def has_change_permission(self, request, obj=None):
-        if not super().has_change_permission(request, obj):
-            return False
-        return self._objeto_en_alcance(request, obj)
+        # Sin permiso de cambio sobre un registro visible, el Admin lo muestra en solo lectura.
+        return super().has_change_permission(request, obj) and self._puede_modificar(request, obj)
 
     def has_delete_permission(self, request, obj=None):
-        if not super().has_delete_permission(request, obj):
-            return False
-        return self._objeto_en_alcance(request, obj)
+        return super().has_delete_permission(request, obj) and self._puede_modificar(request, obj)
+
+    def get_search_results(self, request, queryset, search_term):
+        # Autocompletado de un campo relacionado (p. ej. la actividad de una evidencia): mismas opciones
+        # que el formulario, es decir, solo lo que el usuario puede modificar.
+        queryset, duplicados = super().get_search_results(request, queryset, search_term)
+        if request.GET.get('field_name'):
+            queryset = modificables(queryset, request.user)
+        return queryset, duplicados

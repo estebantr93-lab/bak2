@@ -37,14 +37,13 @@ class ActividadWebForm(ActividadForm):
 
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
-        from core.admin_utils import ROL_FUNCIONARIO, filtrar_por_delegacion, get_rol
+        from core.admin_utils import ROL_FUNCIONARIO, filtrar_por_delegacion, get_rol, modificables
         from core.models import Period, ActivityType
         from funcionarios.models import Employee
 
-        funcionarios = filtrar_por_delegacion(Employee.objects.filter(is_active=True), user)
+        # Política única (core/admin_utils.modificables): un funcionario solo puede elegirse a sí mismo.
+        funcionarios = modificables(filtrar_por_delegacion(Employee.objects.filter(is_active=True), user), user)
         if get_rol(user) == ROL_FUNCIONARIO:
-            # Un funcionario solo registra actividades propias.
-            funcionarios = funcionarios.filter(user=user)
             self.fields['employee'].initial = funcionarios.first()
         self.fields['employee'].queryset = funcionarios.select_related('delegation')
         self.fields['period'].queryset = Period.objects.filter(is_closed=False)
@@ -82,10 +81,10 @@ class SocialCaseForm(forms.ModelForm):
 
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
-        from core.admin_utils import filtrar_por_delegacion, solo_propios
+        from core.admin_utils import filtrar_por_delegacion, modificables
 
         actividades = Activity.objects.filter(activity_type__category='social').select_related('delegation')
-        self.fields['activity'].queryset = solo_propios(filtrar_por_delegacion(actividades, user), user, 'employee')
+        self.fields['activity'].queryset = modificables(filtrar_por_delegacion(actividades, user), user)
         self.fields['activity'].empty_label = 'Seleccione…'
 
     def clean(self):

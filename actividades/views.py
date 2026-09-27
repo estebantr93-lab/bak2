@@ -31,12 +31,6 @@ class ActivityCrud(CrudConfig):
                badge=lambda a: f'estado-{a.validation_status}'),
     ]
     row_links = [('Evidencias', 'evidencia_list', 'activity', 'evidencias.view_evidence')]
-    owner_field = 'employee'
-
-    def motivo_no_modificable(self, obj):
-        if obj.period_id and obj.period.is_closed:
-            return 'Actividad de un período cerrado: no se puede modificar ni eliminar.'
-        return None
 
 
 class SocialCaseCrud(CrudConfig):
@@ -49,7 +43,6 @@ class SocialCaseCrud(CrudConfig):
     url_prefix = 'atencion'
     context_object_name = 'social_cases'
     filters = {'activity': 'activity_id'}
-    owner_field = 'activity__employee'
     columns = [
         Column('Actividad', 'activity.number'),
         Column('Delegación', 'activity.delegation.name'),

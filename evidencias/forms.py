@@ -7,7 +7,7 @@ from django.core.files.uploadedfile import UploadedFile
 from PIL import Image, UnidentifiedImageError
 
 from actividades.models import Activity
-from core.admin_utils import filtrar_por_delegacion, solo_propios
+from core.admin_utils import filtrar_por_delegacion, modificables
 
 from .models import EXTENSIONES_IMAGEN, Evidence, Validation
 
@@ -32,8 +32,8 @@ class EvidenciaForm(forms.ModelForm):
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.user = user
-        self.fields['activity'].queryset = solo_propios(
-            filtrar_por_delegacion(Activity.objects.select_related('delegation'), user), user, 'employee',
+        self.fields['activity'].queryset = modificables(
+            filtrar_por_delegacion(Activity.objects.select_related('delegation'), user), user,
         )
         self.fields['activity'].empty_label = 'Seleccione…'
         # Al crear, el archivo es obligatorio; al editar se puede conservar el actual.
