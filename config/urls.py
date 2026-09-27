@@ -18,7 +18,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
-from django.urls import include, path
+from django.urls import include, path, reverse_lazy
 from django.views.generic import RedirectView
 
 from funcionarios.forms import LoginForm
@@ -34,7 +34,12 @@ urlpatterns = [
     # Mismo LoginView de Django, con un formulario que rechaza cuentas sin rol.
     # Va antes del include para reemplazar solo la ruta 'login'.
     path('accounts/login/', auth_views.LoginView.as_view(authentication_form=LoginForm), name='login'),
-    # logout y gestión de contraseña incluidas por Django.
+    # La recuperación exigida es por código de 6 dígitos: el flujo por enlace de Django redirige a ella.
+    path('accounts/password_reset/', RedirectView.as_view(pattern_name='recuperar_solicitar', permanent=False)),
+    path('accounts/password_reset/done/', RedirectView.as_view(pattern_name='recuperar_solicitar', permanent=False)),
+    path('accounts/reset/<uidb64>/<token>/', RedirectView.as_view(url=reverse_lazy('recuperar_solicitar'), permanent=False)),
+    path('accounts/reset/done/', RedirectView.as_view(pattern_name='login', permanent=False)),
+    # logout y cambio de contraseña incluidos por Django.
     path('accounts/', include('django.contrib.auth.urls')),
     path('actividades/', include('actividades.urls')),
     path('evidencias/', include('evidencias.urls')),

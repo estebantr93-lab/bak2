@@ -8,7 +8,8 @@ Cada CRUD declara su modelo, columnas, formulario y permisos; esta base aporta l
 - Paginación 5 / 15 / 30 recordada en request.session; valores no permitidos se ignoran.
 - Crear y editar en un modal: si el formulario tiene errores se vuelve a mostrar abierto.
 - Eliminar solo por POST (con CSRF) y de forma lógica (deleted_at).
-- Exportar a Excel (.xlsx) el mismo QuerySet del listado: respeta permisos, scoping y borrado lógico.
+- Exportar a Excel (.xlsx, reportes/services.py) el mismo QuerySet del listado: respeta permisos,
+  scoping y borrado lógico.
 """
 from datetime import date, datetime
 
@@ -17,14 +18,12 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.contrib.messages.views import SuccessMessageMixin
 from django.core.paginator import Paginator
-from django.http import HttpResponse
 from django.urls import reverse
 from django.utils import timezone
 from django.views import View
 from django.views.generic import CreateView, DeleteView, ListView, UpdateView
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill
-from openpyxl.utils import get_column_letter
+
+from reportes.services import respuesta_xlsx, valor_excel
 
 from .admin_utils import filtrar_por_delegacion
 
@@ -263,29 +262,9 @@ class CrudExportView(ScopedCrudMixin, CrudConfig, View):
         return (self.perm('view'),)
 
     def get(self, request, *args, **kwargs):
-        libro = Workbook()
-        hoja = libro.active
-        hoja.title = self.title[:31]
-        hoja.append([c.header for c in self.columns])
-        for celda in hoja[1]:
-            celda.font = Font(bold=True, color='FFFFFF')
-            celda.fill = PatternFill('solid', fgColor='AD0000')
-        for obj in self.get_queryset().iterator():
-            fila = []
-            for col in self.columns:
-                valor = col.resolve(obj)
-                if isinstance(valor, datetime) and timezone.is_aware(valor):
-                    valor = timezone.localtime(valor).replace(tzinfo=None)  # Excel no guarda zona horaria
-                es_nativo = isinstance(valor, (int, float, date)) and not isinstance(valor, bool)
-                fila.append(valor if es_nativo else as_text(valor))
-            hoja.append(fila)
-        for i, col in enumerate(self.columns, start=1):
-            hoja.column_dimensions[get_column_letter(i)].width = max(12, len(col.header) + 4)
-        hoja.freeze_panes = 'A2'
-        respuesta = HttpResponse(
-            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        filas = (
+            [valor_excel(col.resolve(obj), as_text) for col in self.columns]
+            for obj in self.get_queryset().iterator()  # mismo QuerySet del listado
         )
         nombre = f'{self.url_prefix}_{timezone.localdate():%Y%m%d}.xlsx'
-        respuesta['Content-Disposition'] = f'attachment; filename="{nombre}"'
-        libro.save(respuesta)
-        return respuesta
+        return respuesta_xlsx(self.title, [c.header for c in self.columns], filas, nombre)
