@@ -53,9 +53,10 @@ class ActividadWebForm(ActividadForm):
             self.fields[campo].empty_label = 'Seleccione…'
 
     def clean_numero(self):
-        # Regla de un solo campo: normaliza y evita duplicados que solo difieren en mayúsculas.
+        # Regla de un solo campo: normaliza y evita duplicados (también contra actividades eliminadas,
+        # porque el número sigue ocupado en la base de datos).
         numero = self.cleaned_data['numero'].strip().upper()
-        duplicado = Actividad.objects.filter(numero__iexact=numero).exclude(pk=self.instance.pk)
+        duplicado = Actividad.all_objects.filter(numero__iexact=numero).exclude(pk=self.instance.pk)
         if duplicado.exists():
             raise ValidationError('Ya existe una actividad con este número.')
         return numero

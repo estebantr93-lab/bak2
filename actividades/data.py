@@ -39,7 +39,7 @@ def build_actividades():
 
     actividades = {}
     for numero, funcionario, tipo, estado, codigo_evidencia, descripcion in actividades_data:
-        actividad, _ = Actividad.objects.get_or_create(
+        actividad, _ = Actividad.all_objects.get_or_create(
             numero=numero,
             defaults={
                 'funcionario': funcionario,
@@ -56,11 +56,11 @@ def build_actividades():
         )
         actividades[numero] = actividad
 
-    AtencionSocial.objects.get_or_create(
+    AtencionSocial.all_objects.get_or_create(
         actividad=actividades['ACT-2026-004'], numero_gestion=1,
         defaults={'descripcion': 'Primera gestión: diagnóstico social y derivación a beneficio municipal.'},
     )
-    AtencionSocial.objects.get_or_create(
+    AtencionSocial.all_objects.get_or_create(
         actividad=actividades['ACT-2026-008'], numero_gestion=1,
         defaults={'descripcion': 'Primera gestión: coordinación con empresa sanitaria para restablecer servicio.'},
     )

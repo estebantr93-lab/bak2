@@ -66,9 +66,11 @@ def _porcentaje_esperado(periodo, hoy):
 
 
 def _anotar_resumen(funcionarios, periodo, hoy):
-    filtro_periodo = Q(actividades__periodo=periodo)
-    filtro_evidencias = Q(actividades__evidencias__isnull=False, actividades__periodo=periodo)
-    compromiso_abierto = ~Q(compromisos__estado='realizado')
+    filtro_periodo = Q(actividades__periodo=periodo, actividades__deleted_at__isnull=True)
+    filtro_evidencias = filtro_periodo & Q(
+        actividades__evidencias__isnull=False, actividades__evidencias__deleted_at__isnull=True,
+    )
+    compromiso_abierto = ~Q(compromisos__estado='realizado') & Q(compromisos__deleted_at__isnull=True)
     return funcionarios.annotate(
         act_total=Count('actividades', filter=filtro_periodo, distinct=True),
         act_aprobadas=Count(

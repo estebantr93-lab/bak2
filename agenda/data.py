@@ -21,7 +21,7 @@ def build_agenda():
 
     compromisos = {}
     for titulo, delegacion, responsable, fecha_venc, estado in compromisos_data:
-        compromiso, _ = Compromiso.objects.get_or_create(
+        compromiso, _ = Compromiso.all_objects.get_or_create(
             titulo=titulo,
             defaults={
                 'delegacion': delegacion, 'responsable': responsable,
@@ -30,12 +30,12 @@ def build_agenda():
         )
         compromisos[titulo] = compromiso
 
-    SeguimientoCompromiso.objects.get_or_create(
+    SeguimientoCompromiso.all_objects.get_or_create(
         compromiso=compromisos['Instalar señalética en plaza de armas'],
         responsable=func_centro, estado_nuevo='pendiente',
         defaults={'descripcion': 'Compromiso vencido: pendiente de coordinación con proveedor.'},
     )
-    SeguimientoCompromiso.objects.get_or_create(
+    SeguimientoCompromiso.all_objects.get_or_create(
         compromiso=compromisos['Reparación de luminarias sector norte'],
         responsable=func_norte, estado_nuevo='ingresado',
         defaults={'descripcion': 'Compromiso vencido: a la espera de asignación de cuadrilla técnica.'},

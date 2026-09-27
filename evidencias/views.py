@@ -31,7 +31,7 @@ def evidencias_actividad(request, pk):
             evidencia.save()
             messages.success(request, f'Evidencia {evidencia.codigo_unico} cargada correctamente.')
             return redirect('evidencias_actividad', pk=actividad.pk)
-    evidencias = actividad.evidencias.select_related('revisada_por')
+    evidencias = actividad.evidencias.activos().select_related('revisada_por')
     return render(request, 'evidencias/evidencias_actividad.html', {
         'actividad': actividad, 'evidencias': evidencias, 'form': form,
     })
@@ -44,6 +44,6 @@ def eliminar_evidencia(request, pk):
     qs = filtrar_por_delegacion(Evidencia.objects.select_related('actividad'), request.user, 'actividad__delegacion')
     evidencia = get_object_or_404(qs, pk=pk)
     actividad_pk, codigo = evidencia.actividad_id, evidencia.codigo_unico
-    evidencia.delete()  # la señal post_delete elimina también el archivo físico
+    evidencia.delete()  # borrado lógico: se marca deleted_at y el archivo se conserva
     messages.success(request, f'Evidencia {codigo} eliminada.')
     return redirect('evidencias_actividad', pk=actividad_pk)

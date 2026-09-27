@@ -6,6 +6,7 @@ from django.db import models
 from django.utils import timezone
 
 from actividades.models import Actividad
+from core.soft_delete import SoftDeleteModel
 
 EXTENSIONES_IMAGEN = {'.jpg', '.jpeg', '.png'}
 
@@ -16,7 +17,7 @@ def ruta_evidencia(instance, filename):
     return f'evidencias/{timezone.now():%Y/%m}/{uuid.uuid4().hex}{extension}'
 
 
-class Evidencia(models.Model):
+class Evidencia(SoftDeleteModel):
     ESTADO_CHOICES = [
         ('pendiente', 'Pendiente'),
         ('aprobada', 'Aprobada'),
@@ -24,7 +25,9 @@ class Evidencia(models.Model):
     ]
 
     codigo_unico = models.CharField(max_length=40, unique=True, blank=True)
-    actividad = models.ForeignKey(Actividad, on_delete=models.CASCADE, related_name='evidencias')
+    actividad = models.ForeignKey(
+        Actividad, on_delete=models.CASCADE, related_name='evidencias', limit_choices_to={'deleted_at__isnull': True},
+    )
     descripcion = models.TextField(blank=True)
     archivo = models.FileField(upload_to=ruta_evidencia, blank=True, null=True)
     fecha_registro = models.DateTimeField(auto_now_add=True)
@@ -65,7 +68,9 @@ class Validacion(models.Model):
         ('rechazada', 'Rechazada'),
     ]
 
-    evidencia = models.ForeignKey(Evidencia, on_delete=models.CASCADE, related_name='validaciones')
+    evidencia = models.ForeignKey(
+        Evidencia, on_delete=models.CASCADE, related_name='validaciones', limit_choices_to={'deleted_at__isnull': True},
+    )
     verificador = models.ForeignKey(User, on_delete=models.PROTECT, related_name='validaciones')
     fecha = models.DateTimeField(auto_now_add=True)
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES)

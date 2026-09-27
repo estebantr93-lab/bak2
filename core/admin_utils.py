@@ -1,5 +1,7 @@
 from django.apps import apps
 
+from .soft_delete import es_soft_delete
+
 
 def get_usuario_delegacion(user):
     if not user or not user.is_authenticated:
@@ -77,6 +79,8 @@ class ScopedModelAdmin:
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
+        if es_soft_delete(self.model):
+            qs = qs.filter(deleted_at__isnull=True)  # el Admin tampoco lista eliminados lógicamente
         if es_usuario_sin_restriccion(request.user):
             return qs
         delegacion = get_usuario_delegacion(request.user)

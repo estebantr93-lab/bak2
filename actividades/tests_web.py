@@ -189,14 +189,26 @@ class EvidenciaArchivoTests(BaseWeb):
         response = self.subir(imagen_png(), actividad=self.actividad_norte)
         self.assertEqual(response.status_code, 404)
 
-    def test_eliminar_borra_el_archivo_fisico(self):
+    def test_eliminar_es_logico_y_conserva_el_archivo(self):
         self.ingresar('admin_centro', CLAVE_TEST)
         self.subir(imagen_png())
         evidencia = Evidencia.objects.filter(actividad=self.actividad_centro).exclude(archivo='').get()
         storage, nombre = evidencia.archivo.storage, evidencia.archivo.name
-        self.assertTrue(storage.exists(nombre))
         response = self.client.post(reverse('evidencia_delete', args=[evidencia.pk]))
         self.assertEqual(response.status_code, 302)
+        self.assertFalse(Evidencia.objects.filter(pk=evidencia.pk).exists())
+        self.assertIsNotNone(Evidencia.all_objects.get(pk=evidencia.pk).deleted_at)
+        self.assertTrue(storage.exists(nombre))
+        # La evidencia eliminada ya no aparece en el listado.
+        response = self.client.get(reverse('evidencias_actividad', args=[self.actividad_centro.pk]))
+        self.assertNotIn(evidencia, list(response.context['evidencias']))
+
+    def test_hard_delete_borra_el_archivo_fisico(self):
+        self.ingresar('admin_centro', CLAVE_TEST)
+        self.subir(imagen_png())
+        evidencia = Evidencia.objects.filter(actividad=self.actividad_centro).exclude(archivo='').get()
+        storage, nombre = evidencia.archivo.storage, evidencia.archivo.name
+        evidencia.hard_delete()
         self.assertFalse(storage.exists(nombre))
 
     def test_funcionario_no_puede_eliminar_evidencia(self):

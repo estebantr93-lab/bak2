@@ -32,7 +32,7 @@
                     {% if perms.evidencias.delete_evidencia %}
                     <div class="card-footer bg-transparent text-end">
                         <form method="post" action="{% url 'evidencia_delete' evidencia.pk %}"
-                              data-confirmar="¿Eliminar la evidencia {{ evidencia.codigo_unico }}? El archivo se borrará.">
+                              data-confirmar="¿Eliminar la evidencia {{ evidencia.codigo_unico }}? Dejará de mostrarse en el sistema.">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-outline-danger btn-sm">Eliminar</button>
                         </form>

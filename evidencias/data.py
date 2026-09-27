@@ -22,7 +22,7 @@ def build_evidencias():
     evidencias = {}
     for numero_actividad, codigo_unico, estado in evidencias_data:
         actividad = Actividad.objects.get(numero=numero_actividad)
-        evidencia, _ = Evidencia.objects.get_or_create(
+        evidencia, _ = Evidencia.all_objects.get_or_create(
             codigo_unico=codigo_unico,
             defaults={
                 'actividad': actividad,
