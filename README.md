@@ -6,7 +6,7 @@ Proyecto integrado académico (INACAP) correspondiente al caso de las delegacion
 
 El **Sistema de Gestión de Resultados (SGR)** es una aplicación web que centraliza el registro, seguimiento, verificación y medición de la gestión de funcionarios y delegaciones, generando indicadores individuales y colectivos que apoyan el control operativo y la toma de decisiones.
 
-Esta entrega corresponde a la **Evaluación Sumativa II — "Taller: Aplicación web con Django Admin"**: aplicación Django con base de datos configurada mediante variables de entorno y un Django Admin funcional, personalizado y protegido según la problemática municipal.
+Esta entrega corresponde a la **Evaluación Formativa – Unidad II (Programación Back End, TI3V41)**: integración Django de autenticación, recuperación de contraseña, permisos y scoping, CRUD con ModelForm, archivos, sesiones y paginación, borrado lógico, exportación a Excel y despliegue en AWS Academy, sobre MySQL/MariaDB.
 
 > **Importante:** el proyecto se usa únicamente con **datos ficticios**. Está prohibido cargar información real de ciudadanos o funcionarios.
 
@@ -49,7 +49,7 @@ Proyecto_Integrado_SGR/
 ├── medicion/        # Goal, Weighting, Indicator + fórmulas de cálculo (services.py)
 ├── monitoreo/       # DashboardPanel
 ├── dashboard/       # Dashboard de resumen por funcionario y rol (services.py)
-├── reportes/        # Servicios de exportación (sin modelos ni vistas propias todavía)
+├── reportes/        # Exportación a Excel (.xlsx) con openpyxl (services.py)
 ├── colaboracion/    # Comment, Alert, AuditLog
 ├── templates/       # landing, base, registration/ (login y recuperación), dashboard/, actividades/, evidencias/
 ├── static/          # static/css/style.css y static/js/confirmar.js (SweetAlert2)
@@ -123,14 +123,6 @@ GRANT ALL PRIVILEGES ON sgr.* TO 'sgr_app'@'%';
 GRANT ALL PRIVILEGES ON test_sgr.* TO 'sgr_app'@'%';
 FLUSH PRIVILEGES;
 ```
-
-### 4.2 Despliegue en AWS (Amazon RDS)
-
-- Crear la instancia RDS con motor **MySQL 8.4** o **MariaDB 10.11 / 11.4**. Django 6.1 rechaza MySQL 8.0 y MariaDB 10.6.
-- En el *parameter group* de RDS: `character_set_server = utf8mb4` y `collation_server = utf8mb4_unicode_ci`.
-- `DB_HOST` es el *endpoint* de RDS. El *security group* de RDS debe permitir el puerto 3306 **solo** desde el servidor de la aplicación (EC2 o Elastic Beanstalk), nunca desde `0.0.0.0/0`.
-- TLS: descargar `global-bundle.pem` desde la documentación de AWS RDS y apuntar `DB_SSL_CA` a esa ruta.
-- En producción: `DEBUG=False`, `COOKIE_SECURE=True` (con HTTPS), `ALLOWED_HOSTS` con el dominio real y un `SECRET_KEY` propio. Las credenciales van en variables de entorno o en AWS Secrets Manager, nunca en el repositorio.
 
 > El archivo `.env` no se versiona (ver `.gitignore`). Cada equipo/computador genera el suyo a partir de la plantilla.
 
@@ -281,6 +273,8 @@ sudo systemctl restart gunicorn-sgr
 
 **Learner Lab:** la sesión se apaga a las 4 horas y, al reiniciarse, la EC2 puede cambiar de IP pública. Actualice `ALLOWED_HOSTS` y `CSRF_TRUSTED_ORIGINS` en `.env` y reinicie gunicorn, o asocie una Elastic IP. Antes de la revisión, inicie el lab y verifique la URL.
 
+**Si usa RDS:** en el *parameter group*, `character_set_server = utf8mb4` y `collation_server = utf8mb4_unicode_ci`. Para conexión cifrada, descargue `global-bundle.pem` de AWS y apunte `DB_SSL_CA` a esa ruta. Con HTTPS, active `COOKIE_SECURE=True` y `BEHIND_HTTPS_PROXY=True`.
+
 **Diagnóstico:** `sudo systemctl status gunicorn-sgr`, `sudo journalctl -u gunicorn-sgr -n 50`, `sudo nginx -t` y `sudo tail /var/log/nginx/error.log`.
 
 ## Cuentas de prueba
@@ -298,52 +292,51 @@ sudo systemctl restart gunicorn-sgr
 
 ## Comandos de verificación
 
-Con el entorno activado y desde la raíz del proyecto:
-
 ```bash
-# Comprueba la configuración del proyecto
-python manage.py check
-
-# Aplica las migraciones
-python manage.py migrate
-
-# Carga datos de prueba idempotentes
-python manage.py seed_data
-
-# Ejecuta las pruebas automáticas (todas las apps)
-python manage.py test
-
-# Levanta el servidor de desarrollo
-python manage.py runserver
+python manage.py check                      # configuración
+python manage.py makemigrations --check     # modelos y migraciones sincronizados
+python manage.py migrate                    # aplica migraciones
+python manage.py seed_data --volumen        # demo + 1.400 registros (idempotente)
+python manage.py test                       # 170 pruebas automáticas
+python manage.py runserver                  # servidor de desarrollo
 ```
 
-## Revisión en vivo (laboratorio)
+## Guion de demostración (según la rúbrica)
 
-Secuencia de la demostración:
+| # | Criterio | Qué mostrar |
+| --- | --- | --- |
+| 1 | Modelo, Admin y nomenclatura | Admin con `admin_sgr`: maestras y operacionales, tablas en inglés (`SHOW TABLES`), inline de evidencias y acción "Aprobar evidencias seleccionadas" |
+| 2 | Autenticación y recuperación | Login y logout; "¿Olvidó su contraseña?" → código de 6 dígitos (en la terminal o en Mailtrap) → nueva clave → reusar el código falla |
+| 3 | Seguridad de contraseña | Intentar `debil123` o una clave sin símbolo: se rechaza; debe coincidir en los dos campos |
+| 4 | Usuarios, permisos y scoping | `admin_centro` y `admin_norte` ven solo su delegación; `funcionario_centro` no tiene "Eliminar" y recibe 403 si fuerza la URL; `verificador_leia` recibe 403 en Compromisos |
+| 5 | CRUD y validaciones | Crear y editar en el modal: número duplicado, período cerrado, gestión 4, vencimiento en el pasado, "realizado" sin observaciones |
+| 6 | Archivos | Subir PNG/PDF válido; rechazo de `.exe`, PNG falso y archivo de más de 2 MB; miniatura en el listado |
+| 7 | SweetAlert2 + borrado lógico | Eliminar con confirmación; el registro desaparece del listado, pero sigue en la base con `deleted_at` |
+| 8 | Paginación y sesión | Elegir 5 → navegar a otro listado → se mantiene; `?page_size=999` se ignora |
+| 9 | Excel | "Exportar Excel" como `admin_centro`: solo Centro, sin eliminados |
+| 10 | 1.000 datos | `seed_data --volumen` y el total que muestra; la paginación en Actividades |
+| 11 | Despliegue | Todo lo anterior desde la URL pública de AWS |
 
-1. Clonar el repositorio entregado.
-2. Crear/activar el entorno virtual e instalar dependencias.
-3. Configurar `.env` a partir de `.env.example`.
-4. Ejecutar `migrate`.
-5. Ejecutar `seed_data`.
-6. Ingresar con `admin_sgr` y mostrar el Admin completo: maestras (`Delegation`, `Position`, `ActivityType`, `Period`, `Parameter`), operativas de todas las apps, el Inline de evidencias dentro de una actividad, la acción "Aprobar evidencias seleccionadas" y la validación controlada (por ejemplo, intentar registrar una actividad en el período `2026-Q1 (cerrado)`).
-7. Ingresar con `admin_centro` y luego con `admin_norte` para mostrar que cada administrador solo ve su delegación (dashboard y Admin).
-8. Cerrar sesión e ingresar con `funcionario_centro` para demostrar que solo ve/edita registros de Delegación Centro (no ve los de Norte).
-9. Ejecutar sobre datos cargados: búsqueda, filtros, ordenamiento, Inline, acción personalizada, validación y scoping/rol.
+## Flujo de trabajo con Git
 
-## Flujo de trabajo en 4 pasos
+- `main` contiene solo el primer push de inicialización. El desarrollo se hace en ramas `feature/*` (por ejemplo `feature/soft-delete`, `feature/crud-excel-paginacion` o `feature/deploy-aws`), que se integran con `git merge --no-ff` para que el historial muestre cada integración, y luego se llevan a `main` mediante Pull Request.
+- `.env`, entornos virtuales, `media/`, `staticfiles/` y la base de datos no se versionan (`.gitignore`). La plantilla de configuración es `.env.example`.
 
-La implementación se realizó en **4 pasos secuenciales** (ver `INSTRUCCIONES_AGENTE_IMPLEMENTACION_SGR.md`):
+## Dónde está cada requisito en el código
 
-1. **P1 — Base, configuración y dominio:** 9 apps, `.env`/settings, modelos y migraciones.
-2. **P2 — Admin Básico + Admin Pro + Seguridad:** ModelAdmins, Inline/acción/validaciones y scoping por delegación (`core/admin_utils.py`) + grupos/permisos (`funcionarios/security.py`).
-3. **P3 — Datos de demostración reproducibles:** seeders por app + comando `seed_data`, cuentas de prueba documentadas arriba.
-4. **P4 — Verificación integral, informe y entrega.**
-
-> **Los commits los realiza el humano a cargo.** El agente de IA desarrolla y deja los cambios en el árbol de trabajo, pero no ejecuta operaciones Git de escritura (commit, push, ramas ni PRs).
-
-## Referencias
-
-- `Evaluacion_Sumativa_II_BackEnd_Flex_parte_1.md` — pauta de evaluación.
-- `Resumen_Guia_Proyecto_SGR.md` — resumen de la guía del proyecto SGR.
-- `INSTRUCCIONES_AGENTE_IMPLEMENTACION_SGR.md` — especificación técnica de implementación.
+| Requisito | Archivos |
+| --- | --- |
+| Conexión a BD por variables de entorno | `config/settings.py` (`DATABASES`), `.env.example` |
+| Modelos (inglés, `db_table`) y Admin | `*/models.py`, `*/admin.py`, `core/admin_utils.py` (`ScopedModelAdmin`) |
+| Borrado lógico | `core/soft_delete.py` (`SoftDeleteModel`, managers `objects` / `all_objects`) |
+| Login, logout y rechazo de cuentas sin rol | `config/urls.py`, `funcionarios/forms.py` (`LoginForm`), `templates/registration/login.html` |
+| Recuperación con código de 6 dígitos | `funcionarios/recuperacion.py`, `funcionarios/views.py`, modelo `PasswordResetCode` |
+| Política de contraseñas | `config/settings.py` (`AUTH_PASSWORD_VALIDATORS`), `core/validators.py` |
+| Roles, grupos y permisos | `funcionarios/security.py`, `core/admin_utils.py` (`get_rol`, `filtrar_por_delegacion`) |
+| CRUD, modal, paginación en sesión | `core/crud.py`, `*/views.py`, `*/forms.py`, `templates/crud/list.html` |
+| Archivos e imágenes | `evidencias/forms.py` (`clean_file`), `evidencias/models.py` (`ruta_evidencia`), `evidencias/signals.py` |
+| SweetAlert2 | `static/js/confirmar.js`, `templates/base.html` |
+| Excel | `reportes/services.py` (`respuesta_xlsx`), `core/crud.py` (`CrudExportView`) |
+| Datos de volumen | `core/volume_data.py`, `core/management/commands/seed_data.py` |
+| Dashboard por rol | `dashboard/views.py`, `dashboard/services.py` |
+| Despliegue | `deploy/setup_ec2.sh`, `deploy/gunicorn-sgr.service`, `deploy/nginx-sgr.conf` |

@@ -15,6 +15,10 @@ class FuncionarioAdmin(ScopedModelAdmin, admin.ModelAdmin):
     list_select_related = ('user', 'delegation', 'position')
     autocomplete_fields = ('user', 'delegation', 'position')
 
+    def has_delete_permission(self, request, obj=None):
+        # Un funcionario con historial no se borra: se desactiva con is_active (equivalente a borrado lógico).
+        return False
+
     def get_readonly_fields(self, request, obj=None):
         campos = list(super().get_readonly_fields(request, obj))
         # Un admin de delegación no puede reasignar usuarios ni mover funcionarios a otra delegación.

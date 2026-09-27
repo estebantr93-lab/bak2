@@ -1,4 +1,5 @@
 from django.apps import apps
+from django.contrib import admin
 
 from .soft_delete import es_soft_delete
 
@@ -76,6 +77,17 @@ def filtrar_por_delegacion(queryset, user, campo='delegation'):
 
 class ScopedModelAdmin:
     scope_by = 'delegation'
+
+    def get_list_filter(self, request):
+        filtros = super().get_list_filter(request)
+        if es_usuario_sin_restriccion(request.user):
+            return filtros
+        # Para usuarios acotados, el filtro por delegación solo ofrece las de su propio alcance
+        # (RelatedOnlyFieldListFilter toma las opciones del queryset ya filtrado).
+        return [
+            (f, admin.RelatedOnlyFieldListFilter) if isinstance(f, str) and f.split('__')[-1] == 'delegation' else f
+            for f in filtros
+        ]
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
