@@ -240,6 +240,35 @@ La carga (`enctype="multipart/form-data"`) valida el tamaño (máximo 2 MB), la 
 Al reemplazar el archivo de una evidencia, el anterior se borra (`evidencias/signals.py`). Al eliminarla, el borrado es lógico y el archivo se conserva; solo `hard_delete()` lo borra del disco.
 SweetAlert2 (`static/js/confirmar.js`) pide confirmación antes de eliminar. Es solo una ayuda visual: Django sigue exigiendo POST, CSRF, login y permisos.
 
+## Despliegue en AWS Academy (EC2 + nginx + gunicorn)
+
+Arquitectura: **nginx** (puerto 80) sirve `/static/` y `/media/` y reenvía el resto a **gunicorn** por un socket Unix. **systemd** mantiene gunicorn en ejecución. La base de datos es **RDS** (MySQL 8.4 / MariaDB 10.11 o superior) o **MariaDB 10.11 en la misma EC2**. Los archivos están en `deploy/`.
+
+> ⚠️ Django 6.1 exige **Python 3.12+** y **MySQL 8.4+ / MariaDB 10.11+**. Ubuntu Server 24.04 trae Python 3.12 y MariaDB 10.11. Si el Learner Lab no ofrece esas versiones en RDS, use la opción `--db-local`.
+
+1. **Learner Lab → AWS Console → EC2 → Launch instance:** Ubuntu Server 24.04 LTS, `t3.small` (o `t2.small`) y el key pair `vockey`.
+   *Security group:* entrada **22** (solo su IP) y **80** (0.0.0.0/0). Si usa RDS, el security group de RDS debe permitir **3306 solo desde el security group de la EC2**.
+2. Conectarse (`ssh -i labsuser.pem ubuntu@<IP-publica>`) y ejecutar:
+   ```bash
+   curl -O https://raw.githubusercontent.com/<usuario>/<repo>/<rama>/deploy/setup_ec2.sh
+   bash setup_ec2.sh https://github.com/<usuario>/<repo>.git <rama> --db-local   # o sin --db-local para RDS
+   ```
+   El script instala los paquetes, clona en `/srv/sgr` y crea el entorno virtual. También genera un `.env` de producción con `SECRET_KEY` aleatoria, `DEBUG=False` y la IP en `ALLOWED_HOSTS`/`CSRF_TRUSTED_ORIGINS`. Después ejecuta `migrate`, `collectstatic` y `seed_data --volumen`, y deja gunicorn y nginx activos.
+   Con RDS, la primera ejecución se detiene para que complete `DB_HOST`, `DB_USER` y `DB_PASSWORD` en `/srv/sgr/.env`; luego se vuelve a ejecutar.
+3. **Contraseñas de demo:** defina `DEMO_PASSWORD` en `/srv/sgr/.env` **antes** del paso 2. Si no, `seed_data` muestra contraseñas aleatorias una sola vez en la salida del script.
+4. **Correo de recuperación:** con el backend de consola, el código aparece en `sudo journalctl -u gunicorn-sgr -f`. Para recibirlo por correo, configure SMTP (por ejemplo Mailtrap) con `EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend` y `EMAIL_HOST`/`EMAIL_PORT`/`EMAIL_HOST_USER`/`EMAIL_HOST_PASSWORD`, y luego `sudo systemctl restart gunicorn-sgr`.
+
+**Actualizar tras un nuevo push:**
+```bash
+cd /srv/sgr && git pull && .venv/bin/pip install -r requirements.txt
+.venv/bin/python manage.py migrate && .venv/bin/python manage.py collectstatic --noinput
+sudo systemctl restart gunicorn-sgr
+```
+
+**Learner Lab:** la sesión se apaga a las 4 horas y, al reiniciarse, la EC2 puede cambiar de IP pública. Actualice `ALLOWED_HOSTS` y `CSRF_TRUSTED_ORIGINS` en `.env` y reinicie gunicorn, o asocie una Elastic IP. Antes de la revisión, inicie el lab y verifique la URL.
+
+**Diagnóstico:** `sudo systemctl status gunicorn-sgr`, `sudo journalctl -u gunicorn-sgr -n 50`, `sudo nginx -t` y `sudo tail /var/log/nginx/error.log`.
+
 ## Cuentas de prueba
 
 `seed_data` crea estas cuentas de demostración. **Las contraseñas no están en el repositorio**: se definen en el `.env` con `DEMO_PASSWORD` (común a todas) o `DEMO_PASSWORD_<USUARIO>` (por ejemplo `DEMO_PASSWORD_ADMIN_CENTRO`). Si el `.env` no las define, `seed_data` genera contraseñas aleatorias y las muestra **una sola vez** en la terminal. Las contraseñas se entregan al docente en la demostración.
