@@ -25,6 +25,9 @@ from funcionarios.forms import LoginForm
 
 from .views import inicio
 
+# url= (y no pattern_name=) porque la ruta reset/<uidb64>/<token>/ no debe pasar sus argumentos al destino.
+a_recuperacion = RedirectView.as_view(url=reverse_lazy('recuperar_solicitar'))
+
 urlpatterns = [
     path('', inicio, name='inicio'),
     path('admin/login/', RedirectView.as_view(pattern_name='login', permanent=False, query_string=True)),
@@ -35,10 +38,10 @@ urlpatterns = [
     # Va antes del include para reemplazar solo la ruta 'login'.
     path('accounts/login/', auth_views.LoginView.as_view(authentication_form=LoginForm), name='login'),
     # La recuperación exigida es por código de 6 dígitos: el flujo por enlace de Django redirige a ella.
-    path('accounts/password_reset/', RedirectView.as_view(pattern_name='recuperar_solicitar', permanent=False)),
-    path('accounts/password_reset/done/', RedirectView.as_view(pattern_name='recuperar_solicitar', permanent=False)),
-    path('accounts/reset/<uidb64>/<token>/', RedirectView.as_view(url=reverse_lazy('recuperar_solicitar'), permanent=False)),
-    path('accounts/reset/done/', RedirectView.as_view(pattern_name='login', permanent=False)),
+    path('accounts/password_reset/', a_recuperacion),
+    path('accounts/password_reset/done/', a_recuperacion),
+    path('accounts/reset/<uidb64>/<token>/', a_recuperacion),
+    path('accounts/reset/done/', RedirectView.as_view(url=reverse_lazy('login'))),
     # logout y cambio de contraseña incluidos por Django.
     path('accounts/', include('django.contrib.auth.urls')),
     path('actividades/', include('actividades.urls')),

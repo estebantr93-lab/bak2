@@ -9,7 +9,7 @@ from openpyxl import load_workbook
 
 from actividades.models import Activity, SocialCase
 from agenda.models import Commitment
-from core.testing import CLAVE_TEST, sembrar_datos_demo
+from core.testing import SesionTestMixin, sembrar_datos_demo
 from evidencias.models import Evidence, Validation
 from funcionarios.models import Employee
 
@@ -22,13 +22,10 @@ CRUDS = {
 }
 
 
-class BaseCrud(TestCase):
+class BaseCrud(SesionTestMixin, TestCase):
     @classmethod
     def setUpTestData(cls):
         sembrar_datos_demo()
-
-    def ingresar(self, username):
-        self.assertTrue(self.client.login(username=username, password=CLAVE_TEST))
 
 
 class SeguridadComunTests(BaseCrud):

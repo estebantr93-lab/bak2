@@ -1,18 +1,15 @@
 from django.test import TestCase
 from django.urls import reverse
 
-from core.testing import CLAVE_TEST, sembrar_datos_demo
+from core.testing import SesionTestMixin, sembrar_datos_demo
 from evidencias.models import Evidence, Validation
 from funcionarios.models import Employee
 
 
-class AuditoriaRubricaTests(TestCase):
+class AuditoriaRubricaTests(SesionTestMixin, TestCase):
     @classmethod
     def setUpTestData(cls):
         sembrar_datos_demo()
-
-    def ingresar(self, username):
-        self.assertTrue(self.client.login(username=username, password=CLAVE_TEST))
 
     def test_admin_de_delegacion_no_ve_la_otra_ni_en_los_filtros(self):
         self.ingresar('admin_centro')
@@ -44,3 +41,24 @@ class AuditoriaRubricaTests(TestCase):
         response = self.client.get(f'/admin/funcionarios/employee/{empleado.pk}/delete/')
         self.assertEqual(response.status_code, 403)
         self.assertTrue(Employee.objects.filter(pk=empleado.pk).exists())
+
+    def test_superusuario_puede_borrar_un_usuario_con_perfil_sin_historial(self):
+        from django.contrib.auth.models import User
+
+        from core.models import Delegation, Position
+
+        user = User.objects.create_user(username='temporal', password='x')
+        Employee.objects.create(
+            user=user, delegation=Delegation.objects.first(), position=Position.objects.first(), name='Temporal',
+        )
+        self.ingresar('admin_sgr')
+        response = self.client.post(f'/admin/auth/user/{user.pk}/delete/', {'post': 'yes'})
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(User.objects.filter(pk=user.pk).exists())
+        self.assertFalse(Employee.objects.filter(name='Temporal').exists())
+
+    def test_admin_de_funcionarios_no_ofrece_borrado_masivo(self):
+        self.ingresar('admin_sgr')
+        response = self.client.get('/admin/funcionarios/employee/')
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'delete_selected')
