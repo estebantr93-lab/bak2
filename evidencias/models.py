@@ -37,6 +37,8 @@ class Evidence(SoftDeleteModel):
         User, verbose_name='revisada por', on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_evidence'
     )
 
+
+    soft_delete_cascade = ('validations',)
     class Meta:
         db_table = 'evidence'
         ordering = ['-registered_at']
@@ -63,7 +65,7 @@ class Evidence(SoftDeleteModel):
         super().save(*args, **kwargs)
 
 
-class Validation(models.Model):
+class Validation(SoftDeleteModel):
     STATUS_CHOICES = [
         ('approved', 'Aprobada'),
         ('rejected', 'Rechazada'),

@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.core.exceptions import PermissionDenied
 
 from core.admin_utils import ScopedModelAdmin, es_usuario_sin_restriccion
 
@@ -15,9 +16,18 @@ class FuncionarioAdmin(ScopedModelAdmin, admin.ModelAdmin):
     list_select_related = ('user', 'delegation', 'position')
     autocomplete_fields = ('user', 'delegation', 'position')
 
-    def has_delete_permission(self, request, obj=None):
-        # Un funcionario con historial no se borra: se desactiva con is_active (equivalente a borrado lógico).
-        return False
+    # Un funcionario se desactiva con is_active (equivalente a borrado lógico): se quitan las entradas de
+    # borrado de este Admin, sin negar el permiso, para no bloquear la eliminación en cascada de un User.
+    def get_actions(self, request):
+        acciones = super().get_actions(request)
+        acciones.pop('delete_selected', None)
+        return acciones
+
+    def delete_view(self, request, object_id, extra_context=None):
+        raise PermissionDenied('Los funcionarios no se eliminan: desactívelos con el campo "activo".')
+
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        return super().change_view(request, object_id, form_url, {**(extra_context or {}), 'show_delete': False})
 
     def get_readonly_fields(self, request, obj=None):
         campos = list(super().get_readonly_fields(request, obj))

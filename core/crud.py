@@ -11,8 +11,6 @@ Cada CRUD declara su modelo, columnas, formulario y permisos; esta base aporta l
 - Exportar a Excel (.xlsx, reportes/services.py) el mismo QuerySet del listado: respeta permisos,
   scoping y borrado lógico.
 """
-from datetime import date, datetime
-
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
@@ -23,7 +21,7 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
-from reportes.services import respuesta_xlsx, valor_excel
+from reportes.services import as_text, respuesta_xlsx, valor_excel
 
 from .admin_utils import filtrar_por_delegacion
 
@@ -64,16 +62,6 @@ class Column:
             if callable(resultado):
                 resultado = resultado()
         return resultado
-
-
-def as_text(valor):
-    if isinstance(valor, datetime):
-        return timezone.localtime(valor).strftime('%d-%m-%Y %H:%M') if timezone.is_aware(valor) else valor.strftime('%d-%m-%Y %H:%M')
-    if isinstance(valor, date):
-        return valor.strftime('%d-%m-%Y')
-    if isinstance(valor, bool):
-        return 'Sí' if valor else 'No'
-    return '' if valor is None else str(valor)
 
 
 class CrudConfig:
@@ -263,7 +251,7 @@ class CrudExportView(ScopedCrudMixin, CrudConfig, View):
 
     def get(self, request, *args, **kwargs):
         filas = (
-            [valor_excel(col.resolve(obj), as_text) for col in self.columns]
+            [valor_excel(col.resolve(obj)) for col in self.columns]
             for obj in self.get_queryset().iterator()  # mismo QuerySet del listado
         )
         nombre = f'{self.url_prefix}_{timezone.localdate():%Y%m%d}.xlsx'

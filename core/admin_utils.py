@@ -1,5 +1,4 @@
 from django.apps import apps
-from django.contrib import admin
 
 from .soft_delete import es_soft_delete
 
@@ -33,9 +32,19 @@ ROLES_ETIQUETAS = {
 
 
 def get_rol(user):
-    """Rol principal del usuario, en orden de mayor a menor alcance."""
+    """Rol principal del usuario, en orden de mayor a menor alcance.
+
+    Se guarda en el propio objeto user: durante una petición los hooks del Admin y las vistas lo
+    consultan varias veces y así se evita repetir la consulta de grupos.
+    """
     if not user or not user.is_authenticated:
         return None
+    if not hasattr(user, '_sgr_rol'):
+        user._sgr_rol = _calcular_rol(user)
+    return user._sgr_rol
+
+
+def _calcular_rol(user):
     if user.is_superuser:
         return ROL_SUPERADMIN
     # groups.all() aprovecha prefetch_related('user__groups') en listados.
@@ -82,12 +91,8 @@ class ScopedModelAdmin:
         filtros = super().get_list_filter(request)
         if es_usuario_sin_restriccion(request.user):
             return filtros
-        # Para usuarios acotados, el filtro por delegación solo ofrece las de su propio alcance
-        # (RelatedOnlyFieldListFilter toma las opciones del queryset ya filtrado).
-        return [
-            (f, admin.RelatedOnlyFieldListFilter) if isinstance(f, str) and f.split('__')[-1] == 'delegation' else f
-            for f in filtros
-        ]
+        # Un usuario acotado ya ve una sola delegación: filtrar por ella no aporta y listaría las demás.
+        return [f for f in filtros if f != self.scope_by]
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)

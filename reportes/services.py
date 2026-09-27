@@ -15,13 +15,24 @@ from openpyxl.utils import get_column_letter
 XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 
-def valor_excel(valor, como_texto):
+def as_text(valor):
+    """Texto legible para listados y reportes (fechas en formato chileno, Sí/No, vacío para None)."""
+    if isinstance(valor, datetime):
+        return timezone.localtime(valor).strftime('%d-%m-%Y %H:%M') if timezone.is_aware(valor) else valor.strftime('%d-%m-%Y %H:%M')
+    if isinstance(valor, date):
+        return valor.strftime('%d-%m-%Y')
+    if isinstance(valor, bool):
+        return 'Sí' if valor else 'No'
+    return '' if valor is None else str(valor)
+
+
+def valor_excel(valor):
     """Fechas y números se guardan como tipos nativos de Excel; el resto como texto."""
     if isinstance(valor, datetime) and timezone.is_aware(valor):
         valor = timezone.localtime(valor).replace(tzinfo=None)  # Excel no guarda zona horaria
     if isinstance(valor, (int, float, date)) and not isinstance(valor, bool):
         return valor
-    return como_texto(valor)
+    return as_text(valor)
 
 
 def respuesta_xlsx(titulo, encabezados, filas, nombre_archivo):

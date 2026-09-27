@@ -57,7 +57,3 @@ class ValidacionAdmin(ScopedModelAdmin, admin.ModelAdmin):
     list_filter = ('status',)
     ordering = ('-date',)
     list_select_related = ('evidence', 'reviewer')
-
-    def get_queryset(self, request):
-        # Las validaciones de evidencias eliminadas lógicamente tampoco se muestran.
-        return super().get_queryset(request).filter(evidence__deleted_at__isnull=True)

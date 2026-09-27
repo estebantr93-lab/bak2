@@ -15,3 +15,10 @@ def sembrar_datos_demo(**opciones):
     limpio = {k: v for k, v in os.environ.items() if not k.startswith('DEMO_PASSWORD')}
     with mock.patch.dict(os.environ, {**limpio, **entorno}, clear=True):
         call_command('seed_data', stdout=StringIO(), **opciones)
+
+
+class SesionTestMixin:
+    """Inicia sesión con una cuenta de la demo usando la clave de prueba."""
+
+    def ingresar(self, username, password=CLAVE_TEST):
+        self.assertTrue(self.client.login(username=username, password=password))
