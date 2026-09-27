@@ -6,96 +6,96 @@ from django.contrib.messages.storage.fallback import FallbackStorage
 from django.db import IntegrityError, transaction
 from django.test import RequestFactory, TestCase
 
-from core.models import Cargo, Delegacion, TipoActividad
-from funcionarios.models import Funcionario
-from actividades.models import Actividad
+from core.models import Position, Delegation, ActivityType
+from funcionarios.models import Employee
+from actividades.models import Activity
 from core.testing import CLAVE_TEST, sembrar_datos_demo
 
 from .admin import EvidenciaAdmin
-from .models import Evidencia, Validacion
+from .models import Evidence, Validation
 
 
 class AprobarEvidenciasActionTests(TestCase):
     def setUp(self):
-        delegacion = Delegacion.objects.create(nombre='Centro', direccion='Calle 1')
-        cargo = Cargo.objects.create(nombre='Verificador')
-        tipo = TipoActividad.objects.create(codigo='ATC-01', nombre='Atención', categoria='atencion')
+        delegacion = Delegation.objects.create(name='Centro', address='Calle 1')
+        cargo = Position.objects.create(name='Verificador')
+        tipo = ActivityType.objects.create(code='ATC-01', name='Atención', category='service')
         func_user = User.objects.create_user(username='func', password='x')
-        funcionario = Funcionario.objects.create(user=func_user, delegacion=delegacion, cargo=cargo, nombre='Func')
-        actividad = Actividad.objects.create(
-            numero='ACT-1', funcionario=funcionario, delegacion=delegacion, tipo_actividad=tipo,
-            fecha=datetime.date(2026, 6, 1), descripcion='desc', codigo_evidencia='EV-100',
+        funcionario = Employee.objects.create(user=func_user, delegation=delegacion, position=cargo, name='Func')
+        actividad = Activity.objects.create(
+            number='ACT-1', employee=funcionario, delegation=delegacion, activity_type=tipo,
+            date=datetime.date(2026, 6, 1), description='desc', evidence_code='EV-100',
         )
-        self.evidencia = Evidencia.objects.create(codigo_unico='EVI-001', actividad=actividad)
+        self.evidence = Evidence.objects.create(unique_code='EVI-001', activity=actividad)
 
-        ct = ContentType.objects.get_for_model(Evidencia)
-        self.permiso_aprobar = Permission.objects.get(content_type=ct, codename='can_approve_evidencia')
-        self.verificador = User.objects.create_user(username='verificador', password='x', is_staff=True)
-        self.verificador.user_permissions.add(self.permiso_aprobar)
+        ct = ContentType.objects.get_for_model(Evidence)
+        self.permiso_aprobar = Permission.objects.get(content_type=ct, codename='can_approve_evidence')
+        self.reviewer = User.objects.create_user(username='reviewer', password='x', is_staff=True)
+        self.reviewer.user_permissions.add(self.permiso_aprobar)
 
         self.sin_permiso = User.objects.create_user(username='sinpermiso', password='x', is_staff=True)
 
         self.factory = RequestFactory()
 
     def _request_con_mensajes(self, usuario):
-        request = self.factory.post('/admin/evidencias/evidencia/')
+        request = self.factory.post('/admin/evidencias/evidence/')
         request.user = usuario
         request.session = {}
         request._messages = FallbackStorage(request)
         return request
 
     def test_aprobar_evidencias_cambia_estado_y_crea_validacion(self):
-        request = self._request_con_mensajes(self.verificador)
-        admin_instance = EvidenciaAdmin(Evidencia, None)
+        request = self._request_con_mensajes(self.reviewer)
+        admin_instance = EvidenciaAdmin(Evidence, None)
 
-        admin_instance.aprobar_evidencias(request, Evidencia.objects.filter(pk=self.evidencia.pk))
+        admin_instance.aprobar_evidencias(request, Evidence.objects.filter(pk=self.evidence.pk))
 
-        self.evidencia.refresh_from_db()
-        self.assertEqual(self.evidencia.estado, 'aprobada')
-        self.assertEqual(self.evidencia.revisada_por, self.verificador)
-        self.assertTrue(Validacion.objects.filter(evidencia=self.evidencia, estado='aprobada').exists())
+        self.evidence.refresh_from_db()
+        self.assertEqual(self.evidence.status, 'approved')
+        self.assertEqual(self.evidence.reviewed_by, self.reviewer)
+        self.assertTrue(Validation.objects.filter(evidence=self.evidence, status='approved').exists())
 
     def test_usuario_sin_permiso_no_puede_aprobar(self):
         request = self._request_con_mensajes(self.sin_permiso)
-        admin_instance = EvidenciaAdmin(Evidencia, None)
+        admin_instance = EvidenciaAdmin(Evidence, None)
 
-        admin_instance.aprobar_evidencias(request, Evidencia.objects.filter(pk=self.evidencia.pk))
+        admin_instance.aprobar_evidencias(request, Evidence.objects.filter(pk=self.evidence.pk))
 
-        self.evidencia.refresh_from_db()
-        self.assertEqual(self.evidencia.estado, 'pendiente')
-        self.assertFalse(Validacion.objects.filter(evidencia=self.evidencia).exists())
+        self.evidence.refresh_from_db()
+        self.assertEqual(self.evidence.status, 'pending')
+        self.assertFalse(Validation.objects.filter(evidence=self.evidence).exists())
 
 
 class EvidenciaUnicidadTests(TestCase):
     def setUp(self):
-        delegacion = Delegacion.objects.create(nombre='Centro', direccion='Calle 1')
-        cargo = Cargo.objects.create(nombre='Encargado')
-        tipo = TipoActividad.objects.create(codigo='ATC-01', nombre='Atención', categoria='atencion')
+        delegacion = Delegation.objects.create(name='Centro', address='Calle 1')
+        cargo = Position.objects.create(name='Encargado')
+        tipo = ActivityType.objects.create(code='ATC-01', name='Atención', category='service')
         user = User.objects.create_user(username='func', password='x')
-        funcionario = Funcionario.objects.create(user=user, delegacion=delegacion, cargo=cargo, nombre='Func')
-        self.actividad = Actividad.objects.create(
-            numero='ACT-1', funcionario=funcionario, delegacion=delegacion, tipo_actividad=tipo,
-            fecha=datetime.date(2026, 6, 1), descripcion='desc', codigo_evidencia='EV-100',
+        funcionario = Employee.objects.create(user=user, delegation=delegacion, position=cargo, name='Func')
+        self.activity = Activity.objects.create(
+            number='ACT-1', employee=funcionario, delegation=delegacion, activity_type=tipo,
+            date=datetime.date(2026, 6, 1), description='desc', evidence_code='EV-100',
         )
-        Evidencia.objects.create(codigo_unico='EVI-DUP', actividad=self.actividad)
+        Evidence.objects.create(unique_code='EVI-DUP', activity=self.activity)
 
     def test_codigo_unico_de_evidencia_no_se_repite(self):
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
-                Evidencia.objects.create(codigo_unico='EVI-DUP', actividad=self.actividad)
+                Evidence.objects.create(unique_code='EVI-DUP', activity=self.activity)
 
     def test_codigo_se_genera_solo_cuando_viene_vacio(self):
-        evidencia = Evidencia.objects.create(actividad=self.actividad)
-        self.assertTrue(evidencia.codigo_unico.startswith('EVI-'))
+        evidencia = Evidence.objects.create(activity=self.activity)
+        self.assertTrue(evidencia.unique_code.startswith('EVI-'))
 
     def test_dos_evidencias_sin_codigo_no_chocan(self):
-        primera = Evidencia.objects.create(actividad=self.actividad)
-        segunda = Evidencia.objects.create(actividad=self.actividad)
-        self.assertNotEqual(primera.codigo_unico, segunda.codigo_unico)
+        primera = Evidence.objects.create(activity=self.activity)
+        segunda = Evidence.objects.create(activity=self.activity)
+        self.assertNotEqual(primera.unique_code, segunda.unique_code)
 
     def test_codigo_indicado_a_mano_se_respeta(self):
-        evidencia = Evidencia.objects.create(codigo_unico='EVI-MANUAL', actividad=self.actividad)
-        self.assertEqual(evidencia.codigo_unico, 'EVI-MANUAL')
+        evidencia = Evidence.objects.create(unique_code='EVI-MANUAL', activity=self.activity)
+        self.assertEqual(evidencia.unique_code, 'EVI-MANUAL')
 
 
 class RevisionEnVivoEvidenciasTests(TestCase):
@@ -105,22 +105,22 @@ class RevisionEnVivoEvidenciasTests(TestCase):
 
     def test_admin_sgr_ve_evidencias_de_ambas_delegaciones(self):
         self.client.login(username='admin_sgr', password=CLAVE_TEST)
-        response = self.client.get('/admin/evidencias/evidencia/')
+        response = self.client.get('/admin/evidencias/evidence/')
         self.assertContains(response, 'EVID-CEN-001')
         self.assertContains(response, 'EVID-NOR-001')
 
     def test_funcionario_centro_no_ve_evidencias_de_norte(self):
         self.client.login(username='funcionario_centro', password=CLAVE_TEST)
-        response = self.client.get('/admin/evidencias/evidencia/')
+        response = self.client.get('/admin/evidencias/evidence/')
         self.assertContains(response, 'EVID-CEN-001')
         self.assertNotContains(response, 'EVID-NOR-001')
 
     def test_funcionario_centro_no_ve_la_accion_de_aprobar(self):
         self.client.login(username='funcionario_centro', password=CLAVE_TEST)
-        response = self.client.get('/admin/evidencias/evidencia/')
+        response = self.client.get('/admin/evidencias/evidence/')
         self.assertNotContains(response, 'Aprobar evidencias seleccionadas')
 
     def test_verificador_si_ve_la_accion_de_aprobar(self):
         self.client.login(username='verificador_leia', password=CLAVE_TEST)
-        response = self.client.get('/admin/evidencias/evidencia/')
+        response = self.client.get('/admin/evidencias/evidence/')
         self.assertContains(response, 'Aprobar evidencias seleccionadas')

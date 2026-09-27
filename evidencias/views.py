@@ -3,47 +3,47 @@ from django.contrib.auth.decorators import login_required, permission_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from actividades.models import Actividad
+from actividades.models import Activity
 from core.admin_utils import filtrar_por_delegacion
 
 from .forms import EvidenciaForm
-from .models import Evidencia
+from .models import Evidence
 
 
 def _actividad_visible(user, pk):
     """404 si la actividad es de otra delegación: el scoping va en el QuerySet."""
-    return get_object_or_404(filtrar_por_delegacion(Actividad.objects.select_related('delegacion'), user), pk=pk)
+    return get_object_or_404(filtrar_por_delegacion(Activity.objects.select_related('delegation'), user), pk=pk)
 
 
 @login_required
-@permission_required('evidencias.view_evidencia', raise_exception=True)
+@permission_required('evidencias.view_evidence', raise_exception=True)
 def evidencias_actividad(request, pk):
     actividad = _actividad_visible(request.user, pk)
     form = EvidenciaForm()
     if request.method == 'POST':
-        if not request.user.has_perm('evidencias.add_evidencia'):
+        if not request.user.has_perm('evidencias.add_evidence'):
             messages.error(request, 'No tiene permiso para adjuntar evidencias.')
             return redirect('evidencias_actividad', pk=actividad.pk)
         form = EvidenciaForm(request.POST, request.FILES)
         if form.is_valid():
             evidencia = form.save(commit=False)
-            evidencia.actividad = actividad
+            evidencia.activity = actividad
             evidencia.save()
-            messages.success(request, f'Evidencia {evidencia.codigo_unico} cargada correctamente.')
+            messages.success(request, f'Evidencia {evidencia.unique_code} cargada correctamente.')
             return redirect('evidencias_actividad', pk=actividad.pk)
-    evidencias = actividad.evidencias.activos().select_related('revisada_por')
+    evidencias = actividad.evidence_items.activos().select_related('reviewed_by')
     return render(request, 'evidencias/evidencias_actividad.html', {
-        'actividad': actividad, 'evidencias': evidencias, 'form': form,
+        'activity': actividad, 'evidence_items': evidencias, 'form': form,
     })
 
 
 @login_required
-@permission_required('evidencias.delete_evidencia', raise_exception=True)
+@permission_required('evidencias.delete_evidence', raise_exception=True)
 @require_POST
 def eliminar_evidencia(request, pk):
-    qs = filtrar_por_delegacion(Evidencia.objects.select_related('actividad'), request.user, 'actividad__delegacion')
+    qs = filtrar_por_delegacion(Evidence.objects.select_related('activity'), request.user, 'activity__delegation')
     evidencia = get_object_or_404(qs, pk=pk)
-    actividad_pk, codigo = evidencia.actividad_id, evidencia.codigo_unico
+    actividad_pk, codigo = evidencia.activity_id, evidencia.unique_code
     evidencia.delete()  # borrado lógico: se marca deleted_at y el archivo se conserva
     messages.success(request, f'Evidencia {codigo} eliminada.')
     return redirect('evidencias_actividad', pk=actividad_pk)

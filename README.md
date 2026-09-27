@@ -41,16 +41,16 @@ Cada módulo del dominio SGR es una app Django independiente:
 ```
 Proyecto_Integrado_SGR/
 ├── config/          # Proyecto Django (settings, urls con django.contrib.auth.urls, wsgi, asgi) + portada
-├── core/            # Delegacion, Cargo, TipoActividad, Periodo, Parametro + admin_utils (scoping) + seed_data
-├── funcionarios/    # Funcionario (perfil), grupos/permisos (security.py), recuperación de contraseña con código
-├── actividades/     # Actividad, AtencionSocial + CRUD web protegido (ListView/CreateView/UpdateView/DeleteView + modal)
-├── evidencias/      # Evidencia, Validacion + acción "Aprobar evidencias seleccionadas" + carga de archivos validada
-├── agenda/          # Compromiso, SeguimientoCompromiso
-├── medicion/        # Meta, Ponderacion, Indicador + fórmulas de cálculo (services.py)
-├── monitoreo/       # TableroPanel
+├── core/            # Delegation, Position, ActivityType, Period, Parameter + scoping, soft delete y seed_data
+├── funcionarios/    # Employee (perfil), PasswordResetCode, grupos/permisos (security.py), login y recuperación
+├── actividades/     # Activity, SocialCase + CRUD web protegido (ListView/CreateView/UpdateView/DeleteView + modal)
+├── evidencias/      # Evidence, Validation + acción "Aprobar evidencias seleccionadas" + carga de archivos validada
+├── agenda/          # Commitment, CommitmentFollowUp
+├── medicion/        # Goal, Weighting, Indicator + fórmulas de cálculo (services.py)
+├── monitoreo/       # DashboardPanel
 ├── dashboard/       # Dashboard de resumen por funcionario y rol (services.py)
 ├── reportes/        # Servicios de exportación (sin modelos ni vistas propias todavía)
-├── colaboracion/    # Comentario, Alerta, TrazaAuditoria
+├── colaboracion/    # Comment, Alert, AuditLog
 ├── templates/       # landing, base, registration/ (login y recuperación), dashboard/, actividades/, evidencias/
 ├── static/          # static/css/style.css y static/js/confirmar.js (SweetAlert2)
 ├── .env.example
@@ -59,6 +59,10 @@ Proyecto_Integrado_SGR/
 ├── README.md
 └── requirements.txt
 ```
+
+### Nomenclatura
+
+Los nombres técnicos de **modelos, campos, tablas y valores internos de choices** están en inglés, en `snake_case` para campos y tablas (`db_table`: `activity`, `evidence`, `commitment_follow_up`…) y `PascalCase` para modelos. Las etiquetas que ve el usuario siguen en español mediante `verbose_name` y las etiquetas de choices. Las carpetas de las apps conservan su nombre original (`actividades`, `evidencias`…) para no cambiar rutas ni permisos.
 
 `core` no depende de ninguna otra app. Todas las demás dependen de `core` y/o `funcionarios`, sin imports circulares.
 
@@ -190,7 +194,7 @@ Por cada funcionario visible muestra, para el período elegido: actividades (tot
 ### Recuperación de contraseña (guía autónoma)
 
 Enlace **¿Olvidó su contraseña?** en el login → correo → código de 6 dígitos (`secrets`) → nueva contraseña (`SetPasswordForm`, que usa `set_password()`).
-Solo se guarda el **hash** del código (`CodigoRecuperacion`). El código vence en **120 s**, es de **uso único**, admite **5 intentos** y pedir uno nuevo invalida los anteriores. La respuesta es siempre genérica («Si el correo corresponde…»).
+Solo se guarda el **hash** del código (`PasswordResetCode`). El código vence en **120 s**, es de **uso único**, admite **5 intentos** y pedir uno nuevo invalida los anteriores. La respuesta es siempre genérica («Si el correo corresponde…»).
 En desarrollo el correo se imprime en la terminal de `runserver`. Django 6.1 reemplaza `EMAIL_BACKEND`/`EMAIL_HOST`/... por `MAILERS`, y definir ambos es un error; por eso `settings.py` lee las mismas variables de `.env` (`EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`) dentro de `MAILERS`. Para usar Mailtrap basta con cambiar esas variables.
 
 ### CRUD protegido con modal (Clase 7)
@@ -201,7 +205,7 @@ Eliminar funciona solo por POST y exige `delete_actividad`, que tienen los admin
 
 ### Borrado lógico (`deleted_at`)
 
-`Actividad`, `AtencionSocial`, `Evidencia`, `Compromiso` y `SeguimientoCompromiso` heredan de `core.soft_delete.SoftDeleteModel`:
+`Activity`, `SocialCase`, `Evidence`, `Commitment` y `CommitmentFollowUp` heredan de `core.soft_delete.SoftDeleteModel`:
 
 - `delete()` (desde las vistas, el Admin o un QuerySet) **no borra la fila**: marca `deleted_at` y propaga la marca a los hijos (por ejemplo, una actividad a sus evidencias y atenciones).
 - `Modelo.objects` devuelve solo registros activos y es el que usan listados, dashboard, Admin y exportaciones. `Modelo.all_objects` ve también los eliminados. Es el manager por defecto para que Django siga detectando valores únicos ocupados por registros eliminados, en vez de fallar con un error 500.
@@ -257,7 +261,7 @@ Secuencia de la demostración:
 3. Configurar `.env` a partir de `.env.example`.
 4. Ejecutar `migrate`.
 5. Ejecutar `seed_data`.
-6. Ingresar con `admin_sgr` y mostrar el Admin completo: maestras (`Delegacion`, `Cargo`, `TipoActividad`, `Periodo`, `Parametro`), operativas de todas las apps, el Inline de evidencias dentro de una actividad, la acción "Aprobar evidencias seleccionadas" y la validación controlada (por ejemplo, intentar registrar una actividad en el período `2026-Q1 (cerrado)`).
+6. Ingresar con `admin_sgr` y mostrar el Admin completo: maestras (`Delegation`, `Position`, `ActivityType`, `Period`, `Parameter`), operativas de todas las apps, el Inline de evidencias dentro de una actividad, la acción "Aprobar evidencias seleccionadas" y la validación controlada (por ejemplo, intentar registrar una actividad en el período `2026-Q1 (cerrado)`).
 7. Ingresar con `admin_centro` y luego con `admin_norte` para mostrar que cada administrador solo ve su delegación (dashboard y Admin).
 8. Cerrar sesión e ingresar con `funcionario_centro` para demostrar que solo ve/edita registros de Delegación Centro (no ve los de Norte).
 9. Ejecutar sobre datos cargados: búsqueda, filtros, ordenamiento, Inline, acción personalizada, validación y scoping/rol.

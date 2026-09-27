@@ -20,13 +20,13 @@ body { background: var(--sgr-fondo); }
 .fila-subtotal td { font-weight: 600; background: #faf5f0 !important; }
 
 .semaforo { display: inline-block; width: .8rem; height: .8rem; border-radius: 50%; vertical-align: middle; }
-.semaforo-verde { background: #198754; }
-.semaforo-ambar { background: #ffc107; }
-.semaforo-rojo { background: #dc3545; }
+.semaforo-green { background: #198754; }
+.semaforo-amber { background: #ffc107; }
+.semaforo-red { background: #dc3545; }
 
-.estado-pendiente { background: #ffc107; color: #241c18; }
-.estado-aprobada { background: #198754; }
-.estado-rechazada { background: #dc3545; }
+.estado-pending { background: #ffc107; color: #241c18; }
+.estado-approved { background: #198754; }
+.estado-rejected { background: #dc3545; }
 
 .evidencia-img { height: 180px; object-fit: cover; }
 .evidencia-sin-img { height: 180px; display: flex; align-items: center; justify-content: center; background: #f3e9df; }

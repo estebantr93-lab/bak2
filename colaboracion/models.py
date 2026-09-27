@@ -4,51 +4,54 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 
-class Comentario(models.Model):
-    autor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='comentarios')
-    texto = models.TextField()
-    fecha = models.DateTimeField(auto_now_add=True)
-    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
-    object_id = models.PositiveIntegerField()
+class Comment(models.Model):
+    author = models.ForeignKey(User, verbose_name='autor', on_delete=models.CASCADE, related_name='comments')
+    text = models.TextField('texto')
+    date = models.DateTimeField('fecha', auto_now_add=True)
+    content_type = models.ForeignKey(ContentType, verbose_name='tipo de contenido', on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField('id del objeto')
     content_object = GenericForeignKey('content_type', 'object_id')
 
     class Meta:
-        ordering = ['-fecha']
+        db_table = 'comment'
+        ordering = ['-date']
         verbose_name = 'Comentario'
         verbose_name_plural = 'Comentarios'
 
     def __str__(self):
-        return f'{self.autor} - {self.fecha:%Y-%m-%d %H:%M}'
+        return f'{self.author} - {self.date:%Y-%m-%d %H:%M}'
 
 
-class Alerta(models.Model):
-    destinatario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='alertas')
-    texto = models.CharField(max_length=250)
-    fecha = models.DateTimeField(auto_now_add=True)
-    leida = models.BooleanField(default=False)
+class Alert(models.Model):
+    recipient = models.ForeignKey(User, verbose_name='destinatario', on_delete=models.CASCADE, related_name='alerts')
+    text = models.CharField('texto', max_length=250)
+    date = models.DateTimeField('fecha', auto_now_add=True)
+    is_read = models.BooleanField('leída', default=False)
 
     class Meta:
-        ordering = ['-fecha']
+        db_table = 'alert'
+        ordering = ['-date']
         verbose_name = 'Alerta'
         verbose_name_plural = 'Alertas'
 
     def __str__(self):
-        return self.texto
+        return self.text
 
 
-class TrazaAuditoria(models.Model):
-    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='trazas')
-    accion = models.CharField(max_length=100)
-    entidad_tipo = models.CharField(max_length=100)
-    entidad_id = models.PositiveIntegerField(null=True, blank=True)
-    detalle = models.TextField(blank=True)
-    fecha = models.DateTimeField(auto_now_add=True)
-    ip = models.GenericIPAddressField(null=True, blank=True)
+class AuditLog(models.Model):
+    user = models.ForeignKey(User, verbose_name='usuario', on_delete=models.SET_NULL, null=True, related_name='audit_logs')
+    action = models.CharField('acción', max_length=100)
+    entity_type = models.CharField('tipo de entidad', max_length=100)
+    entity_id = models.PositiveIntegerField('id de entidad', null=True, blank=True)
+    detail = models.TextField('detalle', blank=True)
+    date = models.DateTimeField('fecha', auto_now_add=True)
+    ip = models.GenericIPAddressField('IP', null=True, blank=True)
 
     class Meta:
-        ordering = ['-fecha']
+        db_table = 'audit_log'
+        ordering = ['-date']
         verbose_name = 'Traza de auditoría'
         verbose_name_plural = 'Trazas de auditoría'
 
     def __str__(self):
-        return f'{self.accion} - {self.entidad_tipo}#{self.entidad_id}'
+        return f'{self.action} - {self.entity_type}#{self.entity_id}'

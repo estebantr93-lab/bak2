@@ -2,49 +2,49 @@ from django.contrib import admin
 
 from .admin_utils import ScopedModelAdmin
 
-from .models import Cargo, Delegacion, Parametro, Periodo, TipoActividad
+from .models import Position, Delegation, Parameter, Period, ActivityType
 
 admin.site.site_header = 'SGR — Delegaciones Municipales de La Serena'
 admin.site.site_title = 'Panel SGR'
 admin.site.index_title = 'Administración del Sistema de Gestión de Resultados'
 
 
-@admin.register(Delegacion)
+@admin.register(Delegation)
 class DelegacionAdmin(ScopedModelAdmin, admin.ModelAdmin):
     scope_by = 'pk'
-    list_display = ('nombre', 'direccion', 'telefono', 'activa')
-    search_fields = ('nombre', 'direccion')
-    list_filter = ('activa',)
-    ordering = ('nombre',)
+    list_display = ('name', 'address', 'phone', 'is_active')
+    search_fields = ('name', 'address')
+    list_filter = ('is_active',)
+    ordering = ('name',)
 
 
-@admin.register(Cargo)
+@admin.register(Position)
 class CargoAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'area')
-    search_fields = ('nombre', 'area')
+    list_display = ('name', 'area')
+    search_fields = ('name', 'area')
     list_filter = ('area',)
-    ordering = ('nombre',)
+    ordering = ('name',)
 
 
-@admin.register(TipoActividad)
+@admin.register(ActivityType)
 class TipoActividadAdmin(admin.ModelAdmin):
-    list_display = ('codigo', 'nombre', 'categoria', 'activo')
-    search_fields = ('codigo', 'nombre')
-    list_filter = ('categoria', 'activo')
-    ordering = ('codigo',)
+    list_display = ('code', 'name', 'category', 'is_active')
+    search_fields = ('code', 'name')
+    list_filter = ('category', 'is_active')
+    ordering = ('code',)
 
 
-@admin.register(Periodo)
+@admin.register(Period)
 class PeriodoAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'fecha_inicio', 'fecha_termino', 'cerrado', 'umbral_minimo', 'tope_maximo')
-    search_fields = ('nombre',)
-    list_filter = ('cerrado',)
-    ordering = ('-fecha_inicio',)
+    list_display = ('name', 'start_date', 'end_date', 'is_closed', 'min_threshold', 'max_cap')
+    search_fields = ('name',)
+    list_filter = ('is_closed',)
+    ordering = ('-start_date',)
 
 
-@admin.register(Parametro)
+@admin.register(Parameter)
 class ParametroAdmin(admin.ModelAdmin):
-    list_display = ('clave', 'valor', 'vigente')
-    search_fields = ('clave', 'valor')
-    list_filter = ('vigente',)
-    ordering = ('clave',)
+    list_display = ('key', 'value', 'is_active')
+    search_fields = ('key', 'value')
+    list_filter = ('is_active',)
+    ordering = ('key',)

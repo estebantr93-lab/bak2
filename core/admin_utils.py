@@ -6,12 +6,12 @@ from .soft_delete import es_soft_delete
 def get_usuario_delegacion(user):
     if not user or not user.is_authenticated:
         return None
-    Funcionario = apps.get_model('funcionarios', 'Funcionario')
+    Employee = apps.get_model('funcionarios', 'Employee')
     try:
-        funcionario = Funcionario.objects.select_related('delegacion').get(user=user)
-    except Funcionario.DoesNotExist:
+        funcionario = Employee.objects.select_related('delegation').get(user=user)
+    except Employee.DoesNotExist:
         return None
-    return funcionario.delegacion
+    return funcionario.delegation
 
 
 GRUPO_ADMINISTRADORES = 'Administradores'
@@ -20,8 +20,8 @@ GRUPO_VERIFICADORES = 'Verificadores'
 
 ROL_SUPERADMIN = 'superadmin'
 ROL_ADMIN_DELEGACION = 'admin_delegacion'
-ROL_VERIFICADOR = 'verificador'
-ROL_FUNCIONARIO = 'funcionario'
+ROL_VERIFICADOR = 'reviewer'
+ROL_FUNCIONARIO = 'employee'
 
 ROLES_ETIQUETAS = {
     ROL_SUPERADMIN: 'Administrador general',
@@ -64,7 +64,7 @@ def tiene_acceso_al_sistema(user):
     return es_usuario_sin_restriccion(user) or get_usuario_delegacion(user) is not None
 
 
-def filtrar_por_delegacion(queryset, user, campo='delegacion'):
+def filtrar_por_delegacion(queryset, user, campo='delegation'):
     """Scoping para vistas fuera del Admin: mismo criterio que ScopedModelAdmin."""
     if es_usuario_sin_restriccion(user):
         return queryset
@@ -75,7 +75,7 @@ def filtrar_por_delegacion(queryset, user, campo='delegacion'):
 
 
 class ScopedModelAdmin:
-    scope_by = 'delegacion'
+    scope_by = 'delegation'
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -95,8 +95,8 @@ class ScopedModelAdmin:
                 relacionado = db_field.related_model
                 if relacionado is type(delegacion):
                     kwargs['queryset'] = relacionado.objects.filter(pk=delegacion.pk)
-                elif any(campo.name == 'delegacion' for campo in relacionado._meta.fields):
-                    kwargs['queryset'] = relacionado.objects.filter(delegacion=delegacion)
+                elif any(campo.name == 'delegation' for campo in relacionado._meta.fields):
+                    kwargs['queryset'] = relacionado.objects.filter(delegation=delegacion)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     def has_add_permission(self, request):

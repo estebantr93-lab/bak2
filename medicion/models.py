@@ -1,92 +1,95 @@
 from django.core.exceptions import ValidationError
 from django.db import models
 
-from core.models import Cargo, Delegacion, Periodo, TipoActividad
-from funcionarios.models import Funcionario
+from core.models import Position, Delegation, Period, ActivityType
+from funcionarios.models import Employee
 
 
-class Meta(models.Model):
-    cargo = models.ForeignKey(Cargo, on_delete=models.CASCADE, related_name='metas')
-    periodo = models.ForeignKey(Periodo, on_delete=models.CASCADE, related_name='metas')
-    tipo_actividad = models.ForeignKey(TipoActividad, on_delete=models.CASCADE, related_name='metas')
-    meta = models.PositiveIntegerField()
-    ponderador = models.DecimalField(max_digits=5, decimal_places=2)
+class Goal(models.Model):
+    position = models.ForeignKey(Position, verbose_name='cargo', on_delete=models.CASCADE, related_name='goals')
+    period = models.ForeignKey(Period, verbose_name='período', on_delete=models.CASCADE, related_name='goals')
+    activity_type = models.ForeignKey(ActivityType, verbose_name='tipo de actividad', on_delete=models.CASCADE, related_name='goals')
+    target = models.PositiveIntegerField('meta')
+    weight = models.DecimalField('ponderador', max_digits=5, decimal_places=2)
 
     class Meta:
-        ordering = ['cargo', 'periodo']
+        db_table = 'goal'
+        ordering = ['position', 'period']
         verbose_name = 'Meta'
         verbose_name_plural = 'Metas'
         constraints = [
             models.UniqueConstraint(
-                fields=['cargo', 'periodo', 'tipo_actividad'], name='unique_meta_cargo_periodo_tipo'
+                fields=['position', 'period', 'activity_type'], name='unique_goal_position_period_type'
             )
         ]
 
     def __str__(self):
-        return f'{self.cargo} - {self.periodo} - {self.tipo_actividad}'
+        return f'{self.position} - {self.period} - {self.activity_type}'
 
     def clean(self):
         errores = {}
-        if self.ponderador is not None and self.ponderador <= 0:
-            errores['ponderador'] = 'El ponderador debe ser mayor a 0.'
-        if self.meta is not None and self.meta <= 0:
-            errores['meta'] = 'La meta debe ser mayor a 0.'
+        if self.weight is not None and self.weight <= 0:
+            errores['weight'] = 'El ponderador debe ser mayor a 0.'
+        if self.target is not None and self.target <= 0:
+            errores['target'] = 'La meta debe ser mayor a 0.'
         if errores:
             raise ValidationError(errores)
 
 
-class Ponderacion(models.Model):
-    cargo = models.ForeignKey(Cargo, on_delete=models.CASCADE, related_name='ponderaciones')
-    periodo = models.ForeignKey(Periodo, on_delete=models.CASCADE, related_name='ponderaciones')
-    detalle = models.JSONField()
-    fecha_generacion = models.DateTimeField(auto_now_add=True)
+class Weighting(models.Model):
+    position = models.ForeignKey(Position, verbose_name='cargo', on_delete=models.CASCADE, related_name='weightings')
+    period = models.ForeignKey(Period, verbose_name='período', on_delete=models.CASCADE, related_name='weightings')
+    detail = models.JSONField('detalle')
+    generated_at = models.DateTimeField('fecha de generación', auto_now_add=True)
 
     class Meta:
-        ordering = ['-fecha_generacion']
+        db_table = 'weighting'
+        ordering = ['-generated_at']
         verbose_name = 'Ponderación'
         verbose_name_plural = 'Ponderaciones'
 
     def __str__(self):
-        return f'{self.cargo} - {self.periodo} ({self.fecha_generacion:%Y-%m-%d})'
+        return f'{self.position} - {self.period} ({self.generated_at:%Y-%m-%d})'
 
 
-class Indicador(models.Model):
-    SEMAFORO_CHOICES = [
-        ('verde', 'Verde'),
-        ('ambar', 'Ámbar'),
-        ('rojo', 'Rojo'),
+class Indicator(models.Model):
+    TRAFFIC_LIGHT_CHOICES = [
+        ('green', 'Verde'),
+        ('amber', 'Ámbar'),
+        ('red', 'Rojo'),
     ]
 
-    delegacion = models.ForeignKey(
-        Delegacion, on_delete=models.CASCADE, related_name='indicadores', null=True, blank=True
+    delegation = models.ForeignKey(
+        Delegation, verbose_name='delegación', on_delete=models.CASCADE, related_name='indicators', null=True, blank=True
     )
-    funcionario = models.ForeignKey(
-        Funcionario, on_delete=models.CASCADE, related_name='indicadores', null=True, blank=True
+    employee = models.ForeignKey(
+        Employee, verbose_name='funcionario', on_delete=models.CASCADE, related_name='indicators', null=True, blank=True
     )
-    cargo = models.ForeignKey(Cargo, on_delete=models.CASCADE, related_name='indicadores', null=True, blank=True)
-    periodo = models.ForeignKey(Periodo, on_delete=models.CASCADE, related_name='indicadores')
-    fecha = models.DateField()
-    avance = models.PositiveIntegerField()
-    meta = models.PositiveIntegerField()
-    cumplimiento_pct = models.DecimalField(max_digits=6, decimal_places=2)
-    semaforo = models.CharField(max_length=10, choices=SEMAFORO_CHOICES)
+    position = models.ForeignKey(Position, verbose_name='cargo', on_delete=models.CASCADE, related_name='indicators', null=True, blank=True)
+    period = models.ForeignKey(Period, verbose_name='período', on_delete=models.CASCADE, related_name='indicators')
+    date = models.DateField('fecha')
+    progress = models.PositiveIntegerField('avance')
+    target = models.PositiveIntegerField('meta')
+    compliance_pct = models.DecimalField('cumplimiento (%)', max_digits=6, decimal_places=2)
+    traffic_light = models.CharField('semáforo', max_length=10, choices=TRAFFIC_LIGHT_CHOICES)
 
     class Meta:
-        ordering = ['-fecha']
+        db_table = 'indicator'
+        ordering = ['-date']
         verbose_name = 'Indicador'
         verbose_name_plural = 'Indicadores'
 
     def __str__(self):
-        return f'{self.periodo} - {self.fecha} - {self.semaforo}'
+        return f'{self.period} - {self.date} - {self.traffic_light}'
 
     def clean(self):
-        if self.delegacion_id is None and self.funcionario_id is None and self.cargo_id is None:
+        if self.delegation_id is None and self.employee_id is None and self.position_id is None:
             raise ValidationError(
                 'El indicador debe estar asociado a al menos una delegación, funcionario o cargo.'
             )
-        duplicados = Indicador.objects.filter(
-            delegacion=self.delegacion, funcionario=self.funcionario, cargo=self.cargo,
-            periodo=self.periodo, fecha=self.fecha,
+        duplicados = Indicator.objects.filter(
+            delegation=self.delegation, employee=self.employee, position=self.position,
+            period=self.period, date=self.date,
         ).exclude(pk=self.pk)
         if duplicados.exists():
             raise ValidationError(

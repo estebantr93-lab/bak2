@@ -4,9 +4,9 @@ import string
 
 from django.contrib.auth.models import User
 
-from core.models import Cargo, Delegacion
+from core.models import Position, Delegation
 
-from .models import Funcionario
+from .models import Employee
 from .security import configurar_grupos_y_permisos
 
 USUARIOS_DEMO = [
@@ -52,8 +52,8 @@ def _crear_usuario_con_perfil(username, grupo, delegacion, cargo, nombre):
     )
     _fijar_clave_si_es_nuevo(user, creado)
     user.groups.add(grupo)
-    Funcionario.objects.get_or_create(
-        user=user, defaults={'delegacion': delegacion, 'cargo': cargo, 'nombre': nombre},
+    Employee.objects.get_or_create(
+        user=user, defaults={'delegation': delegacion, 'position': cargo, 'name': nombre},
     )
     return user
 
@@ -66,11 +66,11 @@ def build_funcionarios():
     )
     _fijar_clave_si_es_nuevo(admin_user, creado)
 
-    centro = Delegacion.objects.get(nombre='Delegación Centro')
-    norte = Delegacion.objects.get(nombre='Delegación Norte')
-    cargo_atencion = Cargo.objects.get(nombre='Encargado de Atención Ciudadana')
-    cargo_social = Cargo.objects.get(nombre='Encargado Social')
-    cargo_coordinador = Cargo.objects.get(nombre='Coordinador de Delegación')
+    centro = Delegation.objects.get(name='Delegación Centro')
+    norte = Delegation.objects.get(name='Delegación Norte')
+    cargo_atencion = Position.objects.get(name='Encargado de Atención Ciudadana')
+    cargo_social = Position.objects.get(name='Encargado Social')
+    cargo_coordinador = Position.objects.get(name='Coordinador de Delegación')
 
     # Un administrador por delegación: cada uno solo ve los datos de la suya.
     admin_centro_user = _crear_usuario_con_perfil(
@@ -86,9 +86,9 @@ def build_funcionarios():
     )
     _fijar_clave_si_es_nuevo(func_centro_user, creado)
     func_centro_user.groups.add(grupo_funcionarios)
-    Funcionario.objects.get_or_create(
+    Employee.objects.get_or_create(
         user=func_centro_user,
-        defaults={'delegacion': centro, 'cargo': cargo_atencion, 'nombre': 'Ana Pérez (Centro)'},
+        defaults={'delegation': centro, 'position': cargo_atencion, 'name': 'Ana Pérez (Centro)'},
     )
 
     func_norte_user, creado = User.objects.get_or_create(
@@ -97,9 +97,9 @@ def build_funcionarios():
     )
     _fijar_clave_si_es_nuevo(func_norte_user, creado)
     func_norte_user.groups.add(grupo_funcionarios)
-    Funcionario.objects.get_or_create(
+    Employee.objects.get_or_create(
         user=func_norte_user,
-        defaults={'delegacion': norte, 'cargo': cargo_social, 'nombre': 'Carlos Rojas (Norte)'},
+        defaults={'delegation': norte, 'position': cargo_social, 'name': 'Carlos Rojas (Norte)'},
     )
 
     verificador_user, creado = User.objects.get_or_create(

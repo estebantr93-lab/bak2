@@ -2,20 +2,20 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from actividades.data import build_actividades
-from actividades.models import Actividad, AtencionSocial
+from actividades.models import Activity, SocialCase
 from agenda.data import build_agenda
-from agenda.models import Compromiso, SeguimientoCompromiso
+from agenda.models import Commitment, CommitmentFollowUp
 from colaboracion.data import build_colaboracion
-from colaboracion.models import Alerta, Comentario, TrazaAuditoria
+from colaboracion.models import Alert, Comment, AuditLog
 from core.data import build_core
-from core.models import Cargo, Delegacion, Parametro, Periodo, TipoActividad
+from core.models import Position, Delegation, Parameter, Period, ActivityType
 from evidencias.data import build_evidencias
-from evidencias.models import Evidencia, Validacion
+from evidencias.models import Evidence, Validation
 from funcionarios.data import CLAVES_GENERADAS, USUARIOS_DEMO, build_funcionarios
-from funcionarios.models import Funcionario
+from funcionarios.models import Employee
 from medicion.data import build_medicion
-from medicion.models import Indicador, Ponderacion
-from medicion.models import Meta as MetaModel
+from medicion.models import Indicator, Weighting
+from medicion.models import Goal
 
 
 class Command(BaseCommand):
@@ -52,24 +52,24 @@ class Command(BaseCommand):
         self.stdout.write('')
         self.stdout.write(self.style.MIGRATE_HEADING('Resumen de conteos:'))
         conteos = [
-            ('Delegaciones', Delegacion.objects.count()),
-            ('Cargos', Cargo.objects.count()),
-            ('Tipos de actividad', TipoActividad.objects.count()),
-            ('Períodos', Periodo.objects.count()),
-            ('Parámetros', Parametro.objects.count()),
-            ('Funcionarios', Funcionario.objects.count()),
-            ('Metas', MetaModel.objects.count()),
-            ('Ponderaciones', Ponderacion.objects.count()),
-            ('Indicadores', Indicador.objects.count()),
-            ('Actividades', Actividad.objects.count()),
-            ('Atenciones sociales', AtencionSocial.objects.count()),
-            ('Evidencias', Evidencia.objects.count()),
-            ('Validaciones', Validacion.objects.count()),
-            ('Compromisos', Compromiso.objects.count()),
-            ('Seguimientos de compromiso', SeguimientoCompromiso.objects.count()),
-            ('Comentarios', Comentario.objects.count()),
-            ('Alertas', Alerta.objects.count()),
-            ('Trazas de auditoría', TrazaAuditoria.objects.count()),
+            ('Delegaciones', Delegation.objects.count()),
+            ('Cargos', Position.objects.count()),
+            ('Tipos de actividad', ActivityType.objects.count()),
+            ('Períodos', Period.objects.count()),
+            ('Parámetros', Parameter.objects.count()),
+            ('Funcionarios', Employee.objects.count()),
+            ('Metas', Goal.objects.count()),
+            ('Ponderaciones', Weighting.objects.count()),
+            ('Indicadores', Indicator.objects.count()),
+            ('Actividades', Activity.objects.count()),
+            ('Atenciones sociales', SocialCase.objects.count()),
+            ('Evidencias', Evidence.objects.count()),
+            ('Validaciones', Validation.objects.count()),
+            ('Compromisos', Commitment.objects.count()),
+            ('Seguimientos de compromiso', CommitmentFollowUp.objects.count()),
+            ('Comentarios', Comment.objects.count()),
+            ('Alertas', Alert.objects.count()),
+            ('Trazas de auditoría', AuditLog.objects.count()),
         ]
         for etiqueta, total in conteos:
             self.stdout.write(f'  - {etiqueta}: {total}')

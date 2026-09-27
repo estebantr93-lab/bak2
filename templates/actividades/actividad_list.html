@@ -16,7 +16,7 @@
             </select>
             <noscript><button class="btn btn-sm btn-outline-secondary" type="submit">Aplicar</button></noscript>
         </form>
-        {% if perms.actividades.add_actividad %}
+        {% if perms.actividades.add_activity %}
             {# El botón es solo interfaz: la vista de creación vuelve a exigir el permiso. #}
             <a href="{% url 'actividad_create' %}" class="btn btn-sgr btn-sm" data-bs-toggle="modal" data-bs-target="#modalActividad">
                 Nueva actividad
@@ -34,24 +34,24 @@
                 </tr>
             </thead>
             <tbody>
-            {% for actividad in actividades %}
+            {% for activity in activities %}
                 <tr>
-                    <td class="fw-semibold">{{ actividad.numero }}</td>
-                    <td>{{ actividad.fecha|date:"d-m-Y" }}</td>
-                    <td>{{ actividad.funcionario }}</td>
-                    <td class="small">{{ actividad.delegacion }}</td>
-                    <td class="small">{{ actividad.tipo_actividad.nombre }}</td>
-                    <td><span class="badge estado-{{ actividad.estado_validacion }}">{{ actividad.get_estado_validacion_display }}</span></td>
+                    <td class="fw-semibold">{{ activity.number }}</td>
+                    <td>{{ activity.date|date:"d-m-Y" }}</td>
+                    <td>{{ activity.employee }}</td>
+                    <td class="small">{{ activity.delegation }}</td>
+                    <td class="small">{{ activity.activity_type.name }}</td>
+                    <td><span class="badge estado-{{ activity.validation_status }}">{{ activity.get_validation_status_display }}</span></td>
                     <td class="text-end text-nowrap">
-                        {% if perms.evidencias.view_evidencia %}
-                            <a class="btn btn-outline-secondary btn-sm" href="{% url 'evidencias_actividad' actividad.pk %}">Evidencias</a>
+                        {% if perms.evidencias.view_evidence %}
+                            <a class="btn btn-outline-secondary btn-sm" href="{% url 'evidencias_actividad' activity.pk %}">Evidencias</a>
                         {% endif %}
-                        {% if perms.actividades.change_actividad %}
-                            <a class="btn btn-outline-primary btn-sm" href="{% url 'actividad_update' actividad.pk %}">Editar</a>
+                        {% if perms.actividades.change_activity %}
+                            <a class="btn btn-outline-primary btn-sm" href="{% url 'actividad_update' activity.pk %}">Editar</a>
                         {% endif %}
-                        {% if perms.actividades.delete_actividad %}
-                            <form method="post" action="{% url 'actividad_delete' actividad.pk %}" class="d-inline"
-                                  data-confirmar="¿Eliminar la actividad {{ actividad.numero }}? También se eliminarán sus evidencias.">
+                        {% if perms.actividades.delete_activity %}
+                            <form method="post" action="{% url 'actividad_delete' activity.pk %}" class="d-inline"
+                                  data-confirmar="¿Eliminar la actividad {{ activity.number }}? También se eliminarán sus evidencias.">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-outline-danger btn-sm">Eliminar</button>
                             </form>

@@ -56,7 +56,7 @@ class LoginTests(TestCase):
 
     def test_logout_muestra_mensaje_y_limpia_la_sesion(self):
         self.client.login(username='admin_centro', password=CLAVE_TEST)
-        self.client.get(reverse('dashboard'), {'periodo': 1})
+        self.client.get(reverse('dashboard'), {'period': 1})
         response = self.client.post(reverse('logout'), follow=True)
         self.assertContains(response, 'Sesión cerrada correctamente.')
         self.assertNotIn('dashboard_periodo_id', self.client.session)

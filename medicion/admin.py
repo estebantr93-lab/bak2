@@ -2,37 +2,37 @@ from django.contrib import admin
 
 from core.admin_utils import ScopedModelAdmin
 
-from .forms import MetaForm
-from .models import Indicador, Ponderacion
-from .models import Meta as MetaModel
+from .forms import GoalForm
+from .models import Indicator, Weighting
+from .models import Goal
 
 
-@admin.register(MetaModel)
-class MetaAdmin(admin.ModelAdmin):
-    form = MetaForm
-    list_display = ('cargo', 'periodo', 'tipo_actividad', 'meta', 'ponderador')
-    search_fields = ('cargo__nombre', 'tipo_actividad__nombre')
-    list_filter = ('periodo', 'cargo')
-    ordering = ('cargo', 'periodo')
-    list_select_related = ('cargo', 'periodo', 'tipo_actividad')
+@admin.register(Goal)
+class GoalAdmin(admin.ModelAdmin):
+    form = GoalForm
+    list_display = ('position', 'period', 'activity_type', 'target', 'weight')
+    search_fields = ('position__name', 'activity_type__name')
+    list_filter = ('period', 'position')
+    ordering = ('position', 'period')
+    list_select_related = ('position', 'period', 'activity_type')
 
 
-@admin.register(Ponderacion)
+@admin.register(Weighting)
 class PonderacionAdmin(admin.ModelAdmin):
-    list_display = ('cargo', 'periodo', 'fecha_generacion')
-    search_fields = ('cargo__nombre',)
-    list_filter = ('periodo',)
-    ordering = ('-fecha_generacion',)
-    list_select_related = ('cargo', 'periodo')
+    list_display = ('position', 'period', 'generated_at')
+    search_fields = ('position__name',)
+    list_filter = ('period',)
+    ordering = ('-generated_at',)
+    list_select_related = ('position', 'period')
 
 
-@admin.register(Indicador)
+@admin.register(Indicator)
 class IndicadorAdmin(ScopedModelAdmin, admin.ModelAdmin):
-    scope_by = 'delegacion'
+    scope_by = 'delegation'
     list_display = (
-        'periodo', 'fecha', 'delegacion', 'funcionario', 'cargo', 'avance', 'meta', 'cumplimiento_pct', 'semaforo',
+        'period', 'date', 'delegation', 'employee', 'position', 'progress', 'target', 'compliance_pct', 'traffic_light',
     )
-    search_fields = ('delegacion__nombre', 'funcionario__nombre')
-    list_filter = ('semaforo', 'periodo', 'delegacion')
-    ordering = ('-fecha',)
-    list_select_related = ('delegacion', 'funcionario', 'cargo', 'periodo')
+    search_fields = ('delegation__name', 'employee__name')
+    list_filter = ('traffic_light', 'period', 'delegation')
+    ordering = ('-date',)
+    list_select_related = ('delegation', 'employee', 'position', 'period')

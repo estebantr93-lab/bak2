@@ -5,57 +5,57 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 
-from core.models import Cargo, Delegacion, Periodo, TipoActividad
-from funcionarios.models import Funcionario
+from core.models import Position, Delegation, Period, ActivityType
+from funcionarios.models import Employee
 from core.testing import CLAVE_TEST, sembrar_datos_demo
 
 from .forms import ActividadForm
-from .models import Actividad, AtencionSocial
+from .models import Activity, SocialCase
 
 
 class ActividadFormTests(TestCase):
     def setUp(self):
-        self.delegacion = Delegacion.objects.create(nombre='Centro', direccion='Calle Falsa 123')
-        self.cargo = Cargo.objects.create(nombre='Encargado Social')
-        self.tipo = TipoActividad.objects.create(codigo='ATC-01', nombre='Atención ciudadana', categoria='atencion')
+        self.delegation = Delegation.objects.create(name='Centro', address='Calle Falsa 123')
+        self.position = Position.objects.create(name='Encargado Social')
+        self.kind = ActivityType.objects.create(code='ATC-01', name='Atención ciudadana', category='service')
         self.user = User.objects.create_user(username='func1', password='x')
-        self.funcionario = Funcionario.objects.create(
-            user=self.user, delegacion=self.delegacion, cargo=self.cargo, nombre='Func Uno',
+        self.employee = Employee.objects.create(
+            user=self.user, delegation=self.delegation, position=self.position, name='Func Uno',
         )
 
     def _datos_base(self, **overrides):
         datos = {
-            'numero': 'ACT-2026-1',
-            'funcionario': self.funcionario.pk,
-            'delegacion': self.delegacion.pk,
-            'tipo_actividad': self.tipo.pk,
-            'fecha': datetime.date(2026, 6, 15),
-            'descripcion': 'Atención de vecino',
-            'accion': '',
-            'contacto': '',
-            'telefono': '',
-            'indicador_agenda': False,
-            'codigo_evidencia': 'EV-001',
-            'estado_validacion': 'pendiente',
+            'number': 'ACT-2026-1',
+            'employee': self.employee.pk,
+            'delegation': self.delegation.pk,
+            'activity_type': self.kind.pk,
+            'date': datetime.date(2026, 6, 15),
+            'description': 'Atención de vecino',
+            'action': '',
+            'contact': '',
+            'phone': '',
+            'is_agenda_item': False,
+            'evidence_code': 'EV-001',
+            'validation_status': 'pending',
         }
         datos.update(overrides)
         return datos
 
     def test_periodo_cerrado_bloquea_registro(self):
-        periodo_cerrado = Periodo.objects.create(
-            nombre='Cerrado', fecha_inicio=datetime.date(2026, 1, 1),
-            fecha_termino=datetime.date(2026, 3, 31), cerrado=True,
+        periodo_cerrado = Period.objects.create(
+            name='Cerrado', start_date=datetime.date(2026, 1, 1),
+            end_date=datetime.date(2026, 3, 31), is_closed=True,
         )
-        form = ActividadForm(data=self._datos_base(periodo=periodo_cerrado.pk))
+        form = ActividadForm(data=self._datos_base(period=periodo_cerrado.pk))
         self.assertFalse(form.is_valid())
         # El error aparece una sola vez y junto al campo, no duplicado.
-        self.assertEqual(form.errors['periodo'], ['Período cerrado: no se pueden registrar actividades.'])
+        self.assertEqual(form.errors['period'], ['Período cerrado: no se pueden registrar actividades.'])
         self.assertEqual(form.non_field_errors(), [])
 
     def test_codigo_evidencia_obligatorio(self):
-        form = ActividadForm(data=self._datos_base(codigo_evidencia=''))
+        form = ActividadForm(data=self._datos_base(evidence_code=''))
         self.assertFalse(form.is_valid())
-        self.assertEqual(len(form.errors['codigo_evidencia']), 1)
+        self.assertEqual(len(form.errors['evidence_code']), 1)
         self.assertEqual(form.non_field_errors(), [])
 
     def test_actividad_valida_se_guarda(self):
@@ -65,55 +65,55 @@ class ActividadFormTests(TestCase):
 
 class AtencionSocialTests(TestCase):
     def setUp(self):
-        delegacion = Delegacion.objects.create(nombre='Norte', direccion='Av. Norte 456')
-        cargo = Cargo.objects.create(nombre='Encargado Social 2')
-        tipo = TipoActividad.objects.create(codigo='SOC-04', nombre='Atención social', categoria='social')
+        delegacion = Delegation.objects.create(name='Norte', address='Av. Norte 456')
+        cargo = Position.objects.create(name='Encargado Social 2')
+        tipo = ActivityType.objects.create(code='SOC-04', name='Atención social', category='social')
         user = User.objects.create_user(username='func2', password='x')
-        funcionario = Funcionario.objects.create(user=user, delegacion=delegacion, cargo=cargo, nombre='Func Dos')
-        self.actividad = Actividad.objects.create(
-            numero='ACT-2026-2', funcionario=funcionario, delegacion=delegacion, tipo_actividad=tipo,
-            fecha=datetime.date(2026, 6, 1), descripcion='Caso social', codigo_evidencia='EV-002',
+        funcionario = Employee.objects.create(user=user, delegation=delegacion, position=cargo, name='Func Dos')
+        self.activity = Activity.objects.create(
+            number='ACT-2026-2', employee=funcionario, delegation=delegacion, activity_type=tipo,
+            date=datetime.date(2026, 6, 1), description='Caso social', evidence_code='EV-002',
         )
 
     def test_no_permite_mas_de_tres_gestiones(self):
         for i in range(1, 4):
-            AtencionSocial.objects.create(actividad=self.actividad, numero_gestion=i, descripcion=f'Gestión {i}')
-        cuarta = AtencionSocial(actividad=self.actividad, numero_gestion=4, descripcion='Gestión 4')
+            SocialCase.objects.create(activity=self.activity, step_number=i, description=f'Gestión {i}')
+        cuarta = SocialCase(activity=self.activity, step_number=4, description='Gestión 4')
         with self.assertRaises(ValidationError):
             cuarta.clean()
 
 
 class ActividadUnicidadTests(TestCase):
     def setUp(self):
-        self.delegacion = Delegacion.objects.create(nombre='Centro', direccion='Calle 1')
-        cargo = Cargo.objects.create(nombre='Encargado')
-        self.tipo = TipoActividad.objects.create(codigo='ATC-01', nombre='Atención', categoria='atencion')
+        self.delegation = Delegation.objects.create(name='Centro', address='Calle 1')
+        cargo = Position.objects.create(name='Encargado')
+        self.kind = ActivityType.objects.create(code='ATC-01', name='Atención', category='service')
         user = User.objects.create_user(username='func1', password='x')
-        self.funcionario = Funcionario.objects.create(
-            user=user, delegacion=self.delegacion, cargo=cargo, nombre='Func Uno',
+        self.employee = Employee.objects.create(
+            user=user, delegation=self.delegation, position=cargo, name='Func Uno',
         )
-        Actividad.objects.create(
-            numero='ACT-DUP', funcionario=self.funcionario, delegacion=self.delegacion,
-            tipo_actividad=self.tipo, fecha=datetime.date(2026, 6, 1),
-            descripcion='Original', codigo_evidencia='EV-DUP-1',
+        Activity.objects.create(
+            number='ACT-DUP', employee=self.employee, delegation=self.delegation,
+            activity_type=self.kind, date=datetime.date(2026, 6, 1),
+            description='Original', evidence_code='EV-DUP-1',
         )
 
     def test_numero_de_actividad_es_unico(self):
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
-                Actividad.objects.create(
-                    numero='ACT-DUP', funcionario=self.funcionario, delegacion=self.delegacion,
-                    tipo_actividad=self.tipo, fecha=datetime.date(2026, 6, 2),
-                    descripcion='Duplicada', codigo_evidencia='EV-DUP-2',
+                Activity.objects.create(
+                    number='ACT-DUP', employee=self.employee, delegation=self.delegation,
+                    activity_type=self.kind, date=datetime.date(2026, 6, 2),
+                    description='Duplicada', evidence_code='EV-DUP-2',
                 )
 
     def test_codigo_evidencia_es_unico(self):
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
-                Actividad.objects.create(
-                    numero='ACT-OTRO', funcionario=self.funcionario, delegacion=self.delegacion,
-                    tipo_actividad=self.tipo, fecha=datetime.date(2026, 6, 2),
-                    descripcion='Otra', codigo_evidencia='EV-DUP-1',
+                Activity.objects.create(
+                    number='ACT-OTRO', employee=self.employee, delegation=self.delegation,
+                    activity_type=self.kind, date=datetime.date(2026, 6, 2),
+                    description='Otra', evidence_code='EV-DUP-1',
                 )
 
 
@@ -123,28 +123,28 @@ class RevisionEnVivoActividadesTests(TestCase):
         sembrar_datos_demo()
 
     def test_funcionario_centro_no_accede_a_actividad_de_norte_por_url(self):
-        actividad_norte = Actividad.objects.filter(delegacion__nombre='Delegación Norte').first()
+        actividad_norte = Activity.objects.filter(delegation__name='Delegación Norte').first()
         self.client.login(username='funcionario_centro', password=CLAVE_TEST)
-        response = self.client.get(f'/admin/actividades/actividad/{actividad_norte.pk}/change/')
+        response = self.client.get(f'/admin/actividades/activity/{actividad_norte.pk}/change/')
         self.assertNotEqual(response.status_code, 200)
 
     def test_admin_sgr_ve_actividades_de_ambas_delegaciones(self):
         self.client.login(username='admin_sgr', password=CLAVE_TEST)
-        response = self.client.get('/admin/actividades/actividad/')
+        response = self.client.get('/admin/actividades/activity/')
         self.assertContains(response, 'ACT-2026-001')
         self.assertContains(response, 'ACT-2026-005')
 
     def test_funcionario_centro_solo_ve_actividades_de_centro(self):
         self.client.login(username='funcionario_centro', password=CLAVE_TEST)
-        response = self.client.get('/admin/actividades/actividad/')
+        response = self.client.get('/admin/actividades/activity/')
         self.assertContains(response, 'ACT-2026-001')
         self.assertNotContains(response, 'ACT-2026-005')
 
     def _datos_formulario(self, **overrides):
         datos = {
-            'numero': 'ACT-NUEVA', 'periodo': '', 'fecha': '2026-07-10',
-            'descripcion': 'prueba', 'accion': '', 'contacto': '', 'telefono': '',
-            'codigo_evidencia': 'EV-NUEVA', 'estado_validacion': 'aprobada',
+            'number': 'ACT-NUEVA', 'period': '', 'date': '2026-07-10',
+            'description': 'prueba', 'action': '', 'contact': '', 'phone': '',
+            'evidence_code': 'EV-NUEVA', 'validation_status': 'approved',
             'atenciones_sociales-TOTAL_FORMS': '0', 'atenciones_sociales-INITIAL_FORMS': '0',
             'evidencias-TOTAL_FORMS': '0', 'evidencias-INITIAL_FORMS': '0',
         }
@@ -152,40 +152,40 @@ class RevisionEnVivoActividadesTests(TestCase):
         return datos
 
     def test_funcionario_centro_no_puede_crear_actividad_en_otra_delegacion(self):
-        from core.models import Delegacion
-        from funcionarios.models import Funcionario
+        from core.models import Delegation
+        from funcionarios.models import Employee
 
         self.client.login(username='funcionario_centro', password=CLAVE_TEST)
-        norte = Delegacion.objects.get(nombre='Delegación Norte')
-        func_norte = Funcionario.objects.get(nombre='Carlos Rojas (Norte)')
-        tipo_id = Actividad.objects.first().tipo_actividad_id
+        norte = Delegation.objects.get(name='Delegación Norte')
+        func_norte = Employee.objects.get(name='Carlos Rojas (Norte)')
+        tipo_id = Activity.objects.first().activity_type_id
 
-        self.client.post('/admin/actividades/actividad/add/', self._datos_formulario(
-            funcionario=func_norte.pk, delegacion=norte.pk, tipo_actividad=tipo_id,
+        self.client.post('/admin/actividades/activity/add/', self._datos_formulario(
+            employee=func_norte.pk, delegation=norte.pk, activity_type=tipo_id,
         ), follow=True)
 
-        self.assertFalse(Actividad.objects.filter(numero='ACT-NUEVA').exists())
+        self.assertFalse(Activity.objects.filter(number='ACT-NUEVA').exists())
 
     def test_funcionario_centro_no_puede_aprobar_su_propia_actividad(self):
         self.client.login(username='funcionario_centro', password=CLAVE_TEST)
-        actividad = Actividad.objects.filter(
-            delegacion__nombre='Delegación Centro', estado_validacion='pendiente',
+        actividad = Activity.objects.filter(
+            delegation__name='Delegación Centro', validation_status='pending',
         ).first()
 
-        self.client.post(f'/admin/actividades/actividad/{actividad.pk}/change/', self._datos_formulario(
-            numero=actividad.numero, funcionario=actividad.funcionario_id,
-            delegacion=actividad.delegacion_id, tipo_actividad=actividad.tipo_actividad_id,
-            fecha=actividad.fecha.isoformat(), descripcion=actividad.descripcion,
-            codigo_evidencia=actividad.codigo_evidencia,
+        self.client.post(f'/admin/actividades/activity/{actividad.pk}/change/', self._datos_formulario(
+            number=actividad.number, employee=actividad.employee_id,
+            delegation=actividad.delegation_id, activity_type=actividad.activity_type_id,
+            date=actividad.date.isoformat(), description=actividad.description,
+            evidence_code=actividad.evidence_code,
         ), follow=True)
 
         actividad.refresh_from_db()
-        self.assertEqual(actividad.estado_validacion, 'pendiente')
+        self.assertEqual(actividad.validation_status, 'pending')
 
     def test_autocomplete_de_funcionario_funciona_para_el_limitado(self):
         self.client.login(username='funcionario_centro', password=CLAVE_TEST)
         response = self.client.get('/admin/autocomplete/', {
-            'term': '', 'app_label': 'actividades', 'model_name': 'actividad', 'field_name': 'funcionario',
+            'term': '', 'app_label': 'actividades', 'model_name': 'activity', 'field_name': 'employee',
         })
         self.assertEqual(response.status_code, 200)
         nombres = [item['text'] for item in response.json()['results']]

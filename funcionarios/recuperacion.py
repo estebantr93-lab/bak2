@@ -8,7 +8,7 @@ from django.core.mail import send_mail
 from django.db import transaction
 from django.utils import timezone
 
-from .models import CodigoRecuperacion
+from .models import PasswordResetCode
 
 CODIGO_OK = 'ok'
 CODIGO_INVALIDO = 'invalido'
@@ -31,13 +31,13 @@ def solicitar_codigo(email):
     if user is None:
         return None
     # Pedir un código nuevo invalida los anteriores.
-    CodigoRecuperacion.objects.filter(user=user, usado=False).update(usado=True)
+    PasswordResetCode.objects.filter(user=user, is_used=False).update(is_used=True)
     codigo = generar_codigo()
     vigencia = settings.RECUPERACION_CODIGO_VIGENCIA_SEGUNDOS
-    registro = CodigoRecuperacion.objects.create(
+    registro = PasswordResetCode.objects.create(
         user=user,
-        codigo_hash=make_password(codigo),
-        expira=timezone.now() + timedelta(seconds=vigencia),
+        code_hash=make_password(codigo),
+        expires_at=timezone.now() + timedelta(seconds=vigencia),
     )
     send_mail(
         'SGR · Código de recuperación de contraseña',
@@ -57,21 +57,21 @@ def validar_codigo(email, codigo):
     if user is None:
         return CODIGO_INVALIDO, None
     registro = (
-        CodigoRecuperacion.objects.select_for_update()
-        .filter(user=user, usado=False, expira__gt=timezone.now())
+        PasswordResetCode.objects.select_for_update()
+        .filter(user=user, is_used=False, expires_at__gt=timezone.now())
         .first()
     )
     if registro is None:
         return CODIGO_INVALIDO, None
-    if not check_password(codigo, registro.codigo_hash):
-        registro.intentos += 1
-        if registro.intentos >= settings.RECUPERACION_CODIGO_MAX_INTENTOS:
-            registro.usado = True
-            registro.save(update_fields=['intentos', 'usado'])
+    if not check_password(codigo, registro.code_hash):
+        registro.attempts += 1
+        if registro.attempts >= settings.RECUPERACION_CODIGO_MAX_INTENTOS:
+            registro.is_used = True
+            registro.save(update_fields=['attempts', 'is_used'])
             return CODIGO_BLOQUEADO, None
-        registro.save(update_fields=['intentos'])
+        registro.save(update_fields=['attempts'])
         return CODIGO_INVALIDO, None
     # Uso único: desde aquí el código ya no se vuelve a aceptar.
-    registro.usado = True
-    registro.save(update_fields=['usado'])
+    registro.is_used = True
+    registro.save(update_fields=['is_used'])
     return CODIGO_OK, user

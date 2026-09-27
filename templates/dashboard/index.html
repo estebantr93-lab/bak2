@@ -15,7 +15,7 @@
         <label for="periodo" class="form-label mb-0 small text-muted">Período</label>
         <select id="periodo" name="periodo" class="form-select form-select-sm" onchange="this.form.submit()">
             {% for p in periodos %}
-                <option value="{{ p.pk }}" {% if periodo and p.pk == periodo.pk %}selected{% endif %}>{{ p.nombre }}</option>
+                <option value="{{ p.pk }}" {% if period and p.pk == period.pk %}selected{% endif %}>{{ p.name }}</option>
             {% endfor %}
         </select>
         <noscript><button class="btn btn-sm btn-sgr" type="submit">Ver</button></noscript>
@@ -26,7 +26,7 @@
 
 <div class="row g-3 mb-4">
     <div class="col-6 col-md-4 col-xl-2"><div class="card kpi h-100"><div class="card-body">
-        <div class="valor">{{ totales.funcionarios }}</div><div class="etiqueta">Funcionarios</div>
+        <div class="valor">{{ totales.employees }}</div><div class="etiqueta">Funcionarios</div>
     </div></div></div>
     <div class="col-6 col-md-4 col-xl-2"><div class="card kpi h-100"><div class="card-body">
         <div class="valor">{{ totales.act_total }}</div><div class="etiqueta">Actividades</div>
@@ -41,15 +41,15 @@
         <div class="valor">{{ totales.comp_vencidos }}</div><div class="etiqueta">Compromisos vencidos</div>
     </div></div></div>
     <div class="col-6 col-md-4 col-xl-2"><div class="card kpi h-100"><div class="card-body">
-        <div class="valor">{{ totales.cumplimiento_pct }}%</div><div class="etiqueta">Cumplimiento (esperado {{ esperado_pct }}%)</div>
+        <div class="valor">{{ totales.compliance_pct }}%</div><div class="etiqueta">Cumplimiento (esperado {{ esperado_pct }}%)</div>
     </div></div></div>
 </div>
 
 {% for seccion in secciones %}
 <section class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h2 class="h5 mb-0">{{ seccion.delegacion.nombre }}</h2>
-        <span class="small text-muted">{{ seccion.totales.funcionarios }} funcionario(s)</span>
+        <h2 class="h5 mb-0">{{ seccion.delegation.name }}</h2>
+        <span class="small text-muted">{{ seccion.totales.employees }} funcionario(s)</span>
     </div>
     <div class="table-responsive">
         <table class="table table-sm table-hover align-middle mb-0">
@@ -70,11 +70,11 @@
             </thead>
             {% for grupo in seccion.grupos %}
             <tbody>
-                <tr class="fila-rol"><th colspan="11">{{ grupo.etiqueta }} ({{ grupo.totales.funcionarios }})</th></tr>
+                <tr class="fila-rol"><th colspan="11">{{ grupo.etiqueta }} ({{ grupo.totales.employees }})</th></tr>
                 {% for fila in grupo.filas %}
                 <tr>
-                    <td>{{ fila.funcionario.nombre }}{% if fila.funcionario.user_id == user.pk %} <span class="badge text-bg-secondary">Usted</span>{% endif %}</td>
-                    <td class="small">{{ fila.funcionario.cargo }}</td>
+                    <td>{{ fila.employee.name }}{% if fila.employee.user_id == user.pk %} <span class="badge text-bg-secondary">Usted</span>{% endif %}</td>
+                    <td class="small">{{ fila.employee.position }}</td>
                     <td class="text-end">{{ fila.act_total }}</td>
                     <td class="text-end">{{ fila.act_aprobadas }}</td>
                     <td class="text-end">{{ fila.act_pendientes }}</td>
@@ -82,11 +82,11 @@
                     <td class="text-end">{{ fila.evi_pendientes }}</td>
                     <td class="text-end">{{ fila.comp_abiertos }}</td>
                     <td class="text-end">{{ fila.comp_vencidos }}</td>
-                    <td class="text-end">{{ fila.meta|default:"—" }}</td>
+                    <td class="text-end">{{ fila.target|default:"—" }}</td>
                     <td class="text-end">
-                        {% if fila.semaforo %}
-                            <span class="semaforo semaforo-{{ fila.semaforo }}" title="Semáforo {{ fila.semaforo }}"></span>
-                            {{ fila.cumplimiento_pct }}%
+                        {% if fila.traffic_light %}
+                            <span class="semaforo semaforo-{{ fila.traffic_light }}" title="Semáforo"></span>
+                            {{ fila.compliance_pct }}%
                         {% else %}<span class="text-muted">sin meta</span>{% endif %}
                     </td>
                 </tr>
@@ -101,8 +101,8 @@
                     <td class="text-end">{{ grupo.totales.evi_pendientes }}</td>
                     <td class="text-end">{{ grupo.totales.comp_abiertos }}</td>
                     <td class="text-end">{{ grupo.totales.comp_vencidos }}</td>
-                    <td class="text-end">{{ grupo.totales.meta }}</td>
-                    <td class="text-end">{{ grupo.totales.cumplimiento_pct }}%</td>
+                    <td class="text-end">{{ grupo.totales.target }}</td>
+                    <td class="text-end">{{ grupo.totales.compliance_pct }}%</td>
                 </tr>
                 {% endif %}
             </tbody>

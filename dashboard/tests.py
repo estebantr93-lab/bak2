@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
-from actividades.models import Actividad
+from actividades.models import Activity
 from core.admin_utils import (
     ROL_ADMIN_DELEGACION,
     ROL_FUNCIONARIO,
@@ -11,9 +11,9 @@ from core.admin_utils import (
     ROL_VERIFICADOR,
     get_rol,
 )
-from core.models import Delegacion
-from evidencias.models import Evidencia
-from funcionarios.models import Funcionario
+from core.models import Delegation
+from evidencias.models import Evidence
+from funcionarios.models import Employee
 from core.testing import CLAVE_TEST, sembrar_datos_demo
 
 
@@ -35,17 +35,17 @@ class RolesTests(TestCase):
             self.assertEqual(get_rol(User.objects.get(username=username)), rol, username)
 
     def test_existen_dos_delegaciones_con_un_admin_cada_una(self):
-        self.assertEqual(Delegacion.objects.count(), 2)
-        for delegacion in Delegacion.objects.all():
-            admins = Funcionario.objects.filter(delegacion=delegacion, user__groups__name='Administradores')
-            self.assertEqual(admins.count(), 1, delegacion.nombre)
+        self.assertEqual(Delegation.objects.count(), 2)
+        for delegacion in Delegation.objects.all():
+            admins = Employee.objects.filter(delegation=delegacion, user__groups__name='Administradores')
+            self.assertEqual(admins.count(), 1, delegacion.name)
 
     def test_admins_de_delegacion_no_son_superusuarios_ni_gestionan_usuarios(self):
         for username in ['admin_centro', 'admin_norte']:
             user = User.objects.get(username=username)
             self.assertFalse(user.is_superuser)
             self.assertFalse(user.has_perm('auth.change_user'))
-            self.assertFalse(user.has_perm('core.change_delegacion'))
+            self.assertFalse(user.has_perm('core.change_delegation'))
 
 
 class DashboardTests(TestCase):
@@ -68,7 +68,7 @@ class DashboardTests(TestCase):
         self.assertNotContains(response, 'Carlos Rojas (Norte)')
         self.assertNotContains(response, 'Jorge Díaz (Admin Norte)')
         self.assertNotContains(response, 'Delegación Norte')
-        nombres = [s['delegacion'].nombre for s in response.context['secciones']]
+        nombres = [s['delegation'].name for s in response.context['secciones']]
         self.assertEqual(nombres, ['Delegación Centro'])
 
     def test_admin_norte_solo_ve_su_delegacion(self):
@@ -82,16 +82,16 @@ class DashboardTests(TestCase):
         grupos = response.context['secciones'][0]['grupos']
         self.assertEqual([g['rol'] for g in grupos], [ROL_ADMIN_DELEGACION, ROL_FUNCIONARIO])
         fila_ana = grupos[1]['filas'][0]
-        self.assertEqual(fila_ana['funcionario'].nombre, 'Ana Pérez (Centro)')
+        self.assertEqual(fila_ana['employee'].name, 'Ana Pérez (Centro)')
         self.assertEqual(
             fila_ana['act_total'],
-            Actividad.objects.filter(funcionario__nombre='Ana Pérez (Centro)', periodo__cerrado=False).count(),
+            Activity.objects.filter(employee__name='Ana Pérez (Centro)', period__is_closed=False).count(),
         )
         self.assertEqual(
             fila_ana['evi_pendientes'],
-            Evidencia.objects.filter(
-                actividad__funcionario__nombre='Ana Pérez (Centro)', estado='pendiente',
-                actividad__periodo__cerrado=False,
+            Evidence.objects.filter(
+                activity__employee__name='Ana Pérez (Centro)', status='pending',
+                activity__period__is_closed=False,
             ).count(),
         )
 
@@ -100,13 +100,13 @@ class DashboardTests(TestCase):
         self.assertContains(response, 'Ana Pérez (Centro)')
         self.assertNotContains(response, 'María Soto (Admin Centro)')
         self.assertNotContains(response, 'Carlos Rojas (Norte)')
-        self.assertEqual(response.context['totales']['funcionarios'], 1)
+        self.assertEqual(response.context['totales']['employees'], 1)
 
     def test_superadmin_ve_ambas_delegaciones(self):
         response = self._ingresar('admin_sgr', CLAVE_TEST)
-        nombres = [s['delegacion'].nombre for s in response.context['secciones']]
+        nombres = [s['delegation'].name for s in response.context['secciones']]
         self.assertEqual(nombres, ['Delegación Centro', 'Delegación Norte'])
-        self.assertEqual(response.context['totales']['funcionarios'], 4)
+        self.assertEqual(response.context['totales']['employees'], 4)
 
     def test_usuario_sin_rol_recibe_403(self):
         User.objects.create_user(username='sin_rol', password='x')
@@ -122,15 +122,15 @@ class DashboardTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_periodo_elegido_se_recuerda_en_la_sesion(self):
-        from core.models import Periodo
+        from core.models import Period
 
-        cerrado = Periodo.objects.get(cerrado=True)
+        cerrado = Period.objects.get(is_closed=True)
         self.client.login(username='admin_centro', password=CLAVE_TEST)
-        self.client.get(reverse('dashboard'), {'periodo': cerrado.pk})
+        self.client.get(reverse('dashboard'), {'period': cerrado.pk})
         self.assertEqual(self.client.session['dashboard_periodo_id'], cerrado.pk)
         # Sin parámetro, la siguiente visita usa el período recordado.
         response = self.client.get(reverse('dashboard'))
-        self.assertEqual(response.context['periodo'], cerrado)
+        self.assertEqual(response.context['period'], cerrado)
 
 
 class AislamientoAdminPorDelegacionTests(TestCase):
@@ -144,28 +144,28 @@ class AislamientoAdminPorDelegacionTests(TestCase):
         self.client.login(username='admin_centro', password=CLAVE_TEST)
 
     def test_admin_centro_solo_lista_actividades_de_centro(self):
-        response = self.client.get('/admin/actividades/actividad/')
+        response = self.client.get('/admin/actividades/activity/')
         self.assertEqual(response.status_code, 200)
-        visibles = set(response.context['cl'].queryset.values_list('delegacion__nombre', flat=True))
+        visibles = set(response.context['cl'].queryset.values_list('delegation__name', flat=True))
         self.assertEqual(visibles, {'Delegación Centro'})
 
     def test_admin_centro_no_puede_abrir_actividad_de_norte(self):
-        actividad_norte = Actividad.objects.filter(delegacion__nombre='Delegación Norte').first()
-        response = self.client.get(f'/admin/actividades/actividad/{actividad_norte.pk}/change/')
+        actividad_norte = Activity.objects.filter(delegation__name='Delegación Norte').first()
+        response = self.client.get(f'/admin/actividades/activity/{actividad_norte.pk}/change/')
         self.assertNotEqual(response.status_code, 200)
 
     def test_admin_centro_solo_lista_funcionarios_de_centro(self):
-        response = self.client.get('/admin/funcionarios/funcionario/')
-        visibles = set(response.context['cl'].queryset.values_list('delegacion__nombre', flat=True))
+        response = self.client.get('/admin/funcionarios/employee/')
+        visibles = set(response.context['cl'].queryset.values_list('delegation__name', flat=True))
         self.assertEqual(visibles, {'Delegación Centro'})
 
     def test_admin_centro_solo_ve_su_delegacion_en_maestra(self):
-        response = self.client.get('/admin/core/delegacion/')
-        self.assertEqual(list(response.context['cl'].queryset.values_list('nombre', flat=True)), ['Delegación Centro'])
+        response = self.client.get('/admin/core/delegation/')
+        self.assertEqual(list(response.context['cl'].queryset.values_list('name', flat=True)), ['Delegación Centro'])
 
     def test_admin_centro_solo_lista_evidencias_de_centro(self):
-        response = self.client.get('/admin/evidencias/evidencia/')
-        visibles = set(response.context['cl'].queryset.values_list('actividad__delegacion__nombre', flat=True))
+        response = self.client.get('/admin/evidencias/evidence/')
+        visibles = set(response.context['cl'].queryset.values_list('activity__delegation__name', flat=True))
         self.assertEqual(visibles, {'Delegación Centro'})
 
     def test_admin_centro_no_accede_a_usuarios(self):
@@ -173,7 +173,7 @@ class AislamientoAdminPorDelegacionTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_admin_centro_no_puede_mover_funcionario_a_otra_delegacion(self):
-        ana = Funcionario.objects.get(nombre='Ana Pérez (Centro)')
-        response = self.client.get(f'/admin/funcionarios/funcionario/{ana.pk}/change/')
+        ana = Employee.objects.get(name='Ana Pérez (Centro)')
+        response = self.client.get(f'/admin/funcionarios/employee/{ana.pk}/change/')
         self.assertEqual(response.status_code, 200)
-        self.assertNotIn('delegacion', response.context['adminform'].form.fields)
+        self.assertNotIn('delegation', response.context['adminform'].form.fields)

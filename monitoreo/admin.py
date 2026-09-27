@@ -1,12 +1,12 @@
 from django.contrib import admin
 
-from .models import TableroPanel
+from .models import DashboardPanel
 
 
-@admin.register(TableroPanel)
+@admin.register(DashboardPanel)
 class TableroPanelAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'tipo', 'propietario')
-    search_fields = ('nombre',)
-    list_filter = ('tipo',)
-    ordering = ('nombre',)
-    list_select_related = ('propietario',)
+    list_display = ('name', 'kind', 'owner')
+    search_fields = ('name',)
+    list_filter = ('kind',)
+    ordering = ('name',)
+    list_select_related = ('owner',)

@@ -1,44 +1,44 @@
 import datetime
 
-from core.models import Delegacion
-from funcionarios.models import Funcionario
+from core.models import Delegation
+from funcionarios.models import Employee
 
-from .models import Compromiso, SeguimientoCompromiso
+from .models import Commitment, CommitmentFollowUp
 
 
 def build_agenda():
-    centro = Delegacion.objects.get(nombre='Delegación Centro')
-    norte = Delegacion.objects.get(nombre='Delegación Norte')
-    func_centro = Funcionario.objects.get(nombre='Ana Pérez (Centro)')
-    func_norte = Funcionario.objects.get(nombre='Carlos Rojas (Norte)')
+    centro = Delegation.objects.get(name='Delegación Centro')
+    norte = Delegation.objects.get(name='Delegación Norte')
+    func_centro = Employee.objects.get(name='Ana Pérez (Centro)')
+    func_norte = Employee.objects.get(name='Carlos Rojas (Norte)')
 
     compromisos_data = [
-        ('Instalar señalética en plaza de armas', centro, func_centro, datetime.date(2026, 8, 1), 'pendiente'),
-        ('Coordinar operativo de verano', centro, func_centro, datetime.date(2026, 10, 15), 'en_proceso'),
-        ('Reparación de luminarias sector norte', norte, func_norte, datetime.date(2026, 7, 20), 'ingresado'),
-        ('Catastro de organizaciones sociales', norte, func_norte, datetime.date(2026, 11, 1), 'realizado'),
+        ('Instalar señalética en plaza de armas', centro, func_centro, datetime.date(2026, 8, 1), 'pending'),
+        ('Coordinar operativo de verano', centro, func_centro, datetime.date(2026, 10, 15), 'in_progress'),
+        ('Reparación de luminarias sector norte', norte, func_norte, datetime.date(2026, 7, 20), 'registered'),
+        ('Catastro de organizaciones sociales', norte, func_norte, datetime.date(2026, 11, 1), 'done'),
     ]
 
     compromisos = {}
     for titulo, delegacion, responsable, fecha_venc, estado in compromisos_data:
-        compromiso, _ = Compromiso.all_objects.get_or_create(
-            titulo=titulo,
+        compromiso, _ = Commitment.all_objects.get_or_create(
+            title=titulo,
             defaults={
-                'delegacion': delegacion, 'responsable': responsable,
-                'fecha_vencimiento': fecha_venc, 'estado': estado,
+                'delegation': delegacion, 'responsible': responsable,
+                'due_date': fecha_venc, 'status': estado,
             },
         )
         compromisos[titulo] = compromiso
 
-    SeguimientoCompromiso.all_objects.get_or_create(
-        compromiso=compromisos['Instalar señalética en plaza de armas'],
-        responsable=func_centro, estado_nuevo='pendiente',
-        defaults={'descripcion': 'Compromiso vencido: pendiente de coordinación con proveedor.'},
+    CommitmentFollowUp.all_objects.get_or_create(
+        commitment=compromisos['Instalar señalética en plaza de armas'],
+        responsible=func_centro, new_status='pending',
+        defaults={'description': 'Compromiso vencido: pendiente de coordinación con proveedor.'},
     )
-    SeguimientoCompromiso.all_objects.get_or_create(
-        compromiso=compromisos['Reparación de luminarias sector norte'],
-        responsable=func_norte, estado_nuevo='ingresado',
-        defaults={'descripcion': 'Compromiso vencido: a la espera de asignación de cuadrilla técnica.'},
+    CommitmentFollowUp.all_objects.get_or_create(
+        commitment=compromisos['Reparación de luminarias sector norte'],
+        responsible=func_norte, new_status='registered',
+        defaults={'description': 'Compromiso vencido: a la espera de asignación de cuadrilla técnica.'},
     )
 
     return compromisos
