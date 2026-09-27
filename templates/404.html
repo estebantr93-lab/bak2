@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}Página no encontrada{% endblock %}
+
+{% block content %}
+<div class="text-center py-5">
+    <h1 class="h3">Página no encontrada</h1>
+    <p class="text-muted mb-4">La dirección no existe o el registro no está dentro de su alcance.</p>
+    <a class="btn btn-sgr" href="{% if user.is_authenticated %}{% url 'dashboard' %}{% else %}{% url 'inicio' %}{% endif %}">Volver al inicio</a>
+</div>
+{% endblock %}

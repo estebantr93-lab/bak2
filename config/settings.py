@@ -35,13 +35,24 @@ if not SECRET_KEY:
     )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'True') == 'True'
+# Por defecto apagado: en desarrollo se activa con DEBUG=True en el .env.
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = [
     host.strip()
     for host in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
     if host.strip()
 ]
+
+# Orígenes confiables para formularios POST (CSRF) cuando se accede por dominio/IP pública,
+# por ejemplo: CSRF_TRUSTED_ORIGINS=http://ec2-3-80-1-2.compute-1.amazonaws.com,https://sgr.midominio.cl
+CSRF_TRUSTED_ORIGINS = [
+    origen.strip() for origen in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',') if origen.strip()
+]
+
+# Detrás de nginx con HTTPS: nginx informa el esquema original en X-Forwarded-Proto.
+if os.getenv('BEHIND_HTTPS_PROXY', 'False') == 'True':
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 
 # Application definition
@@ -168,11 +179,13 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
+# En producción: python manage.py collectstatic reúne aquí los archivos y nginx los sirve.
+STATIC_ROOT = BASE_DIR / os.getenv('STATIC_ROOT_DIR', 'staticfiles')
 
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_ROOT = BASE_DIR / os.getenv('MEDIA_ROOT_DIR', 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# Instalación del SGR en una instancia EC2 de AWS Academy con Ubuntu Server 24.04 LTS.
+# Uso (en la instancia, como usuario ubuntu):
+#   curl -O <url-cruda-de-este-archivo>   (o copiarlo con scp)
+#   bash setup_ec2.sh <url-del-repositorio> <rama> [--db-local]
+#
+# --db-local instala MariaDB 10.11 en la misma instancia (útil si el Learner Lab no ofrece
+# RDS MySQL 8.4 / MariaDB 10.11, que son las versiones mínimas de Django 6.1).
+# Sin --db-local se usa RDS: complete DB_HOST, DB_USER y DB_PASSWORD en /srv/sgr/.env.
+set -euo pipefail
+
+REPO_URL="${1:?Indique la URL del repositorio}"
+RAMA="${2:-main}"
+DB_LOCAL="${3:-}"
+APP_DIR=/srv/sgr
+
+echo "==> Paquetes del sistema"
+sudo apt-get update -y
+sudo apt-get install -y python3 python3-venv python3-dev build-essential pkg-config \
+    libmariadb-dev nginx git
+if [[ "$DB_LOCAL" == "--db-local" ]]; then
+    sudo apt-get install -y mariadb-server
+fi
+
+echo "==> Código en $APP_DIR (rama $RAMA)"
+sudo mkdir -p "$APP_DIR"
+sudo chown ubuntu:www-data "$APP_DIR"
+if [[ -d "$APP_DIR/.git" ]]; then
+    git -C "$APP_DIR" fetch origin "$RAMA" && git -C "$APP_DIR" checkout "$RAMA" && git -C "$APP_DIR" pull origin "$RAMA"
+else
+    git clone --branch "$RAMA" "$REPO_URL" "$APP_DIR"
+fi
+cd "$APP_DIR"
+
+echo "==> Entorno virtual y dependencias"
+python3 -m venv .venv
+.venv/bin/pip install --upgrade pip
+.venv/bin/pip install -r requirements.txt
+
+if [[ ! -f .env ]]; then
+    echo "==> Creando .env de producción (revíselo antes de continuar)"
+    cp .env.example .env
+    SECRET=$(.venv/bin/python -c "from django.core.management.utils import get_random_secret_key as g; print(g())")
+    IP=$(curl -s --max-time 3 http://checkip.amazonaws.com || echo "")
+    sed -i "s|^SECRET_KEY=.*|SECRET_KEY=${SECRET}|" .env
+    sed -i "s|^DEBUG=.*|DEBUG=False|" .env
+    sed -i "s|^ALLOWED_HOSTS=.*|ALLOWED_HOSTS=localhost,127.0.0.1,${IP}|" .env
+    sed -i "s|^CSRF_TRUSTED_ORIGINS=.*|CSRF_TRUSTED_ORIGINS=http://${IP}|" .env
+    if [[ "$DB_LOCAL" == "--db-local" ]]; then
+        DBPASS=$(.venv/bin/python -c "import secrets; print(secrets.token_urlsafe(18))")
+        sudo mariadb -e "CREATE DATABASE IF NOT EXISTS sgr CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+            CREATE USER IF NOT EXISTS 'sgr_app'@'localhost' IDENTIFIED BY '${DBPASS}';
+            GRANT ALL PRIVILEGES ON sgr.* TO 'sgr_app'@'localhost'; FLUSH PRIVILEGES;"
+        sed -i "s|^DB_HOST=.*|DB_HOST=127.0.0.1|; s|^DB_USER=.*|DB_USER=sgr_app|; s|^DB_PASSWORD=.*|DB_PASSWORD=${DBPASS}|" .env
+    else
+        echo "!! Complete DB_HOST (endpoint RDS), DB_USER y DB_PASSWORD en $APP_DIR/.env y vuelva a ejecutar."
+        exit 1
+    fi
+    chmod 600 .env
+fi
+
+echo "==> Migraciones, archivos estáticos y datos"
+.venv/bin/python manage.py check --deploy || true
+.venv/bin/python manage.py migrate --noinput
+.venv/bin/python manage.py collectstatic --noinput
+.venv/bin/python manage.py seed_data --volumen
+mkdir -p media && sudo chown -R ubuntu:www-data media && chmod 775 media
+
+echo "==> gunicorn (systemd) y nginx"
+sudo cp deploy/gunicorn-sgr.service /etc/systemd/system/gunicorn-sgr.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now gunicorn-sgr
+sudo systemctl restart gunicorn-sgr
+sudo cp deploy/nginx-sgr.conf /etc/nginx/sites-available/sgr
+sudo ln -sf /etc/nginx/sites-available/sgr /etc/nginx/sites-enabled/sgr
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t
+sudo systemctl restart nginx
+
+echo "==> Listo: http://$(curl -s --max-time 3 http://checkip.amazonaws.com || echo '<IP-publica>')/"
