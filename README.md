@@ -225,7 +225,7 @@ Hay cuatro CRUD completos (crear, listar, editar y eliminar lógicamente) constr
 | Evidencias (con archivo) | `/evidencias/` | archivo obligatorio al crear, 2 MB, extensión y contenido real; solo el verificador cambia el estado |
 | Compromisos | `/compromisos/` | título mínimo, vencimiento no pasado, responsable de la misma delegación, "realizado" exige observaciones |
 
-- **Propiedad (rol funcionario):** ve toda su delegación, pero solo edita lo propio (`owner_field` y `solo_propios`). Una actividad de un **período cerrado** no se edita ni se elimina (403), y el período es obligatorio en el formulario.
+- **Propiedad (rol funcionario):** ve toda su delegación, pero solo modifica lo propio. La regla se declara en el modelo (`owner_field`, `motivo_no_modificable()`) y la aplica una política única (`core/admin_utils.py`) en el CRUD web y en el Django Admin: cambio, borrado, opciones de formularios y autocompletado. Una actividad de un **período cerrado** no se edita ni se elimina (403), y el período es obligatorio en el formulario.
 - **Seguridad por capas en cada vista:** `LoginRequiredMixin` (anónimo → login), `PermissionRequiredMixin` (sin permiso → 403) y scoping por delegación en `get_queryset` (un objeto de otra delegación → 404). Ocultar un botón no protege nada; cada vista vuelve a verificar.
 - **Modal:** crear y editar usan el mismo ModelForm en un modal de Bootstrap. Si hay errores, la misma plantilla se vuelve a mostrar con el modal abierto. Cada operación conserva su URL (`nueva/`, `<id>/editar/`, `<id>/eliminar/`).
 - **Eliminar:** solo por POST con CSRF, previa confirmación con SweetAlert2 (`static/js/confirmar.js`). El resultado es un **borrado lógico**.
@@ -334,6 +334,7 @@ python manage.py runserver                  # servidor de desarrollo
 | Recuperación con código de 6 dígitos | `funcionarios/recuperacion.py`, `funcionarios/views.py`, modelo `PasswordResetCode` |
 | Política de contraseñas | `config/settings.py` (`AUTH_PASSWORD_VALIDATORS`), `core/validators.py` |
 | Roles, grupos y permisos | `funcionarios/security.py`, `core/admin_utils.py` (`get_rol`, `filtrar_por_delegacion`) |
+| Quién puede modificar qué (web y Admin) | `owner_field` y `motivo_no_modificable()` en cada modelo; política única `puede_modificar` / `modificables` en `core/admin_utils.py` |
 | CRUD, modal, paginación en sesión | `core/crud.py`, `*/views.py`, `*/forms.py`, `templates/crud/list.html` |
 | Archivos e imágenes | `evidencias/forms.py` (`clean_file`), `evidencias/models.py` (`ruta_evidencia`), `evidencias/signals.py` |
 | SweetAlert2 | `static/js/confirmar.js`, `templates/base.html` |
