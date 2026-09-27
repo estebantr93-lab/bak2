@@ -239,3 +239,22 @@ class SecretosTests(TestCase):
         from funcionarios import data
 
         self.assertFalse(hasattr(data, 'CREDENCIALES_DEMO'))
+
+
+class SeedVolumenTests(TestCase):
+    def test_volumen_supera_1000_registros_y_es_idempotente(self):
+        from actividades.models import Activity, SocialCase
+        from agenda.models import Commitment, CommitmentFollowUp
+        from core.testing import sembrar_datos_demo
+        from evidencias.models import Evidence
+        from funcionarios.models import Employee
+
+        modelos = [Employee, Activity, SocialCase, Evidence, Commitment, CommitmentFollowUp]
+        sembrar_datos_demo(volumen=500)
+        total = sum(m.objects.count() for m in modelos)
+        self.assertGreaterEqual(total, 1000)
+        sembrar_datos_demo(volumen=500)
+        self.assertEqual(sum(m.objects.count() for m in modelos), total)
+        # Datos repartidos en ambas delegaciones (sirven para probar scoping y paginación).
+        for delegacion in ('Delegación Centro', 'Delegación Norte'):
+            self.assertGreater(Activity.objects.filter(delegation__name=delegacion).count(), 100)
