@@ -147,10 +147,25 @@
         {# --- Resumen por funcionario (tabla; también es la vista accesible de los gráficos) --- #}
         {% for seccion in secciones %}
         <section class="dash-card p-0">
-            <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-1 px-3 px-sm-4 pt-4 pb-2">
-                <h2 class="dash-card-titulo mb-0">Resumen por funcionario · {{ seccion.delegation.name }}</h2>
-                <span class="small text-muted">{{ seccion.totales.employees }} funcionario(s)</span>
+            <div class="dash-resumen-cab d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <div>
+                    <h2 class="dash-card-titulo mb-0">Resumen por funcionario · {{ seccion.delegation.name }}</h2>
+                    <div class="dash-resumen-roles">
+                        {% for grupo in seccion.grupos %}
+                            <span class="dash-rol">{{ grupo.etiqueta }} · {{ grupo.totales.employees }}</span>
+                        {% endfor %}
+                        <span class="small text-muted align-self-center">{{ seccion.totales.employees }} funcionario(s)</span>
+                    </div>
+                </div>
+                <button class="dash-detalle-boton" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#detalle-{{ seccion.delegation.pk }}" aria-expanded="false"
+                        aria-controls="detalle-{{ seccion.delegation.pk }}">
+                    <span class="dash-detalle-ver">Ver detalle</span>
+                    <span class="dash-detalle-ocultar">Ocultar detalle</span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
             </div>
+            <div class="collapse dash-detalle" id="detalle-{{ seccion.delegation.pk }}">
             <div class="table-responsive">
                 <table class="table dash-tabla align-middle mb-0">
                     <thead>
@@ -199,6 +214,7 @@
                     <tbody><tr><td colspan="6" class="text-center text-muted py-4">Sin funcionarios registrados.</td></tr></tbody>
                     {% endfor %}
                 </table>
+            </div>
             </div>
         </section>
         {% endfor %}
