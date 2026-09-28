@@ -61,8 +61,27 @@ class SoftDeleteModel(models.Model):
             for hijo in getattr(self, relacion).filter(deleted_at__isnull=True):
                 hijo.soft_delete(self.deleted_at)
 
+    def padre_eliminado(self):
+        """El registro del que cuelga este y que sigue eliminado (p. ej. la actividad de una evidencia), o None."""
+        for campo in self._meta.concrete_fields:
+            padre = campo.related_model if campo.many_to_one else None
+            valor = getattr(self, campo.attname) if padre else None
+            if valor is not None and issubclass(padre, SoftDeleteModel):
+                eliminado = padre.all_objects.filter(pk=valor, deleted_at__isnull=False).first()
+                if eliminado is not None:
+                    return eliminado
+        return None
+
     def restore(self):
-        """Recupera el registro y los hijos que se eliminaron junto con él (no los que ya estaban eliminados)."""
+        """Recupera el registro y los hijos que se eliminaron junto con él (no los que ya estaban eliminados).
+
+        Si el padre sigue eliminado no se restaura: el registro quedaría activo colgando de algo que nadie ve.
+        """
+        padre = self.padre_eliminado()
+        if padre is not None:
+            raise ValidationError(
+                f'Restaure primero el registro de {padre._meta.verbose_name.lower()} «{padre}», que sigue eliminado.'
+            )
         momento = self.deleted_at
         self.deleted_at = None
         self.save(update_fields=['deleted_at'])

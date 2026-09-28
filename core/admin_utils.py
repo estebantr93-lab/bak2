@@ -1,5 +1,6 @@
 from django.apps import apps
 from django.contrib import admin, messages
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from .soft_delete import es_soft_delete
@@ -267,10 +268,16 @@ class ScopedModelAdmin:
     def restaurar_registros(self, request, queryset):
         restaurados = 0
         for obj in queryset.filter(deleted_at__isnull=False):
-            obj.restore()  # también recupera los registros que se eliminaron junto con él
+            try:
+                obj.restore()  # también recupera los registros que se eliminaron junto con él
+            except ValidationError as error:
+                # Su padre sigue eliminado: se omite y se dice qué restaurar antes.
+                self.message_user(request, f'No se restauró «{obj}»: {" ".join(error.messages)}', level=messages.WARNING)
+                continue
             registrar_en_auditoria(request.user, 'restaurar', obj)
             restaurados += 1
-        self.message_user(request, f'{restaurados} registro(s) restaurado(s).', level=messages.SUCCESS)
+        if restaurados:
+            self.message_user(request, f'{restaurados} registro(s) restaurado(s).', level=messages.SUCCESS)
 
     def delete_model(self, request, obj):
         super().delete_model(request, obj)

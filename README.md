@@ -149,7 +149,8 @@ Para que la demo funcione el día que se presente, los datos se arman alrededor 
 - **Período cerrado:** los 6 meses anteriores (por ejemplo, «dic 2025–may 2026 (cerrado)»). Llega completamente revisado: no deja evidencias pendientes que nadie podría revisar.
 - **Actividades:** entre el inicio del período y hoy (nunca futuras). **Compromisos:** vencen entre 60 días atrás y 120 días adelante, así siempre hay vencidos y por vencer.
 - **Metas:** acordes al volumen generado, así el semáforo muestra verdes, ámbar y rojos. Con el tope de 100 %, pocos funcionarios llegan al 100 % y la mayoría queda repartida entre 30 % y 90 %.
-- Si ya existen períodos, `seed_data` los conserva (no crea otros que se solapen). Para volver a armar todo con la fecha de hoy:
+- **Evidencias pendientes:** subidas en las últimas 3 semanas, así ninguna aparece esperando meses.
+- Si ya existen períodos, `seed_data` los conserva (no crea otros que se solapen), y las metas existentes tampoco se cambian. **Una base cargada antes de estos cambios (la local o la de AWS) conserva el período antiguo, que vence el 30-09, con tope 150 % y metas altas: desde octubre no se podrán registrar actividades.** Antes de la demo, vuelva a armar todo con la fecha de hoy:
 
 ```bash
 git pull
@@ -403,7 +404,7 @@ python manage.py runserver                  # servidor de desarrollo
 
 Las pruebas de cada regla están en `core/tests_reglas_negocio.py` (`ReglasDeLaGuiaTests`).
 
-**Superadministrador y registros eliminados.** Lo que borra un administrador de delegación (actividad, evidencia, etc.) desaparece para él, pero el superadministrador lo sigue viendo en el Admin (columna «Estado», filtro «Eliminados», solo lectura) y puede restaurarlo con la acción «Restaurar». Ambas acciones quedan en la auditoría.
+**Superadministrador y registros eliminados.** Lo que borra un administrador de delegación (actividad, evidencia, etc.) desaparece para él, pero el superadministrador lo sigue viendo en el Admin (columna «Estado», filtro «Eliminados», solo lectura) y puede restaurarlo con la acción «Restaurar». Ambas acciones quedan en la auditoría. Un registro cuyo padre sigue eliminado (una evidencia, gestión o seguimiento de una actividad o compromiso eliminado) no se restaura: el Admin avisa «Restaure primero…», porque quedaría activo colgando de algo que nadie ve (`SoftDeleteModel.padre_eliminado` en `core/soft_delete.py`).
 
 ## Dónde está cada requisito en el código
 
