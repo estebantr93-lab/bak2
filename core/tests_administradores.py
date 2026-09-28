@@ -136,6 +136,54 @@ class AdministradoresDePuntaAPuntaTests(TestCase):
                 self.assertFalse(Evidence.objects.filter(pk=evidencia.pk).exists())  # esa se había eliminado antes
                 self.client.logout()
 
+    def test_no_se_restaura_un_registro_cuyo_padre_sigue_eliminado(self):
+        self.ingresar('admin_centro')
+        actividad = self.registrar_actividad('admin_centro', 'Delegación Centro')
+        evidencia = self.subir(actividad, 'foto.png', foto('PNG'))
+        self.client.post(reverse('evidencia_delete', args=[evidencia.pk]))
+        self.client.post(reverse('actividad_delete', args=[actividad.pk]))
+        self.client.logout()
+
+        self.ingresar('admin_sgr')
+        restaurar_evidencia = {'action': 'restaurar_registros', '_selected_action': [evidencia.pk], 'registro': 'eliminados'}
+        respuesta = self.client.post('/admin/evidencias/evidence/', restaurar_evidencia, follow=True)
+        # La actividad sigue eliminada: la evidencia no vuelve (quedaría colgando de algo que nadie ve).
+        self.assertFalse(Evidence.objects.filter(pk=evidencia.pk).exists())
+        self.assertIn('Restaure primero', ' '.join(str(m) for m in respuesta.context['messages']))
+        self.assertFalse(AuditLog.objects.filter(action='restaurar', entity_type='Evidence', entity_id=evidencia.pk).exists())
+
+        # Restaurada la actividad, la evidencia (eliminada antes y por separado) ya se puede restaurar.
+        self.client.post('/admin/actividades/activity/', {
+            'action': 'restaurar_registros', '_selected_action': [actividad.pk], 'registro': 'eliminados',
+        })
+        self.assertFalse(Evidence.objects.filter(pk=evidencia.pk).exists())
+        self.client.post('/admin/evidencias/evidence/', restaurar_evidencia)
+        self.assertTrue(Evidence.objects.filter(pk=evidencia.pk).exists())
+        self.client.logout()
+
+        # La lista web del admin de delegación y el dashboard vuelven a coincidir.
+        self.ingresar('admin_centro')
+        self.assertEqual(self.client.get(reverse('evidencia_list'), {'activity': actividad.pk}).context['page_obj'].paginator.count, 1)
+
+    def test_gestiones_y_seguimientos_tampoco_vuelven_sin_su_padre(self):
+        from django.core.exceptions import ValidationError
+
+        from actividades.models import SocialCase
+        from agenda.models import CommitmentFollowUp
+
+        for hijo in (SocialCase.objects.first(), CommitmentFollowUp.objects.first()):
+            with self.subTest(modelo=type(hijo).__name__):
+                padre = hijo.activity if isinstance(hijo, SocialCase) else hijo.commitment
+                hijo.delete()
+                padre.delete()
+                hijo = type(hijo).all_objects.get(pk=hijo.pk)
+                with self.assertRaisesMessage(ValidationError, 'Restaure primero'):
+                    hijo.restore()
+                self.assertIsNotNone(type(hijo).all_objects.get(pk=hijo.pk).deleted_at)
+                padre.restore()
+                hijo.restore()
+                self.assertTrue(type(hijo).objects.filter(pk=hijo.pk).exists())
+
     def test_los_admins_de_delegacion_no_ven_eliminados_ni_pueden_restaurar(self):
         self.ingresar('admin_centro')
         response = self.client.get('/admin/actividades/activity/')

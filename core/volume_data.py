@@ -60,6 +60,9 @@ def borrar_volumen():
     User.objects.filter(username__startswith='vol_funcionario_').delete()
 
 
+DIAS_MAXIMOS_PENDIENTE = 21
+
+
 def _estado_para(estado, periodo):
     """Un período cerrado ya fue revisado entero: sus actividades no quedan pendientes (no podrían
     revisarse nunca, porque lo cerrado no se modifica)."""
@@ -184,8 +187,12 @@ def build_volumen(total_actividades=500, con_archivos=True):
     rng_fechas = random.Random(SEMILLA + 1)
     ahora = timezone.now()
     creadas = list(Evidence.objects.filter(activity__number__startswith=PREFIJO).select_related('activity').order_by('pk'))
+    # Las pendientes se subieron hace poco (a lo más 3 semanas): el verificador revisa al día y en la
+    # demo no aparecen evidencias esperando meses. Las revisadas conservan su fecha.
+    reciente = timezone.localdate() - datetime.timedelta(days=DIAS_MAXIMOS_PENDIENTE)
     for e in creadas:
-        dia = e.activity.date + datetime.timedelta(days=rng_fechas.randint(0, 6))
+        desde = max(e.activity.date, reciente) if e.status == 'pending' else e.activity.date
+        dia = desde + datetime.timedelta(days=rng_fechas.randint(0, 6))
         momento = timezone.make_aware(datetime.datetime.combine(dia, datetime.time(rng_fechas.randint(9, 17))))
         e.registered_at = min(momento, ahora)
     Evidence.objects.bulk_update(creadas, ['registered_at'], batch_size=500)
