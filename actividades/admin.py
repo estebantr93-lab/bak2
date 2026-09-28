@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from core.admin_utils import ScopedModelAdmin
+from core.admin_utils import ScopedModelAdmin, ve_eliminados
 from evidencias.forms import EvidenciaAdminForm
 from evidencias.models import Evidence
 
@@ -17,7 +17,8 @@ class EvidenciaInline(admin.TabularInline):
     can_delete = False
 
     def get_queryset(self, request):
-        return super().get_queryset(request).filter(deleted_at__isnull=True)
+        qs = super().get_queryset(request)
+        return qs if ve_eliminados(request.user) else qs.filter(deleted_at__isnull=True)
 
 
 @admin.register(Activity)

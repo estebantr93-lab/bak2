@@ -1,4 +1,6 @@
 from django.apps import apps
+from django.contrib import admin, messages
+from django.utils import timezone
 
 from .soft_delete import es_soft_delete
 
@@ -167,11 +169,47 @@ def filtrar_por_delegacion(queryset, user, campo='delegation'):
     return queryset.filter(**{campo: delegacion.pk})
 
 
+def registrar_en_auditoria(user, accion, obj, detalle=''):
+    """Deja constancia de quién eliminó o restauró un registro (lo consulta el superadmin)."""
+    AuditLog = apps.get_model('colaboracion', 'AuditLog')
+    AuditLog.objects.create(
+        user=user if user and user.is_authenticated else None, action=accion,
+        entity_type=type(obj).__name__, entity_id=obj.pk, detail=detalle or str(obj),
+    )
+
+
+def ve_eliminados(user):
+    """Regla de negocio: lo que eliminan los administradores de delegación (borrado lógico) lo sigue
+    viendo el administrador general, que además puede restaurarlo."""
+    return get_rol(user) == ROL_SUPERADMIN
+
+
+class EstadoRegistroFilter(admin.SimpleListFilter):
+    """Filtro del superadmin: registros activos, eliminados o todos (por defecto, todos)."""
+    title = 'estado del registro'
+    parameter_name = 'registro'
+
+    def lookups(self, request, model_admin):
+        return [('activos', 'Activos'), ('eliminados', 'Eliminados')]
+
+    def queryset(self, request, queryset):
+        if self.value() == 'activos':
+            return queryset.filter(deleted_at__isnull=True)
+        if self.value() == 'eliminados':
+            return queryset.filter(deleted_at__isnull=False)
+        return queryset
+
+
 class ScopedModelAdmin:
     scope_by = 'delegation'
 
+    def _muestra_eliminados(self, request):
+        return es_soft_delete(self.model) and ve_eliminados(request.user)
+
     def get_list_filter(self, request):
         filtros = super().get_list_filter(request)
+        if self._muestra_eliminados(request):
+            return [*filtros, EstadoRegistroFilter]
         if es_usuario_sin_restriccion(request.user):
             return filtros
         # Un usuario acotado ya ve una sola delegación: filtrar por ella no aporta y listaría las demás.
@@ -179,9 +217,46 @@ class ScopedModelAdmin:
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        if es_soft_delete(self.model):
-            qs = qs.filter(deleted_at__isnull=True)  # el Admin tampoco lista eliminados lógicamente
+        if es_soft_delete(self.model) and not ve_eliminados(request.user):
+            qs = qs.filter(deleted_at__isnull=True)  # los eliminados solo los ve el administrador general
         return filtrar_por_delegacion(qs, request.user, self.scope_by)
+
+    def get_list_display(self, request):
+        columnas = super().get_list_display(request)
+        return [*columnas, 'estado_registro'] if self._muestra_eliminados(request) else columnas
+
+    @admin.display(description='Registro')
+    def estado_registro(self, obj):
+        if obj.deleted_at is None:
+            return 'Activo'
+        return f'Eliminado el {timezone.localtime(obj.deleted_at):%d-%m-%Y %H:%M}'
+
+    def get_actions(self, request):
+        acciones = super().get_actions(request)
+        if self._muestra_eliminados(request):
+            acciones['restaurar_registros'] = (
+                type(self).restaurar_registros, 'restaurar_registros', 'Restaurar los registros eliminados seleccionados',
+            )
+        return acciones
+
+    def restaurar_registros(self, request, queryset):
+        restaurados = 0
+        for obj in queryset.filter(deleted_at__isnull=False):
+            obj.restore()  # también recupera los registros que se eliminaron junto con él
+            registrar_en_auditoria(request.user, 'restaurar', obj)
+            restaurados += 1
+        self.message_user(request, f'{restaurados} registro(s) restaurado(s).', level=messages.SUCCESS)
+
+    def delete_model(self, request, obj):
+        super().delete_model(request, obj)
+        if es_soft_delete(self.model):
+            registrar_en_auditoria(request.user, 'eliminar', obj)
+
+    def delete_queryset(self, request, queryset):
+        objetos = list(queryset.filter(deleted_at__isnull=True)) if es_soft_delete(self.model) else []
+        super().delete_queryset(request, queryset)
+        for obj in objetos:
+            registrar_en_auditoria(request.user, 'eliminar', obj)
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if not es_usuario_sin_restriccion(request.user):
@@ -222,6 +297,8 @@ class ScopedModelAdmin:
         return self.get_queryset(request).filter(pk=obj.pk).exists()  # mismo alcance que el listado
 
     def _puede_modificar(self, request, obj):
+        if obj is not None and getattr(obj, 'deleted_at', None) is not None:
+            return False  # un registro eliminado se consulta (solo lectura) o se restaura, no se edita
         return obj is None or (self._objeto_en_alcance(request, obj) and puede_modificar(request.user, obj))
 
     def has_change_permission(self, request, obj=None):
@@ -237,4 +314,6 @@ class ScopedModelAdmin:
         queryset, duplicados = super().get_search_results(request, queryset, search_term)
         if request.GET.get('field_name'):
             queryset = modificables(queryset, request.user)
+            if es_soft_delete(queryset.model):
+                queryset = queryset.filter(deleted_at__isnull=True)  # nada nuevo cuelga de algo eliminado
         return queryset, duplicados
