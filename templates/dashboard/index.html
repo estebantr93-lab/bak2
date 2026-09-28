@@ -121,7 +121,7 @@ Contenido según el rol (banderas es_funcionario / es_verificador / es_gestor de
                     {% if es_gestor %}
                     <div class="row g-2 mt-auto pt-3 text-center">
                         <div class="col-4"><div class="dash-mini"><strong>{{ totales.act_sin_evidencia }}</strong><span>act. sin evidencia</span></div></div>
-                        <div class="col-4"><div class="dash-mini"><strong>{{ totales.evi_rechazadas }}</strong><span>evid. rechazadas</span></div></div>
+                        <div class="col-4"><div class="dash-mini"><strong>{{ totales.bajo_meta }}</strong><span>funcionarios bajo meta</span></div></div>
                         <div class="col-4"><div class="dash-mini"><strong>{{ totales.comp_por_vencer }}</strong><span>compr. vencen en {{ dias_por_vencer }} días</span></div></div>
                     </div>
                     {% endif %}
@@ -241,9 +241,9 @@ Contenido según el rol (banderas es_funcionario / es_verificador / es_gestor de
             <p class="dash-saludo">{{ saludo }}, {{ user.first_name|default:user.get_username }}</p>
             <p class="small text-muted">
                 {% if es_funcionario %}
-                    {% if totales.evi_rechazadas %}Tiene {{ totales.evi_rechazadas }} evidencia{{ totales.evi_rechazadas|pluralize }} rechazada{{ totales.evi_rechazadas|pluralize }} por corregir{% if totales.evi_pendientes %} y {{ totales.evi_pendientes }} en revisión{% endif %}.
+                    {% if totales.act_rechazadas %}Tiene {{ totales.act_rechazadas }} actividad{{ totales.act_rechazadas|pluralize:"es" }} rechazada{{ totales.act_rechazadas|pluralize }} por corregir{% if totales.evi_pendientes %} y {{ totales.evi_pendientes }} evidencia{{ totales.evi_pendientes|pluralize }} en revisión{% endif %}.
                     {% elif totales.evi_pendientes %}Tiene {{ totales.evi_pendientes }} evidencia{{ totales.evi_pendientes|pluralize }} en revisión.
-                    {% else %}No tiene evidencias pendientes ni rechazadas.{% endif %}
+                    {% else %}No tiene actividades rechazadas ni evidencias en revisión.{% endif %}
                 {% elif es_verificador %}
                     {% if totales.evi_pendientes %}Tiene {{ totales.evi_pendientes }} evidencia{{ totales.evi_pendientes|pluralize }} esperando revisión.{% else %}No hay evidencias esperando revisión.{% endif %}
                 {% else %}

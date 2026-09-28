@@ -79,6 +79,9 @@ class CrudConfig:
     url_prefix = ''                  # nombres de URL: <prefix>_list, _create, _update, _delete, _export
     filters = {}                     # parámetros GET permitidos → lookup (por ejemplo {'activity': 'activity_id'})
     choice_filters = {}              # parámetro GET → (lookup, valores permitidos), p. ej. {'status': ('status', {...})}
+    # Filtros que se activan con ?param=1: param → (texto para el usuario, nombre del método que filtra).
+    # Todo CRUD con dueño (Model.owner_field) acepta además ?mias=1 («solo los míos»).
+    flag_filters = {}
     row_links = []                   # [(texto, nombre_url, parametro_get, permiso)] enlaces extra por fila
 
     @property
@@ -97,7 +100,37 @@ class CrudConfig:
         qs = filtrar_por_delegacion(qs, self.request.user, self.scope_field)
         for lookup, valor in self._filtros_validos().values():
             qs = qs.filter(**{lookup: valor})
+        for _, metodo in self._banderas_activas().values():
+            qs = getattr(self, metodo)(qs)
         return qs
+
+    def _banderas(self):
+        banderas = dict(self.flag_filters)
+        if getattr(self.model, 'owner_field', None) is not None:
+            banderas['mias'] = ('solo los míos' if not self.femenino else 'solo las mías', '_filtrar_mias')
+        return banderas
+
+    def _banderas_activas(self):
+        return {p: v for p, v in self._banderas().items() if self.request.GET.get(p) == '1'}
+
+    def _filtrar_mias(self, qs):
+        campo = self.model.owner_field
+        return qs.filter(**{f'{campo}__user' if campo else 'user': self.request.user})
+
+    def descripcion_filtros(self):
+        """Textos de los filtros aplicados, para que la lista diga qué está mostrando."""
+        textos = []
+        for parametro, (lookup, valor) in self._filtros_validos().items():
+            if parametro == 'period':
+                from core.models import Period
+                textos.append(f'período {Period.objects.filter(pk=valor).first() or valor}')
+            elif parametro in self.choice_filters:
+                campo = self.model._meta.get_field(lookup)
+                textos.append(dict(campo.choices).get(valor, valor).lower())
+            elif parametro == 'activity':
+                textos.append(f'actividad {self.model._meta.get_field("activity").related_model.all_objects.filter(pk=valor).first() or valor}')
+        textos += [texto for texto, _ in self._banderas_activas().values()]
+        return textos
 
     def _filtros_validos(self):
         """{parámetro: (lookup, valor)} de los filtros GET válidos; los demás se ignoran."""
@@ -121,7 +154,9 @@ class CrudConfig:
             raise PermissionDenied(motivo_para_usuario(self.request.user, obj) or 'Solo puede modificar sus propios registros.')
 
     def active_filters(self):
-        return {parametro: valor for parametro, (_, valor) in self._filtros_validos().items()}
+        activos = {parametro: valor for parametro, (_, valor) in self._filtros_validos().items()}
+        activos.update({parametro: '1' for parametro in self._banderas_activas()})
+        return activos
 
     def form_kwargs_extra(self):
         return {'user': self.request.user}
@@ -159,6 +194,7 @@ class CrudConfig:
             'page_size': page_size_from_session(self.request),
             'page_sizes': PAGE_SIZES,
             'filters': filtros,
+            'filters_desc': self.descripcion_filtros(),
             'filters_query': '&'.join(f'{k}={v}' for k, v in filtros.items()),
             'list_url': self.url('list'),
             'create_url': self.url('create'),

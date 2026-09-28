@@ -1,21 +1,21 @@
-import datetime
 from decimal import Decimal
 
 from django.db.models import Count
+from django.utils import timezone
 
 from actividades.models import Activity
-from core.models import Position, Period, ActivityType
+from core.data import periodo_actual
+from core.models import Position, ActivityType
 from funcionarios.models import Employee
 
 from .models import Indicator, Weighting
 from .models import Goal
 from .services import calcular_cumplimiento_ponderado, calcular_meta_esperada_al_dia, calcular_semaforo
 
-FECHA_SNAPSHOT = datetime.date(2026, 9, 14)
-
 
 def build_medicion():
-    periodo = Period.objects.get(name='2026-S2 (actual)')
+    periodo = periodo_actual()
+    fecha_foto = min(timezone.localdate(), periodo.end_date)
     cargo_atencion = Position.objects.get(name='Encargado de Atención Ciudadana')
     cargo_social = Position.objects.get(name='Encargado Social')
     tipo_atc = ActivityType.objects.get(code='ATC-01')
@@ -23,14 +23,15 @@ def build_medicion():
     tipo_ope = ActivityType.objects.get(code='OPE-03')
     tipo_soc = ActivityType.objects.get(code='SOC-04')
 
+    # Metas del período completo, acordes al volumen que genera la carga de demostración.
     metas_atencion = [
-        (tipo_atc, 20, Decimal('50')),
-        (tipo_tra, 15, Decimal('30')),
-        (tipo_ope, 10, Decimal('20')),
+        (tipo_atc, 4, Decimal('50')),
+        (tipo_tra, 3, Decimal('30')),
+        (tipo_ope, 2, Decimal('20')),
     ]
     metas_social = [
-        (tipo_soc, 8, Decimal('70')),
-        (tipo_atc, 5, Decimal('30')),
+        (tipo_soc, 3, Decimal('70')),
+        (tipo_atc, 2, Decimal('30')),
     ]
 
     for cargo, metas in [(cargo_atencion, metas_atencion), (cargo_social, metas_social)]:
@@ -45,10 +46,10 @@ def build_medicion():
         )
 
     dias_totales = (periodo.end_date - periodo.start_date).days
-    dias_transcurridos = (FECHA_SNAPSHOT - periodo.start_date).days
+    dias_transcurridos = (fecha_foto - periodo.start_date).days
     esperado_pct = calcular_meta_esperada_al_dia(dias_transcurridos, dias_totales)
 
-    # Indicador: foto del cumplimiento a FECHA_SNAPSHOT, con el mismo cálculo que el dashboard
+    # Indicador: foto del cumplimiento a la fecha de la carga, con el mismo cálculo que el dashboard
     # (por tipo de actividad, ponderado y con el tope del período).
     for funcionario_nombre, cargo in [('Ana Pérez (Centro)', cargo_atencion), ('Carlos Rojas (Norte)', cargo_social)]:
         funcionario = Employee.objects.get(name=funcionario_nombre)
@@ -61,7 +62,7 @@ def build_medicion():
         semaforo = calcular_semaforo(cumplimiento_pct, esperado_pct)
         Indicator.objects.update_or_create(
             delegation=funcionario.delegation, employee=funcionario, position=cargo,
-            period=periodo, date=FECHA_SNAPSHOT,
+            period=periodo, date=fecha_foto,
             defaults={
                 'progress': sum(d['aprobadas'] for d in detalle),
                 'target': sum(m.target for m in metas_cargo),

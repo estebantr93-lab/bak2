@@ -11,6 +11,7 @@ Uso, desde la raíz del proyecto:  python manage.py shell < scripts/verificacion
 import io
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import zipfile
@@ -248,18 +249,35 @@ with override_settings(MEDIA_ROOT=media, MAILERS=correo_locmem, ALLOWED_HOSTS=['
     ok('Revisión: aprobada, el funcionario ya no la edita', cf.get(reverse('actividad_update', args=[nueva_act.pk])).status_code == 403)
 
     # ---------------- 7. Período cerrado ----------------
-    historica = Activity.all_objects.filter(period=cerrado).first()
+    # De Centro: con una de Norte, admin_centro recibe 404 (fuera de su delegación) y no se probaría el cierre.
+    historica = Activity.all_objects.filter(period=cerrado, delegation__name='Delegación Centro').first()
     if historica:
         ok('Período cerrado: ni el admin edita (403)', c.get(reverse('actividad_update', args=[historica.pk])).status_code == 403)
     r = c.post(reverse('actividad_create'), {**datos, 'number': 'VERIF-003', 'evidence_code': 'EV-VERIF-003', 'period': cerrado.pk})
     ok('Período cerrado: no se registran actividades nuevas', r.status_code == 200)
 
+    # Gestión social de una actividad aprobada: el funcionario ya no la edita.
+    gestion = SocialCase.objects.filter(activity__employee__user__username='funcionario_centro',
+                                        activity__period=abierto).first()
+    if gestion:
+        Activity.objects.filter(pk=gestion.activity_id).update(validation_status='approved')
+        ok('Actividad aprobada: el funcionario tampoco edita sus gestiones sociales (403)',
+           cliente('funcionario_centro').get(reverse('atencion_update', args=[gestion.pk])).status_code == 403)
+
     # ---------------- 8. Dashboard según el rol ----------------
+    for usuario in ('admin_sgr', 'admin_centro', 'funcionario_centro', 'verificador_leia'):
+        cu = cliente(usuario)
+        for k in cu.get(reverse('dashboard')).context['indicadores']:
+            if k.get('url'):
+                filas = cu.get(k['url']).context['page_obj'].paginator.count
+                ok(f'Dashboard {usuario}: «{k["etiqueta"]}» ({k["valor"]}) coincide con su lista', filas == k['valor'],
+                   f'lista {filas}')
+
     for usuario, debe, no_debe in [
         ('admin_sgr', ['Resumen de gestión', 'Delegación Centro', 'Delegación Norte', 'a hoy'], []),
         ('admin_centro', ['Resumen de gestión', 'Resumen por funcionario · Delegación Centro'], ['Delegación Norte']),
-        ('funcionario_centro', ['Mi gestión', 'Evidencias rechazadas', 'Mi avance por tipo'], ['Resumen por funcionario', 'de su equipo']),
-        ('verificador_leia', ['Revisión de evidencias', 'Estado de evidencias', '?status=pending'], ['Compromisos vencidos', 'Resumen por funcionario']),
+        ('funcionario_centro', ['Mi gestión', 'Actividades rechazadas', 'Mi avance por tipo'], ['Resumen por funcionario', 'de su equipo']),
+        ('verificador_leia', ['Revisión de evidencias', 'Estado de evidencias', 'status=pending'], ['Compromisos vencidos', 'Resumen por funcionario']),
     ]:
         html = cliente(usuario).get(reverse('dashboard')).content.decode()
         faltan = [t for t in debe if t not in html] + [f'NO:{t}' for t in no_debe if t in html]
@@ -293,6 +311,8 @@ with override_settings(MEDIA_ROOT=media, MAILERS=correo_locmem, ALLOWED_HOSTS=['
     ok('Despliegue: archivos de AWS presentes', all(os.path.exists(f'deploy/{f}') for f in ('setup_ec2.sh', 'gunicorn-sgr.service', 'nginx-sgr.conf')))
 
     transaction.set_rollback(True)
+
+shutil.rmtree(media, ignore_errors=True)  # carpeta temporal de archivos subidos durante la verificación
 
 fallas = [r for r in RESULTADOS if not r[1]]
 for punto, bien, detalle in RESULTADOS:

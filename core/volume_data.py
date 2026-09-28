@@ -59,11 +59,17 @@ def borrar_volumen():
     User.objects.filter(username__startswith='vol_funcionario_').delete()
 
 
+def _estado_para(estado, periodo):
+    """Un período cerrado ya fue revisado entero: sus actividades no quedan pendientes (no podrían
+    revisarse nunca, porque lo cerrado no se modifica)."""
+    return 'approved' if periodo.is_closed and estado == 'pending' else estado
+
+
 def _fecha_en(rng, periodo):
     """Fecha dentro del período y no futura (las actividades se registran ya realizadas)."""
-    dias = (periodo.end_date - periodo.start_date).days
-    fecha = periodo.start_date + datetime.timedelta(days=rng.randint(0, dias))
-    return min(fecha, max(timezone.localdate(), periodo.start_date))
+    # Pareja entre el inicio y hoy (o el término, si ya terminó): topar en hoy amontonaría fechas en el mes actual.
+    ultimo = max(min(periodo.end_date, timezone.localdate()), periodo.start_date)
+    return periodo.start_date + datetime.timedelta(days=rng.randint(0, (ultimo - periodo.start_date).days))
 
 
 def _archivo_evidencia(rng, n, texto):
@@ -136,7 +142,8 @@ def build_volumen(total_actividades=500, con_archivos=True):
     for n in range(1, total_actividades + 1):
         delegacion = delegaciones[n % len(delegaciones)]
         empleado = elegir_funcionario(delegacion)
-        periodo = rng.choice(periodos)
+        # Tres de cada cuatro en el período actual (el que se muestra en la demo); el resto, en el cerrado.
+        periodo = periodos[-1] if rng.random() < 0.75 else rng.choice(periodos[:-1] or periodos)
         sector = rng.choice(SECTORES.get(delegacion.name, ['Sector urbano']))
         actividades.append(Activity(
             number=f'{PREFIJO}{n:05d}', employee=empleado, delegation=delegacion, period=periodo,
@@ -144,7 +151,7 @@ def build_volumen(total_actividades=500, con_archivos=True):
             description=f'{rng.choice(ACCIONES)} en sector {sector}.',
             action=rng.choice(ACCIONES), contact=f'Vecino/a {rng.choice(APELLIDOS)}',
             phone=f'+569{rng.randint(10000000, 99999999)}', is_agenda_item=rng.random() < 0.2,
-            evidence_code=f'EV-{PREFIJO}{n:05d}', validation_status=rng.choice(estados),
+            evidence_code=f'EV-{PREFIJO}{n:05d}', validation_status=_estado_para(rng.choice(estados), periodo),
         ))
     Activity.objects.bulk_create(actividades, batch_size=500)
     actividades = list(
@@ -208,7 +215,8 @@ def build_volumen(total_actividades=500, con_archivos=True):
         compromisos.append(Commitment(
             title=f'{PREFIJO}{n:04d} {rng.choice(TEMAS_COMPROMISO)} ({sector})',
             delegation=delegacion, responsible=empleado, status=estado,
-            due_date=datetime.date(2026, 6, 1) + datetime.timedelta(days=rng.randint(0, 240)),
+            # Relativo a hoy: cerca de un tercio vencidos y el resto por venir, el día que se cargue.
+            due_date=timezone.localdate() + datetime.timedelta(days=rng.randint(-60, 120)),
             notes='Cerrado con informe de terreno.' if estado == 'done' else '',
         ))
     Commitment.objects.bulk_create(compromisos, batch_size=500)

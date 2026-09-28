@@ -9,7 +9,7 @@ from core.crud import (
 )
 
 from .forms import ActividadWebForm, SocialCaseForm
-from .models import Activity, SocialCase
+from .models import Activity, SocialCase, sin_evidencia
 
 
 class ActivityCrud(CrudConfig):
@@ -30,6 +30,13 @@ class ActivityCrud(CrudConfig):
                badge=lambda a: f'estado-{a.validation_status}'),
     ]
     row_links = [('Evidencias', 'evidencia_list', 'activity', 'evidencias.view_evidence')]
+    # Enlazados desde el dashboard: ?period=, ?status=, ?mias=1 y ?sin_evidencia=1.
+    filters = {'period': 'period_id'}
+    choice_filters = {'status': ('validation_status', {clave for clave, _ in Activity.STATUS_CHOICES})}
+    flag_filters = {'sin_evidencia': ('sin evidencia', '_filtrar_sin_evidencia')}
+
+    def _filtrar_sin_evidencia(self, qs):
+        return sin_evidencia(qs)
 
 
 class SocialCaseCrud(CrudConfig):
