@@ -9,14 +9,7 @@ El tema se comparte con la app: ambos guardan la preferencia en localStorage["th
 
 {% block extrahead %}
     {{ block.super }}
-    <script>
-        (function () {
-            var t = null;
-            try { t = localStorage.getItem('theme'); } catch (e) {}
-            var oscuro = t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-            document.documentElement.setAttribute('data-bs-theme', oscuro ? 'dark' : 'light');
-        })();
-    </script>
+    {% include "includes/tema_inicial.html" %}
 {% endblock %}
 
 {% block extrastyle %}

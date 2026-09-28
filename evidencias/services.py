@@ -14,27 +14,37 @@ from core.admin_utils import motivo_no_modificable
 ESTADOS_REVISION = ('approved', 'rejected')
 
 
-def estado_segun_evidencias(aprobadas, rechazadas):
-    """Regla de negocio: rechazada si alguna evidencia fue rechazada; aprobada si tiene al menos
-    una aprobada (y ninguna rechazada); en otro caso, pendiente."""
-    if rechazadas:
-        return 'rejected'
+def estado_segun_evidencias(aprobadas, rechazadas, pendientes=0):
+    """Regla de negocio del estado de la actividad según sus evidencias activas:
+
+    - aprobada si tiene al menos una evidencia aprobada;
+    - pendiente si hay alguna por revisar (por ejemplo, la corrección de una evidencia rechazada);
+    - rechazada solo si todas sus evidencias fueron rechazadas;
+    - pendiente si no tiene evidencias.
+
+    Así una actividad rechazada se recupera cuando el funcionario sube una evidencia corregida.
+    """
     if aprobadas:
         return 'approved'
+    if pendientes:
+        return 'pending'
+    if rechazadas:
+        return 'rejected'
     return 'pending'
 
 
 def sincronizar_estado_actividades(actividades):
-    """Recalcula validation_status de un queryset de actividades con dos UPDATE por estado
+    """Recalcula validation_status de un queryset de actividades con un UPDATE por estado
     (se usa tras cargas masivas, donde bulk_create no dispara señales)."""
     activas = Q(evidence_items__deleted_at__isnull=True)
     conteos = actividades.annotate(
         aprobadas=Count('evidence_items', filter=activas & Q(evidence_items__status='approved')),
         rechazadas=Count('evidence_items', filter=activas & Q(evidence_items__status='rejected')),
-    ).values_list('pk', 'aprobadas', 'rechazadas')
+        pendientes=Count('evidence_items', filter=activas & Q(evidence_items__status='pending')),
+    ).values_list('pk', 'aprobadas', 'rechazadas', 'pendientes')
     por_estado = {}
-    for pk, aprobadas, rechazadas in conteos:
-        por_estado.setdefault(estado_segun_evidencias(aprobadas, rechazadas), []).append(pk)
+    for pk, aprobadas, rechazadas, pendientes in conteos:
+        por_estado.setdefault(estado_segun_evidencias(aprobadas, rechazadas, pendientes), []).append(pk)
     modelo = actividades.model
     for estado, pks in por_estado.items():
         modelo.all_objects.filter(pk__in=pks).exclude(validation_status=estado).update(validation_status=estado)

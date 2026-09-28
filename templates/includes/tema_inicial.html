@@ -1,0 +1,13 @@
+{% comment %}
+Aplica el tema guardado antes de pintar la página (evita el parpadeo). Va en el <head> de la app
+(base.html) y del admin (admin/base_site.html); los cambios posteriores los maneja static/js/tema.js.
+La clave "theme" es la misma que usa el admin de Django, así ambos comparten el tema elegido.
+{% endcomment %}
+<script>
+    (function () {
+        var t = null;
+        try { t = localStorage.getItem('theme'); } catch (e) {}
+        var oscuro = t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.setAttribute('data-bs-theme', oscuro ? 'dark' : 'light');
+    })();
+</script>

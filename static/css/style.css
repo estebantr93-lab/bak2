@@ -187,6 +187,8 @@ body { background: var(--sgr-fondo); }
 .tono-2 { background: var(--dash-tinte-2); color: var(--dash-acento-2); }
 .tono-3 { background: var(--dash-tinte-3); color: var(--dash-acento-3); }
 .tono-4 { background: var(--dash-tinte-4); color: var(--dash-acento-4); }
+.dash-kpi-enlace { color: inherit; text-decoration: none; transition: border-color .15s, transform .15s; }
+.dash-kpi-enlace:hover, .dash-kpi-enlace:focus-visible { color: inherit; border-color: var(--dash-acento-1); transform: translateY(-1px); }
 .dash-kpi-etiqueta { font-size: .78rem; color: var(--dash-tenue); line-height: 1.2; }
 .dash-kpi-valor { font-size: 1.6rem; font-weight: 700; line-height: 1.15; }
 .dash-kpi-nota { font-size: .75rem; color: var(--dash-tenue); }
@@ -209,6 +211,11 @@ body { background: var(--sgr-fondo); }
 .dash-punto { display: inline-block; width: .6rem; height: .6rem; border-radius: 50%; margin-right: .4rem; vertical-align: 0; }
 .dash-barra { height: 6px; border-radius: 999px; background: var(--dash-pista); overflow: hidden; margin-top: .3rem; }
 .dash-barra > span { display: block; height: 100%; border-radius: 999px; }
+.dash-barra > .dash-barra-marca { background: var(--sgr-terracota); }
+.dash-vacio {
+    margin: 0; padding: 1.25rem 1rem; border-radius: 12px; background: var(--sgr-fondo);
+    color: var(--dash-tenue); text-align: center; font-size: .9rem;
+}
 
 /* --- Cumplimiento --- */
 .dash-grande { font-size: 2.6rem; font-weight: 700; line-height: 1; margin-bottom: .5rem; }

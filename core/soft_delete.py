@@ -49,7 +49,7 @@ class SoftDeleteModel(models.Model):
         if motivo:
             bloqueo = type(self).bloqueo_modificacion
             campo = next(iter(bloqueo[0])).split('__')[0]
-            raise ValidationError({campo: motivo} if campo != 'period' or self.pk else motivo)
+            raise ValidationError({campo: motivo})
 
     def soft_delete(self, momento=None):
         if self.deleted_at is not None:

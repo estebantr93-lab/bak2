@@ -1,0 +1,17 @@
+{% load l10n %}
+{% comment %}Barras por mes. Parámetros: serie (salida de dashboard.services._por_mes), titulo y unidad.{% endcomment %}
+<h3 class="dash-sub text-start">{{ titulo }}</h3>
+{% if serie.meses %}
+<div class="dash-meses" role="img"
+     aria-label="{{ titulo }}: {% for m in serie.meses %}{{ m.etiqueta }} {{ m.n }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+    {% for m in serie.meses %}
+    <div class="dash-mes{% if m.actual %} actual{% endif %}" data-tip="{{ m.etiqueta|capfirst }} {{ m.anio }}: {{ m.n }} {{ unidad }}" tabindex="0">
+        <span class="dash-mes-valor">{% if m.actual or m.n == serie.maximo %}{{ m.n }}{% endif %}</span>
+        <div class="dash-mes-pista"><span class="dash-mes-barra" style="height: {{ m.alto|unlocalize }}%"></span></div>
+        <span class="dash-mes-etq">{{ m.etiqueta }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+    <p class="small text-muted">Sin período seleccionado.</p>
+{% endif %}

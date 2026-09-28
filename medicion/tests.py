@@ -103,3 +103,29 @@ class ServiciosCalculoTests(TestCase):
     def test_meta_esperada_al_dia(self):
         resultado = calcular_meta_esperada_al_dia(dias_transcurridos=30, dias_totales=120)
         self.assertEqual(resultado, Decimal('25'))
+
+
+class CumplimientoPonderadoTests(TestCase):
+    """Cumplimiento por tipo de actividad, ponderado y con tope (lo que usa el dashboard)."""
+
+    def meta(self, tipo, target, weight):
+        from types import SimpleNamespace
+        return SimpleNamespace(activity_type_id=tipo, activity_type=f'Tipo {tipo}', target=target, weight=Decimal(weight))
+
+    def test_pondera_por_tipo_e_ignora_tipos_sin_meta(self):
+        from .services import calcular_cumplimiento_ponderado
+        metas = [self.meta(1, 8, '70'), self.meta(2, 5, '30')]
+        # 4 de 8 del tipo 1 (50 %), 1 de 5 del tipo 2 (20 %); las 9 aprobadas del tipo 3 no tienen meta.
+        pct, detalle = calcular_cumplimiento_ponderado({1: 4, 2: 1, 3: 9}, metas, tope=150)
+        self.assertEqual(pct, Decimal('41'))  # 0,7·50 + 0,3·20
+        self.assertEqual([d['aprobadas'] for d in detalle], [4, 1])
+
+    def test_el_tope_evita_que_sobrecumplir_un_tipo_tape_otro(self):
+        from .services import calcular_cumplimiento_ponderado
+        metas = [self.meta(1, 10, '50'), self.meta(2, 10, '50')]
+        pct, _ = calcular_cumplimiento_ponderado({1: 40}, metas, tope=150)  # 400 % del tipo 1 → aporta 150 %
+        self.assertEqual(pct, Decimal('75'))
+
+    def test_sin_metas_es_cero(self):
+        from .services import calcular_cumplimiento_ponderado
+        self.assertEqual(calcular_cumplimiento_ponderado({1: 5}, [], tope=150), (Decimal('0'), []))

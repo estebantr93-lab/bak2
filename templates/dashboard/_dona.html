@@ -1,0 +1,40 @@
+{% load l10n %}
+{% comment %}
+Dona de estados (aprobadas / pendientes / rechazadas). Parámetros: estado (salida de
+dashboard.services._segmentos), titulo y unidad («actividades» o «evidencias»).
+Cada color va con su etiqueta y cantidad en la leyenda (no se depende solo del color).
+{% endcomment %}
+<section class="dash-card h-100">
+    <h2 class="dash-card-titulo">{{ titulo }}</h2>
+    {% if estado.total %}
+    <div class="dash-dona-cont">
+        <svg class="dash-dona" viewBox="0 0 42 42" role="img"
+             aria-label="{{ titulo }}: {% for s in estado.segmentos %}{{ s.n }} {{ s.etiqueta|lower }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+            <circle class="dash-dona-fondo" cx="21" cy="21" r="15.9155"/>
+            {% for s in estado.segmentos %}{% if s.n %}
+                <circle class="dash-dona-seg estado-{{ s.tono }}" cx="21" cy="21" r="15.9155"
+                        stroke-dasharray="{{ s.largo|unlocalize }} {{ s.resto|unlocalize }}" stroke-dashoffset="{{ s.offset|unlocalize }}">
+                    <title>{{ s.etiqueta }}: {{ s.n }} ({{ s.pct }} %)</title>
+                </circle>
+            {% endif %}{% endfor %}
+        </svg>
+        <div class="dash-dona-centro" aria-hidden="true">
+            <span class="dash-dona-num">{{ estado.total }}</span>
+            <span class="dash-dona-txt">{{ unidad }}</span>
+        </div>
+    </div>
+    <ul class="dash-leyenda">
+        {% for s in estado.segmentos %}
+        <li>
+            <div class="d-flex justify-content-between small">
+                <span><span class="dash-punto estado-{{ s.tono }}" aria-hidden="true"></span>{{ s.etiqueta }}</span>
+                <span class="text-muted">{{ s.n }}/{{ estado.total }} · {{ s.pct }} %</span>
+            </div>
+            <div class="dash-barra"><span class="estado-{{ s.tono }}" style="width: {{ s.pct|unlocalize }}%"></span></div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+        <p class="dash-vacio">Sin {{ unidad }} en este período.</p>
+    {% endif %}
+</section>

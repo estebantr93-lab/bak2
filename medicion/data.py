@@ -1,13 +1,15 @@
 import datetime
 from decimal import Decimal
 
+from django.db.models import Count
+
 from actividades.models import Activity
 from core.models import Position, Period, ActivityType
 from funcionarios.models import Employee
 
 from .models import Indicator, Weighting
 from .models import Goal
-from .services import calcular_cumplimiento_pct, calcular_meta_esperada_al_dia, calcular_semaforo
+from .services import calcular_cumplimiento_ponderado, calcular_meta_esperada_al_dia, calcular_semaforo
 
 FECHA_SNAPSHOT = datetime.date(2026, 9, 14)
 
@@ -46,18 +48,24 @@ def build_medicion():
     dias_transcurridos = (FECHA_SNAPSHOT - periodo.start_date).days
     esperado_pct = calcular_meta_esperada_al_dia(dias_transcurridos, dias_totales)
 
-    for funcionario_nombre, cargo, meta_total in [
-        ('Ana Pérez (Centro)', cargo_atencion, 20),
-        ('Carlos Rojas (Norte)', cargo_social, 8),
-    ]:
+    # Indicador: foto del cumplimiento a FECHA_SNAPSHOT, con el mismo cálculo que el dashboard
+    # (por tipo de actividad, ponderado y con el tope del período).
+    for funcionario_nombre, cargo in [('Ana Pérez (Centro)', cargo_atencion), ('Carlos Rojas (Norte)', cargo_social)]:
         funcionario = Employee.objects.get(name=funcionario_nombre)
-        avance = Activity.objects.filter(
-            employee=funcionario, period=periodo, validation_status='approved',
-        ).count()
-        cumplimiento_pct = calcular_cumplimiento_pct(avance, meta_total)
+        metas_cargo = list(Goal.objects.filter(position=cargo, period=periodo).select_related('activity_type'))
+        aprobadas_por_tipo = dict(
+            Activity.objects.filter(employee=funcionario, period=periodo, validation_status='approved')
+            .values('activity_type_id').annotate(n=Count('pk')).values_list('activity_type_id', 'n')
+        )
+        cumplimiento_pct, detalle = calcular_cumplimiento_ponderado(aprobadas_por_tipo, metas_cargo, periodo.max_cap)
         semaforo = calcular_semaforo(cumplimiento_pct, esperado_pct)
-        Indicator.objects.get_or_create(
+        Indicator.objects.update_or_create(
             delegation=funcionario.delegation, employee=funcionario, position=cargo,
             period=periodo, date=FECHA_SNAPSHOT,
-            defaults={'progress': avance, 'target': meta_total, 'compliance_pct': cumplimiento_pct, 'traffic_light': semaforo},
+            defaults={
+                'progress': sum(d['aprobadas'] for d in detalle),
+                'target': sum(m.target for m in metas_cargo),
+                'compliance_pct': cumplimiento_pct.quantize(Decimal('0.01')),
+                'traffic_light': semaforo,
+            },
         )

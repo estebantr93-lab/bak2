@@ -1,0 +1,22 @@
+{% comment %}
+Indicador (stat tile). Recibe k = {tono, icono, etiqueta, valor, nota, url}; con url, todo el
+recuadro es un enlace a la lista correspondiente. Los indicadores de cada rol se arman en dashboard/views.py.
+{% endcomment %}
+<div class="col-6 col-lg-3">
+    {% if k.url %}<a class="dash-kpi dash-kpi-enlace" href="{{ k.url }}">{% else %}<div class="dash-kpi">{% endif %}
+        <span class="dash-kpi-icono tono-{{ k.tono }}" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+                {% if k.icono == 'personas' %}<circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.2c2.3.2 4 1.8 4.5 4.8"/>
+                {% elif k.icono == 'lista' %}<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/>
+                {% elif k.icono == 'documento' %}<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 13h5M10 17h5"/>
+                {% elif k.icono == 'alerta' %}<path d="M12 4 3 20h18z"/><path d="M12 10v4M12 17v.5"/>
+                {% elif k.icono == 'reloj' %}<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>
+                {% elif k.icono == 'check' %}<circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.5 2.5 4.5-5"/>
+                {% else %}<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M8 3v4M16 3v4M4 10h16M12 13v3"/>{% endif %}
+            </svg>
+        </span>
+        <span class="dash-kpi-etiqueta">{{ k.etiqueta }}</span>
+        <span class="dash-kpi-valor">{{ k.valor }}</span>
+        <span class="dash-kpi-nota">{{ k.nota }}</span>
+    {% if k.url %}</a>{% else %}</div>{% endif %}
+</div>

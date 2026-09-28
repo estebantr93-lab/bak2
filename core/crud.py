@@ -78,6 +78,7 @@ class CrudConfig:
     femenino = True                  # concordancia: «registrada» / «registrado»
     url_prefix = ''                  # nombres de URL: <prefix>_list, _create, _update, _delete, _export
     filters = {}                     # parámetros GET permitidos → lookup (por ejemplo {'activity': 'activity_id'})
+    choice_filters = {}              # parámetro GET → (lookup, valores permitidos), p. ej. {'status': ('status', {...})}
     row_links = []                   # [(texto, nombre_url, parametro_get, permiso)] enlaces extra por fila
 
     @property
@@ -94,11 +95,22 @@ class CrudConfig:
     def get_queryset(self):
         qs = self.model.objects.select_related(*self.select_related)  # objects = solo activos
         qs = filtrar_por_delegacion(qs, self.request.user, self.scope_field)
-        for parametro, lookup in self.filters.items():
-            valor = self.request.GET.get(parametro)
-            if valor and valor.isdigit():
-                qs = qs.filter(**{lookup: valor})
+        for lookup, valor in self._filtros_validos().values():
+            qs = qs.filter(**{lookup: valor})
         return qs
+
+    def _filtros_validos(self):
+        """{parámetro: (lookup, valor)} de los filtros GET válidos; los demás se ignoran."""
+        validos = {}
+        for parametro, lookup in self.filters.items():
+            valor = self.request.GET.get(parametro, '')
+            if valor.isdigit():
+                validos[parametro] = (lookup, valor)
+        for parametro, (lookup, permitidos) in self.choice_filters.items():
+            valor = self.request.GET.get(parametro, '')
+            if valor in permitidos:
+                validos[parametro] = (lookup, valor)
+        return validos
 
     def get_editable_queryset(self):
         """Registros que el usuario puede editar o eliminar: política única de core/admin_utils."""
@@ -109,7 +121,7 @@ class CrudConfig:
             raise PermissionDenied(motivo_no_modificable(obj) or 'Solo puede modificar sus propios registros.')
 
     def active_filters(self):
-        return {p: self.request.GET[p] for p in self.filters if self.request.GET.get(p, '').isdigit()}
+        return {parametro: valor for parametro, (_, valor) in self._filtros_validos().items()}
 
     def form_kwargs_extra(self):
         return {'user': self.request.user}
