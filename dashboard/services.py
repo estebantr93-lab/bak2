@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.db.models import Count, Q, Sum
+from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
 from core.admin_utils import (
@@ -13,6 +14,7 @@ from core.admin_utils import (
     get_rol,
     get_usuario_delegacion,
 )
+from actividades.models import Activity
 from core.models import Delegation, Period
 from funcionarios.models import Employee
 from medicion.models import Goal
@@ -168,8 +170,69 @@ def construir_dashboard(user, periodo, hoy=None):
         secciones.append({'delegation': delegacion, 'grupos': grupos, 'totales': _totales(filas)})
 
     todas = [fila for filas in filas_por_delegacion.values() for fila in filas]
+    totales = _totales(todas)
     return {
         'secciones': secciones,
-        'totales': _totales(todas),
+        'totales': totales,
         'esperado_pct': esperado_pct.quantize(Decimal('0.1')),
+        'estado_actividades': _estado_actividades(totales),
+        'por_mes': _actividades_por_mes(user, periodo, hoy),
+        'destacados': _destacados(todas),
     }
+
+
+MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+# Colores de estado: escala fija y reservada (siempre acompañada de etiqueta), validada con el
+# validador de paleta del proyecto: CVD ΔE 12.3, visión normal ΔE 25.3.
+ESTADOS = [
+    ('approved', 'Aprobadas', 'act_aprobadas', 'good'),
+    ('pending', 'Pendientes', 'act_pendientes', 'warning'),
+    ('rejected', 'Rechazadas', 'act_rechazadas', 'critical'),
+]
+
+
+def _estado_actividades(totales):
+    """Segmentos de la dona: el círculo mide 100 unidades, así cada % es directamente un largo."""
+    total = totales['act_total']
+    visibles = sum(1 for _, _, campo, _ in ESTADOS if totales[campo])
+    brecha = 1.2 if visibles > 1 else 0  # separación visual entre segmentos
+    segmentos, acumulado = [], 0.0
+    for clave, etiqueta, campo, tono in ESTADOS:
+        n = totales[campo]
+        pct = (n * 100 / total) if total else 0
+        largo = max(pct - brecha, 0) if n else 0
+        segmentos.append({
+            'clave': clave, 'etiqueta': etiqueta, 'n': n, 'tono': tono,
+            'pct': round(pct, 1), 'largo': round(largo, 2), 'resto': round(100 - largo, 2),
+            'offset': round(25 - acumulado, 2),  # 25 = empezar arriba (12 en punto)
+        })
+        acumulado += pct
+    return {'total': total, 'segmentos': segmentos}
+
+
+def _actividades_por_mes(user, periodo, hoy):
+    """Actividades del período por mes (serie única), con los meses sin registros en cero."""
+    if periodo is None:
+        return {'meses': [], 'maximo': 0}
+    conteos = dict(
+        Activity.objects.filter(employee__in=funcionarios_visibles(user), period=periodo)
+        .annotate(mes=TruncMonth('date')).values('mes').annotate(n=Count('pk')).values_list('mes', 'n')
+    )
+    conteos = {(m.year, m.month): n for m, n in conteos.items()}
+    meses = []
+    anio, mes = periodo.start_date.year, periodo.start_date.month
+    while (anio, mes) <= (periodo.end_date.year, periodo.end_date.month):
+        meses.append({'etiqueta': MESES[mes - 1], 'anio': anio, 'n': conteos.get((anio, mes), 0),
+                      'actual': (anio, mes) == (hoy.year, hoy.month)})
+        anio, mes = (anio + 1, 1) if mes == 12 else (anio, mes + 1)
+    maximo = max((m['n'] for m in meses), default=0)
+    for m in meses:
+        m['alto'] = round(m['n'] * 100 / maximo) if maximo else 0
+    return {'meses': meses, 'maximo': maximo}
+
+
+def _destacados(filas, cantidad=3):
+    """Funcionarios con mejor cumplimiento del período (solo quienes tienen meta)."""
+    con_meta = [f for f in filas if f['target']]
+    con_meta.sort(key=lambda f: (f['compliance_pct'], f['act_aprobadas']), reverse=True)
+    return con_meta[:cantidad]

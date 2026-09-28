@@ -187,6 +187,17 @@ El proyecto expone estas rutas:
 
 Por cada funcionario visible muestra, para el período elegido: actividades (total, aprobadas, pendientes, rechazadas), evidencias pendientes, compromisos abiertos y vencidos, meta del cargo y % de cumplimiento con semáforo (`medicion/services.py`). Los funcionarios se agrupan por delegación y, dentro de ella, por rol, con subtotales.
 
+Diseño (paleta institucional roja/vinotinto/terracota de `static/css/style.css`, clases `.dash-*`):
+
+- **Banner** con el período, el rol y la delegación, selector de período y acceso a Actividades.
+- **4 indicadores**: funcionarios en su alcance, actividades, evidencias pendientes y compromisos vencidos.
+- **Estado de actividades**: dona SVG con barras de aprobadas / pendientes / rechazadas (cada color va con su etiqueta y cantidad).
+- **Cumplimiento del período**: % real frente al % esperado a la fecha.
+- **Panel derecho**: anillo de cumplimiento con saludo, actividades por mes (el mes actual destacado, detalle al pasar el cursor) y funcionarios destacados.
+- La **tabla por funcionario** sigue siendo la vista completa y accesible de los datos.
+
+Todo se calcula en `dashboard/services.py` (sin JavaScript ni librerías de gráficos). Los números que van en CSS/SVG usan `|unlocalize`, porque en `es-cl` los decimales llevan coma.
+
 | Rol | Qué ve en el dashboard |
 | --- | --- |
 | Administrador general (superusuario) | Ambas delegaciones |

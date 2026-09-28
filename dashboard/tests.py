@@ -177,3 +177,25 @@ class AislamientoAdminPorDelegacionTests(TestCase):
         response = self.client.get(f'/admin/funcionarios/employee/{ana.pk}/change/')
         self.assertEqual(response.status_code, 200)
         self.assertNotIn('delegation', response.context['adminform'].form.fields)
+
+
+class DashboardPlantillaTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        sembrar_datos_demo()
+
+    def setUp(self):
+        self.client.login(username='admin_centro', password=CLAVE_TEST)
+
+    def test_selector_de_periodo_envia_el_parametro_que_lee_la_vista(self):
+        response = self.client.get(reverse('dashboard'))
+        self.assertContains(response, 'name="period"')
+
+    def test_numeros_en_css_y_svg_no_usan_coma_decimal(self):
+        # Con LANGUAGE_CODE es-cl los decimales se localizan con coma, que CSS/SVG no entienden.
+        import re
+
+        html = self.client.get(reverse('dashboard')).content.decode()
+        self.assertFalse(re.search(r'(width|left|height): \d+,\d', html))
+        self.assertFalse(re.search(r'--avance: \d+,\d', html))
+        self.assertFalse(re.search(r'stroke-dash(array|offset)="[^"]*\d,\d', html))

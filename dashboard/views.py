@@ -1,6 +1,7 @@
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import render
+from django.utils import timezone
 
 from core.admin_utils import ROLES_ETIQUETAS, get_rol, get_usuario_delegacion, tiene_acceso_al_sistema
 from core.models import Period
@@ -39,7 +40,10 @@ def dashboard(request):
 
     periodos = Period.objects.all()
     periodo = _periodo_elegido(request, periodos)
+    hora = timezone.localtime().hour
+    saludo = 'Buenos días' if hora < 12 else 'Buenas tardes' if hora < 20 else 'Buenas noches'
     contexto = {
+        'saludo': saludo,
         'rol': rol,
         'rol_etiqueta': ROLES_ETIQUETAS[rol],
         'delegacion_usuario': delegacion,

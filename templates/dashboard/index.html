@@ -1,117 +1,261 @@
 {% extends "base.html" %}
+{% load dashboard_tags l10n %}
 
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
-    <div>
-        <h1 class="h3 mb-1">Dashboard de gestión</h1>
-        <p class="text-muted mb-0">
-            {{ user.get_full_name|default:user.get_username }} · <strong>{{ rol_etiqueta }}</strong>
-            {% if delegacion_usuario and rol != 'superadmin' and rol != 'verificador' %}· {{ delegacion_usuario }}{% endif %}
-        </p>
+<div class="dash">
+<div class="row g-4">
+
+    {# ================= Columna principal ================= #}
+    <div class="col-xl-8 d-flex flex-column gap-4">
+
+        {# --- Banner de bienvenida --- #}
+        <section class="dash-hero">
+            <div class="dash-hero-texto">
+                <span class="dash-hero-etiqueta">Sistema de Gestión de Resultados</span>
+                <h1 class="dash-hero-titulo">Resumen de gestión<br>{{ period.name|default:"sin período" }}</h1>
+                <p class="dash-hero-sub">
+                    {{ rol_etiqueta }}{% if delegacion_usuario and rol != 'superadmin' and rol != 'verificador' %} · {{ delegacion_usuario }}{% endif %}
+                </p>
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <form method="get" class="dash-periodo">
+                        <label for="periodo" class="visually-hidden">Período</label>
+                        <select id="periodo" name="period" class="form-select form-select-sm" onchange="this.form.submit()">
+                            {% for p in periodos %}
+                                <option value="{{ p.pk }}" {% if period and p.pk == period.pk %}selected{% endif %}>{{ p.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <noscript><button class="btn btn-sm btn-light" type="submit">Ver</button></noscript>
+                    </form>
+                    {% if perms.actividades.view_activity %}
+                        <a href="{% url 'actividad_list' %}" class="dash-hero-boton">
+                            Ver actividades
+                            <span class="dash-hero-flecha" aria-hidden="true">&rarr;</span>
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="dash-hero-deco" aria-hidden="true"><span></span><span></span></div>
+        </section>
+
+        {# --- Indicadores (stat tiles) --- #}
+        <div class="row g-3">
+            {% with t=totales %}
+            <div class="col-6 col-lg-3">
+                <div class="dash-kpi">
+                    <span class="dash-kpi-icono tono-1" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.2c2.3.2 4 1.8 4.5 4.8"/></svg>
+                    </span>
+                    <span class="dash-kpi-etiqueta">Funcionarios</span>
+                    <span class="dash-kpi-valor">{{ t.employees }}</span>
+                    <span class="dash-kpi-nota">en su alcance</span>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="dash-kpi">
+                    <span class="dash-kpi-icono tono-2" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+                    </span>
+                    <span class="dash-kpi-etiqueta">Actividades</span>
+                    <span class="dash-kpi-valor">{{ t.act_total }}</span>
+                    <span class="dash-kpi-nota">{{ t.act_aprobadas }} aprobadas</span>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="dash-kpi">
+                    <span class="dash-kpi-icono tono-3" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 13h5M10 17h5"/></svg>
+                    </span>
+                    <span class="dash-kpi-etiqueta">Evidencias pendientes</span>
+                    <span class="dash-kpi-valor">{{ t.evi_pendientes }}</span>
+                    <span class="dash-kpi-nota">por revisar</span>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="dash-kpi">
+                    <span class="dash-kpi-icono tono-4" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M8 3v4M16 3v4M4 10h16M12 13v3"/></svg>
+                    </span>
+                    <span class="dash-kpi-etiqueta">Compromisos vencidos</span>
+                    <span class="dash-kpi-valor">{{ t.comp_vencidos }}</span>
+                    <span class="dash-kpi-nota">de {{ t.comp_abiertos }} abiertos</span>
+                </div>
+            </div>
+            {% endwith %}
+        </div>
+
+        {# --- Estado de actividades (dona) + avance del período --- #}
+        <div class="row g-4">
+            <div class="col-md-6">
+                <section class="dash-card h-100">
+                    <h2 class="dash-card-titulo">Estado de actividades</h2>
+                    <div class="dash-dona-cont">
+                        <svg class="dash-dona" viewBox="0 0 42 42" role="img"
+                             aria-label="Estado de {{ estado_actividades.total }} actividades: {% for s in estado_actividades.segmentos %}{{ s.n }} {{ s.etiqueta|lower }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+                            <circle class="dash-dona-fondo" cx="21" cy="21" r="15.9155"/>
+                            {% for s in estado_actividades.segmentos %}{% if s.n %}
+                                <circle class="dash-dona-seg estado-{{ s.tono }}" cx="21" cy="21" r="15.9155"
+                                        stroke-dasharray="{{ s.largo|unlocalize }} {{ s.resto|unlocalize }}" stroke-dashoffset="{{ s.offset|unlocalize }}">
+                                    <title>{{ s.etiqueta }}: {{ s.n }} ({{ s.pct }} %)</title>
+                                </circle>
+                            {% endif %}{% endfor %}
+                        </svg>
+                        <div class="dash-dona-centro" aria-hidden="true">
+                            <span class="dash-dona-num">{{ estado_actividades.total }}</span>
+                            <span class="dash-dona-txt">actividades</span>
+                        </div>
+                    </div>
+                    <ul class="dash-leyenda">
+                        {% for s in estado_actividades.segmentos %}
+                        <li>
+                            <div class="d-flex justify-content-between small">
+                                <span><span class="dash-punto estado-{{ s.tono }}" aria-hidden="true"></span>{{ s.etiqueta }}</span>
+                                <span class="text-muted">{{ s.n }}/{{ estado_actividades.total }} · {{ s.pct }} %</span>
+                            </div>
+                            <div class="dash-barra"><span class="estado-{{ s.tono }}" style="width: {{ s.pct|unlocalize }}%"></span></div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </section>
+            </div>
+            <div class="col-md-6">
+                <section class="dash-card h-100 d-flex flex-column">
+                    <h2 class="dash-card-titulo">Cumplimiento del período</h2>
+                    <p class="dash-grande">{{ totales.compliance_pct }}<small>%</small></p>
+                    <p class="small text-muted mb-3">
+                        {{ totales.act_aprobadas }} actividades aprobadas de una meta de {{ totales.target|default:"—" }}.
+                        A esta fecha se esperaba un {{ esperado_pct }} %.
+                    </p>
+                    <div class="dash-avance" role="img"
+                         aria-label="Cumplimiento {{ totales.compliance_pct }} %, esperado {{ esperado_pct }} %">
+                        <span class="dash-avance-real" style="width: {{ totales.compliance_pct|tope|unlocalize }}%"></span>
+                        <span class="dash-avance-esperado" style="left: {{ esperado_pct|tope|unlocalize }}%" title="Esperado a la fecha: {{ esperado_pct }} %"></span>
+                    </div>
+                    <div class="d-flex justify-content-between small text-muted mt-1">
+                        <span>0 %</span><span>Esperado {{ esperado_pct }} %</span><span>100 %</span>
+                    </div>
+                    <div class="row g-2 mt-auto pt-3 text-center">
+                        <div class="col-4"><div class="dash-mini"><strong>{{ totales.act_pendientes }}</strong><span>pendientes</span></div></div>
+                        <div class="col-4"><div class="dash-mini"><strong>{{ totales.evi_aprobadas }}</strong><span>evid. aprobadas</span></div></div>
+                        <div class="col-4"><div class="dash-mini"><strong>{{ totales.comp_abiertos }}</strong><span>compr. abiertos</span></div></div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        {# --- Resumen por funcionario (tabla; también es la vista accesible de los gráficos) --- #}
+        {% for seccion in secciones %}
+        <section class="dash-card p-0">
+            <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-1 px-3 px-sm-4 pt-4 pb-2">
+                <h2 class="dash-card-titulo mb-0">Resumen por funcionario · {{ seccion.delegation.name }}</h2>
+                <span class="small text-muted">{{ seccion.totales.employees }} funcionario(s)</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table dash-tabla align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Funcionario</th>
+                            <th class="text-end">Actividades</th>
+                            <th class="text-end" title="Aprobadas / pendientes / rechazadas">Apr. / Pend. / Rech.</th>
+                            <th class="text-end">Evid. pend.</th>
+                            <th class="text-end" title="Abiertos / vencidos">Compromisos</th>
+                            <th>Cumplimiento</th>
+                        </tr>
+                    </thead>
+                    {% for grupo in seccion.grupos %}
+                    <tbody>
+                        <tr class="dash-grupo"><th colspan="6"><span class="dash-rol">{{ grupo.etiqueta }}</span> <span class="text-muted fw-normal small">{{ grupo.totales.employees }}</span></th></tr>
+                        {% for fila in grupo.filas %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="dash-avatar" aria-hidden="true">{{ fila.employee.name|iniciales }}</span>
+                                    <div>
+                                        <div class="fw-semibold">{{ fila.employee.name }}{% if fila.employee.user_id == user.pk %} <span class="badge dash-usted">Usted</span>{% endif %}</div>
+                                        <div class="small text-muted">{{ fila.employee.position }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="text-end fw-semibold">{{ fila.act_total }}</td>
+                            <td class="text-end">{{ fila.act_aprobadas }} / {{ fila.act_pendientes }} / {{ fila.act_rechazadas }}</td>
+                            <td class="text-end">{{ fila.evi_pendientes }}</td>
+                            <td class="text-end">{{ fila.comp_abiertos }}{% if fila.comp_vencidos %} <span class="dash-vencidos">({{ fila.comp_vencidos }} venc.)</span>{% endif %}</td>
+                            <td>
+                                {% if fila.traffic_light %}
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="dash-barra flex-grow-1"><span class="semaforo-{{ fila.traffic_light }}" style="width: {{ fila.compliance_pct|tope|unlocalize }}%"></span></div>
+                                        <span class="small text-nowrap">{{ fila.compliance_pct }} %</span>
+                                    </div>
+                                    <span class="small text-muted"><span class="dash-punto semaforo-{{ fila.traffic_light }}" aria-hidden="true"></span>{{ fila.traffic_light|semaforo_texto }}</span>
+                                {% else %}
+                                    <span class="small text-muted">Sin meta para su cargo</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    {% empty %}
+                    <tbody><tr><td colspan="6" class="text-center text-muted py-4">Sin funcionarios registrados.</td></tr></tbody>
+                    {% endfor %}
+                </table>
+            </div>
+        </section>
+        {% endfor %}
     </div>
-    <form method="get" class="d-flex gap-2 align-items-center">
-        <label for="periodo" class="form-label mb-0 small text-muted">Período</label>
-        <select id="periodo" name="periodo" class="form-select form-select-sm" onchange="this.form.submit()">
-            {% for p in periodos %}
-                <option value="{{ p.pk }}" {% if period and p.pk == period.pk %}selected{% endif %}>{{ p.name }}</option>
-            {% endfor %}
-        </select>
-        <noscript><button class="btn btn-sm btn-sgr" type="submit">Ver</button></noscript>
-    </form>
-</div>
 
+    {# ================= Panel derecho ================= #}
+    <div class="col-xl-4 d-flex flex-column gap-4">
 
+        <section class="dash-card text-center">
+            <h2 class="dash-card-titulo text-start">Estadística</h2>
+            <div class="dash-anillo" style="--avance: {{ totales.compliance_pct|tope|unlocalize }}" role="img"
+                 aria-label="Cumplimiento del período: {{ totales.compliance_pct }} %">
+                <span class="dash-anillo-avatar">{{ user.get_full_name|default:user.get_username|iniciales }}</span>
+                <span class="dash-anillo-pct">{{ totales.compliance_pct }} %</span>
+            </div>
+            <p class="dash-saludo">{{ saludo }}, {{ user.first_name|default:user.get_username }}</p>
+            <p class="small text-muted">{% if rol == "funcionario" %}Revise su avance y las evidencias pendientes.{% else %}Revise el avance de su equipo y las evidencias pendientes.{% endif %}</p>
 
-<div class="row g-3 mb-4">
-    <div class="col-6 col-md-4 col-xl-2"><div class="card kpi h-100"><div class="card-body">
-        <div class="valor">{{ totales.employees }}</div><div class="etiqueta">Funcionarios</div>
-    </div></div></div>
-    <div class="col-6 col-md-4 col-xl-2"><div class="card kpi h-100"><div class="card-body">
-        <div class="valor">{{ totales.act_total }}</div><div class="etiqueta">Actividades</div>
-    </div></div></div>
-    <div class="col-6 col-md-4 col-xl-2"><div class="card kpi h-100"><div class="card-body">
-        <div class="valor">{{ totales.act_aprobadas }}</div><div class="etiqueta">Aprobadas</div>
-    </div></div></div>
-    <div class="col-6 col-md-4 col-xl-2"><div class="card kpi h-100"><div class="card-body">
-        <div class="valor">{{ totales.evi_pendientes }}</div><div class="etiqueta">Evidencias pendientes</div>
-    </div></div></div>
-    <div class="col-6 col-md-4 col-xl-2"><div class="card kpi h-100"><div class="card-body">
-        <div class="valor">{{ totales.comp_vencidos }}</div><div class="etiqueta">Compromisos vencidos</div>
-    </div></div></div>
-    <div class="col-6 col-md-4 col-xl-2"><div class="card kpi h-100"><div class="card-body">
-        <div class="valor">{{ totales.compliance_pct }}%</div><div class="etiqueta">Cumplimiento (esperado {{ esperado_pct }}%)</div>
-    </div></div></div>
-</div>
-
-{% for seccion in secciones %}
-<section class="card mb-4">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h2 class="h5 mb-0">{{ seccion.delegation.name }}</h2>
-        <span class="small text-muted">{{ seccion.totales.employees }} funcionario(s)</span>
-    </div>
-    <div class="table-responsive">
-        <table class="table table-sm table-hover align-middle mb-0">
-            <thead>
-                <tr class="small text-muted">
-                    <th>Funcionario</th>
-                    <th>Cargo</th>
-                    <th class="text-end">Actividades</th>
-                    <th class="text-end">Aprob.</th>
-                    <th class="text-end">Pend.</th>
-                    <th class="text-end">Rech.</th>
-                    <th class="text-end">Evid. pend.</th>
-                    <th class="text-end">Compr. abiertos</th>
-                    <th class="text-end">Compr. vencidos</th>
-                    <th class="text-end">Meta</th>
-                    <th class="text-end">Cumplimiento</th>
-                </tr>
-            </thead>
-            {% for grupo in seccion.grupos %}
-            <tbody>
-                <tr class="fila-rol"><th colspan="11">{{ grupo.etiqueta }} ({{ grupo.totales.employees }})</th></tr>
-                {% for fila in grupo.filas %}
-                <tr>
-                    <td>{{ fila.employee.name }}{% if fila.employee.user_id == user.pk %} <span class="badge text-bg-secondary">Usted</span>{% endif %}</td>
-                    <td class="small">{{ fila.employee.position }}</td>
-                    <td class="text-end">{{ fila.act_total }}</td>
-                    <td class="text-end">{{ fila.act_aprobadas }}</td>
-                    <td class="text-end">{{ fila.act_pendientes }}</td>
-                    <td class="text-end">{{ fila.act_rechazadas }}</td>
-                    <td class="text-end">{{ fila.evi_pendientes }}</td>
-                    <td class="text-end">{{ fila.comp_abiertos }}</td>
-                    <td class="text-end">{{ fila.comp_vencidos }}</td>
-                    <td class="text-end">{{ fila.target|default:"—" }}</td>
-                    <td class="text-end">
-                        {% if fila.traffic_light %}
-                            <span class="semaforo semaforo-{{ fila.traffic_light }}" title="Semáforo"></span>
-                            {{ fila.compliance_pct }}%
-                        {% else %}<span class="text-muted">sin meta</span>{% endif %}
-                    </td>
-                </tr>
+            {# Serie única: el título la nombra, no necesita leyenda. #}
+            <h3 class="dash-sub text-start">Actividades por mes</h3>
+            {% if por_mes.meses %}
+            <div class="dash-meses" role="img"
+                 aria-label="Actividades por mes: {% for m in por_mes.meses %}{{ m.etiqueta }} {{ m.n }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+                {% for m in por_mes.meses %}
+                <div class="dash-mes{% if m.actual %} actual{% endif %}" data-tip="{{ m.etiqueta|capfirst }} {{ m.anio }}: {{ m.n }} actividades" tabindex="0">
+                    <span class="dash-mes-valor">{% if m.actual or m.n == por_mes.maximo %}{{ m.n }}{% endif %}</span>
+                    <div class="dash-mes-pista"><span class="dash-mes-barra" style="height: {{ m.alto|unlocalize }}%"></span></div>
+                    <span class="dash-mes-etq">{{ m.etiqueta }}</span>
+                </div>
                 {% endfor %}
-                {% if grupo.filas|length > 1 %}
-                <tr class="fila-subtotal">
-                    <td colspan="2">Subtotal {{ grupo.etiqueta|lower }}</td>
-                    <td class="text-end">{{ grupo.totales.act_total }}</td>
-                    <td class="text-end">{{ grupo.totales.act_aprobadas }}</td>
-                    <td class="text-end">{{ grupo.totales.act_pendientes }}</td>
-                    <td class="text-end">{{ grupo.totales.act_rechazadas }}</td>
-                    <td class="text-end">{{ grupo.totales.evi_pendientes }}</td>
-                    <td class="text-end">{{ grupo.totales.comp_abiertos }}</td>
-                    <td class="text-end">{{ grupo.totales.comp_vencidos }}</td>
-                    <td class="text-end">{{ grupo.totales.target }}</td>
-                    <td class="text-end">{{ grupo.totales.compliance_pct }}%</td>
-                </tr>
-                {% endif %}
-            </tbody>
-            {% empty %}
-            <tbody><tr><td colspan="11" class="text-muted text-center py-3">Sin funcionarios registrados.</td></tr></tbody>
-            {% endfor %}
-        </table>
-    </div>
-</section>
-{% endfor %}
+            </div>
+            {% else %}
+                <p class="small text-muted">Sin período seleccionado.</p>
+            {% endif %}
+        </section>
 
+        {% if destacados|length > 1 %}
+        <section class="dash-card">
+            <h2 class="dash-card-titulo">Funcionarios destacados</h2>
+            <ul class="dash-lista">
+                {% for fila in destacados %}
+                <li>
+                    <span class="dash-avatar" aria-hidden="true">{{ fila.employee.name|iniciales }}</span>
+                    <div class="flex-grow-1 min-w-0">
+                        <div class="fw-semibold text-truncate">{{ fila.employee.name }}</div>
+                        <div class="small text-muted text-truncate">{{ fila.employee.position }} · {{ fila.employee.delegation.name }}</div>
+                    </div>
+                    <span class="dash-chip"><span class="dash-punto semaforo-{{ fila.traffic_light }}" aria-hidden="true"></span>{{ fila.compliance_pct }} %</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% if perms.actividades.view_activity %}
+                <a href="{% url 'actividad_list' %}" class="dash-ver-todo">Ver todas las actividades</a>
+            {% endif %}
+        </section>
+        {% endif %}
+    </div>
+</div>
+</div>
 {% endblock %}
