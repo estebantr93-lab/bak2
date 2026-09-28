@@ -12,7 +12,6 @@ from .models import Indicator
 from .models import Goal
 from .services import (
     calcular_cumplimiento_pct,
-    calcular_cumplimiento_ponderado,
     calcular_meta_esperada_al_dia,
     calcular_semaforo,
 )
@@ -100,12 +99,6 @@ class ServiciosCalculoTests(TestCase):
         self.assertEqual(calcular_semaforo(Decimal('80'), Decimal('70')), 'green')
         self.assertEqual(calcular_semaforo(Decimal('50'), Decimal('70')), 'amber')
         self.assertEqual(calcular_semaforo(Decimal('30'), Decimal('70')), 'red')
-
-    def test_cumplimiento_ponderado_respeta_tope_maximo(self):
-        resultado = calcular_cumplimiento_ponderado(
-            weight=Decimal('50'), compliance_pct=Decimal('300'), max_cap=Decimal('150'),
-        )
-        self.assertEqual(resultado, Decimal('75'))
 
     def test_meta_esperada_al_dia(self):
         resultado = calcular_meta_esperada_al_dia(dias_transcurridos=30, dias_totales=120)

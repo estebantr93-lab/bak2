@@ -51,7 +51,7 @@ Proyecto_Integrado_SGR/
 ├── dashboard/       # Dashboard de resumen por funcionario y rol (services.py)
 ├── reportes/        # Exportación a Excel (.xlsx) con openpyxl (services.py)
 ├── colaboracion/    # Comment, Alert, AuditLog
-├── templates/       # landing, base, registration/ (login y recuperación), dashboard/, actividades/, evidencias/
+├── templates/       # landing, base, 403/404/500, registration/ (login y recuperación), dashboard/, crud/list.html (los 4 CRUD)
 ├── static/          # static/css/style.css y static/js/confirmar.js (SweetAlert2)
 ├── .env.example
 ├── .gitignore
@@ -139,7 +139,7 @@ python manage.py migrate
 python manage.py seed_data
 ```
 
-El comando `seed_data` (definido en `core/management/commands/seed_data.py`) ejecuta, en orden de dependencias, los seeders de `core → funcionarios → medicion → actividades → evidencias → agenda → colaboracion`, creando de forma **idempotente**: 2 delegaciones, 4 cargos, 5 tipos de actividad, 2 períodos (uno cerrado, uno abierto), parámetros, metas/ponderaciones/indicadores, 8 actividades (con evidencias y validaciones) repartidas entre ambas delegaciones, 4 compromisos de agenda (con seguimientos) y los usuarios/grupos de prueba. Al finalizar imprime un resumen de conteos y las credenciales de demostración.
+El comando `seed_data` (definido en `core/management/commands/seed_data.py`) ejecuta, en orden de dependencias, los seeders de `core → funcionarios → medicion → actividades → evidencias → agenda → colaboracion`, creando de forma **idempotente**: 2 delegaciones, 4 cargos, 5 tipos de actividad, 2 períodos (uno cerrado, uno abierto), parámetros, metas/ponderaciones/indicadores, 8 actividades (con evidencias y validaciones) repartidas entre ambas delegaciones, 4 compromisos de agenda (con seguimientos) y los usuarios/grupos de prueba. Al finalizar recalcula el estado de cada actividad según sus evidencias e imprime un resumen de conteos y las cuentas de prueba. Las contraseñas solo se muestran si se generaron al azar.
 
 #### Datos de volumen (1.000+ registros)
 
@@ -147,13 +147,13 @@ El comando `seed_data` (definido en `core/management/commands/seed_data.py`) eje
 python manage.py seed_data --volumen
 ```
 
-Además de la demo, agrega de forma **reproducible** (semilla fija) e **idempotente**, sin duplicar si se vuelve a ejecutar, **más de 1.400 registros de negocio** repartidos **en partes iguales entre ambas delegaciones** y entre ambos períodos:
+Además de la demo, agrega de forma **reproducible** (semilla fija) e **idempotente**, sin duplicar si se vuelve a ejecutar, **más de 1.600 registros de negocio** repartidos **en partes iguales entre ambas delegaciones** y entre ambos períodos:
 
 | Por delegación (aprox.) | Centro | Norte |
 | --- | --- | --- |
 | Actividades | 254 | 254 |
-| Evidencias (con archivo PNG/PDF real) | 169 (37) | 179 (48) |
-| Atenciones sociales | 83 | 94 |
+| Evidencias (con archivo PNG/PDF real) | 181 (49) | 197 (44) |
+| Atenciones sociales | 94 | 94 |
 | Compromisos | 64 | 65 |
 | Funcionarios | 10 | 10 |
 
@@ -198,7 +198,7 @@ Por cada funcionario visible muestra, para el período elegido: actividades (tot
 
 - Rutas de `django.contrib.auth.urls` en `config/urls.py`; `LOGIN_URL = 'login'`, `LOGIN_REDIRECT_URL = 'dashboard'`, `LOGOUT_REDIRECT_URL = 'login'`.
 - Seguridad por capas: `login_required` / `LoginRequiredMixin` (autenticación), `permission_required` / `PermissionRequiredMixin` (autorización) y `filtrar_por_delegacion` en cada QuerySet (scoping). Una cuenta sin rol o sin perfil de delegación recibe **403**.
-- `request.session` guarda solo preferencias: el período elegido en el dashboard y la cantidad de filas por página en actividades.
+- `request.session` guarda solo preferencias: el período elegido en el dashboard y la cantidad de filas por página (5/15/30), que aplica a todos los listados.
 - Mensajes (`django.contrib.messages`) al ingresar, al cerrar sesión y en cada operación del CRUD.
 - El login (`LoginView` con `funcionarios.forms.LoginForm`) rechaza las cuentas sin rol, o sin perfil de delegación, con el mensaje «Su cuenta no tiene un rol asignado». La misma regla (`tiene_acceso_al_sistema`) protege el dashboard. Si la contraseña es incorrecta, el mensaje es genérico: «Usuario o contraseña incorrectos.».
 - `MESSAGE_TAGS` asigna la clase `danger` de Bootstrap a `messages.error()`, y `templates/403.html` muestra «Acceso denegado» con el estilo del sitio.
@@ -225,12 +225,18 @@ Hay cuatro CRUD completos (crear, listar, editar y eliminar lógicamente) constr
 | Evidencias (con archivo) | `/evidencias/` | archivo obligatorio al crear, 2 MB, extensión y contenido real; solo el verificador cambia el estado |
 | Compromisos | `/compromisos/` | título mínimo, vencimiento no pasado, responsable de la misma delegación, "realizado" exige observaciones |
 
-- **Propiedad (rol funcionario):** ve toda su delegación, pero solo modifica lo propio. La regla se declara en el modelo (`owner_field`, `motivo_no_modificable()`) y la aplica una política única (`core/admin_utils.py`) en el CRUD web y en el Django Admin: cambio, borrado, opciones de formularios y autocompletado. Una actividad de un **período cerrado** no se edita ni se elimina (403), y el período es obligatorio en el formulario.
+- **Propiedad (rol funcionario):** ve toda su delegación, pero solo modifica lo propio. La regla se declara en el modelo (`owner_field`, `bloqueo_modificacion`) y la aplica una política única (`core/admin_utils.py`) en el CRUD web y en el Django Admin: cambio, borrado, opciones de formularios y autocompletado. Una actividad de un **período cerrado** no se edita ni se elimina (403), y el período es obligatorio en el formulario.
 - **Seguridad por capas en cada vista:** `LoginRequiredMixin` (anónimo → login), `PermissionRequiredMixin` (sin permiso → 403) y scoping por delegación en `get_queryset` (un objeto de otra delegación → 404). Ocultar un botón no protege nada; cada vista vuelve a verificar.
 - **Modal:** crear y editar usan el mismo ModelForm en un modal de Bootstrap. Si hay errores, la misma plantilla se vuelve a mostrar con el modal abierto. Cada operación conserva su URL (`nueva/`, `<id>/editar/`, `<id>/eliminar/`).
 - **Eliminar:** solo por POST con CSRF, previa confirmación con SweetAlert2 (`static/js/confirmar.js`). El resultado es un **borrado lógico**.
 - **Paginación:** 5, 15 o 30 registros por página. La elección se guarda en `request.session['page_size']` y aplica a todos los listados. Los valores no permitidos se ignoran.
 - **Exportar a Excel:** el botón "Exportar Excel" descarga un `.xlsx` generado con **openpyxl** (`CrudExportView`), con encabezados y los datos del **mismo QuerySet del listado**. Por eso respeta permisos, scoping por delegación y borrado lógico. El archivo se arma en memoria: `Workbook()` → `hoja.append(fila)` → `libro.save(response)`.
+
+### Revisión de evidencias y estado de la actividad
+
+- Aprobar o rechazar una evidencia pasa **siempre** por `registrar_revision()` (`evidencias/services.py`): formulario web del verificador, acción masiva, formulario de cambio y alta de `Validation` en el Admin. Esa función guarda el estado, asigna el revisor, crea la `Validation` y deja una traza en `AuditLog`. Una `Validation` ya registrada no se edita.
+- **Regla del estado de la actividad:** una actividad queda **rechazada** si alguna de sus evidencias fue rechazada, **aprobada** si tiene al menos una aprobada, y **pendiente** en otro caso. Se recalcula sola (señal `post_save` de `Evidence`) al revisar, agregar, eliminar o restaurar una evidencia, y por eso el dashboard avanza con cada aprobación.
+- **Período cerrado:** se declara una sola vez por modelo con `bloqueo_modificacion`. La actividad y todo lo que depende de ella (evidencias, gestiones y validaciones) quedan congelados en la web y en el Admin, también para el superusuario. Las listas de los formularios no ofrecen actividades cerradas.
 
 ### Borrado lógico (`deleted_at`)
 
@@ -297,7 +303,7 @@ sudo systemctl restart gunicorn-sgr
 python manage.py check                      # configuración
 python manage.py makemigrations --check     # modelos y migraciones sincronizados
 python manage.py migrate                    # aplica migraciones
-python manage.py seed_data --volumen        # demo + 1.400 registros (idempotente)
+python manage.py seed_data --volumen        # demo + 1.600 registros (idempotente)
 python manage.py test                       # pruebas automáticas
 python manage.py runserver                  # servidor de desarrollo
 ```
@@ -334,7 +340,8 @@ python manage.py runserver                  # servidor de desarrollo
 | Recuperación con código de 6 dígitos | `funcionarios/recuperacion.py`, `funcionarios/views.py`, modelo `PasswordResetCode` |
 | Política de contraseñas | `config/settings.py` (`AUTH_PASSWORD_VALIDATORS`), `core/validators.py` |
 | Roles, grupos y permisos | `funcionarios/security.py`, `core/admin_utils.py` (`get_rol`, `filtrar_por_delegacion`) |
-| Quién puede modificar qué (web y Admin) | `owner_field` y `motivo_no_modificable()` en cada modelo; política única `puede_modificar` / `modificables` en `core/admin_utils.py` |
+| Quién puede modificar qué (web y Admin) | `owner_field` y `bloqueo_modificacion` en cada modelo; política única `puede_modificar` / `modificables` / `excluir_bloqueados` en `core/admin_utils.py` |
+| Revisión de evidencias y estado de la actividad | `evidencias/services.py` (`registrar_revision`, `estado_segun_evidencias`), `evidencias/signals.py` |
 | CRUD, modal, paginación en sesión | `core/crud.py`, `*/views.py`, `*/forms.py`, `templates/crud/list.html` |
 | Archivos e imágenes | `evidencias/forms.py` (`clean_file`), `evidencias/models.py` (`ruta_evidencia`), `evidencias/signals.py` |
 | SweetAlert2 | `static/js/confirmar.js`, `templates/base.html` |

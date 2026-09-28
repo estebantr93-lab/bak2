@@ -92,15 +92,35 @@ def solo_propios(queryset, user, campo_funcionario):
 #   - Propiedad: Model.owner_field (ruta al Employee dueño) → el rol funcionario solo modifica lo suyo.
 #   - Regla de negocio: Model.motivo_no_modificable() (por ejemplo, período cerrado).
 # ---------------------------------------------------------------------------------------------------
+#   - Bloqueo: Model.bloqueo_modificacion = ({lookup: valor}, mensaje). Una sola declaración sirve para
+#     excluir en consultas (excluir_bloqueados) y para evaluar un objeto, guardado o nuevo.
+def excluir_bloqueados(queryset):
+    bloqueo = getattr(queryset.model, 'bloqueo_modificacion', None)
+    return queryset.exclude(**bloqueo[0]) if bloqueo else queryset
+
+
 def modificables(queryset, user):
-    """Filtra por propiedad según el owner_field declarado en el modelo del queryset."""
+    """Lo que el usuario puede modificar: sin bloqueados y, para el funcionario, solo lo propio."""
+    queryset = excluir_bloqueados(queryset)
     campo = getattr(queryset.model, 'owner_field', None)
     return queryset if campo is None else solo_propios(queryset, user, campo)
 
 
 def motivo_no_modificable(obj):
-    metodo = getattr(obj, 'motivo_no_modificable', None)
-    return metodo() if metodo else None
+    """Mensaje del bloqueo si aplica. Recorre la ruta del lookup sobre el objeto (sirve aunque no esté guardado)."""
+    bloqueo = getattr(type(obj), 'bloqueo_modificacion', None)
+    if not bloqueo:
+        return None
+    lookups, mensaje = bloqueo
+    for ruta, esperado in lookups.items():
+        valor = obj
+        for paso in ruta.split('__'):
+            valor = getattr(valor, paso, None)
+            if valor is None:
+                break
+        if valor == esperado:
+            return mensaje
+    return None
 
 
 def puede_modificar(user, obj):
@@ -133,16 +153,13 @@ class ScopedModelAdmin:
         qs = super().get_queryset(request)
         if es_soft_delete(self.model):
             qs = qs.filter(deleted_at__isnull=True)  # el Admin tampoco lista eliminados lógicamente
-        if es_usuario_sin_restriccion(request.user):
-            return qs
-        delegacion = get_usuario_delegacion(request.user)
-        if delegacion is None:
-            return qs.none()
-        return qs.filter(**{self.scope_by: delegacion.pk})
+        return filtrar_por_delegacion(qs, request.user, self.scope_by)
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if not es_usuario_sin_restriccion(request.user):
             kwargs['queryset'] = self._opciones_relacionadas(db_field.related_model, request)
+        elif getattr(db_field.related_model, 'bloqueo_modificacion', None):
+            kwargs['queryset'] = excluir_bloqueados(db_field.related_model._default_manager.all())
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     def _opciones_relacionadas(self, relacionado, request):
@@ -174,19 +191,7 @@ class ScopedModelAdmin:
         return get_usuario_delegacion(request.user) is not None
 
     def _objeto_en_alcance(self, request, obj):
-        if obj is None:
-            return True
-        if es_usuario_sin_restriccion(request.user):
-            return True
-        delegacion = get_usuario_delegacion(request.user)
-        if delegacion is None:
-            return False
-        valor = obj
-        for paso in self.scope_by.split('__'):
-            valor = getattr(valor, paso, None)
-            if valor is None:
-                return False
-        return getattr(valor, 'pk', valor) == delegacion.pk
+        return self.get_queryset(request).filter(pk=obj.pk).exists()  # mismo alcance que el listado
 
     def _puede_modificar(self, request, obj):
         return obj is None or (self._objeto_en_alcance(request, obj) and puede_modificar(request.user, obj))

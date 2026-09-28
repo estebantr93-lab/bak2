@@ -20,7 +20,6 @@ class CommitmentCrud(CrudConfig):
     singular = 'compromiso'
     femenino = False
     url_prefix = 'compromiso'
-    context_object_name = 'commitments'
     columns = [
         Column('Título', 'title'),
         Column('Delegación', 'delegation.name'),

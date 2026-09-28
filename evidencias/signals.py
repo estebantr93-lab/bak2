@@ -1,4 +1,4 @@
-from django.db.models.signals import post_delete, pre_save
+from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 
 from .models import Evidence
@@ -22,3 +22,12 @@ def borrar_archivo_reemplazado(sender, instance, **kwargs):
     anterior = Evidence.all_objects.filter(pk=instance.pk).values_list('file', flat=True).first()
     if anterior and anterior != instance.file.name:
         instance.file.storage.delete(anterior)
+
+
+@receiver(post_save, sender=Evidence)
+def actualizar_estado_de_la_actividad(sender, instance, **kwargs):
+    """Cualquier cambio en una evidencia (revisión, alta, borrado lógico o restauración) recalcula el
+    estado de su actividad según la regla de evidencias/services.py."""
+    from .services import sincronizar_estado_actividad
+
+    sincronizar_estado_actividad(instance.activity)

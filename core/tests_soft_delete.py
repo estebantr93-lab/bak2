@@ -57,7 +57,7 @@ class BorradoLogicoTests(TestCase):
         self.activity.delete()
         self.client.login(username='admin_centro', password=CLAVE_TEST)
         response = self.client.get(reverse('actividad_list'))
-        self.assertNotIn(self.activity, list(response.context['activities']))
+        self.assertNotIn(self.activity, list(response.context['page_obj']))
         response = self.client.get('/admin/actividades/activity/')
         self.assertNotIn(self.activity, list(response.context['cl'].queryset))
         response = self.client.get(reverse('dashboard'))

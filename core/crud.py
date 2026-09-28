@@ -24,7 +24,7 @@ from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
 from reportes.services import as_text, respuesta_xlsx, valor_excel
 
-from .admin_utils import filtrar_por_delegacion, modificables, motivo_no_modificable
+from .admin_utils import filtrar_por_delegacion, modificables, motivo_no_modificable, puede_modificar
 
 PAGE_SIZES = [5, 15, 30]
 PAGE_SIZE_DEFAULT = 15
@@ -77,7 +77,6 @@ class CrudConfig:
     singular = ''                    # para mensajes y el modal
     femenino = True                  # concordancia: «registrada» / «registrado»
     url_prefix = ''                  # nombres de URL: <prefix>_list, _create, _update, _delete, _export
-    context_object_name = 'objects'
     filters = {}                     # parámetros GET permitidos → lookup (por ejemplo {'activity': 'activity_id'})
     row_links = []                   # [(texto, nombre_url, parametro_get, permiso)] enlaces extra por fila
 
@@ -106,11 +105,8 @@ class CrudConfig:
         return modificables(self.get_queryset(), self.request.user)
 
     def check_modificable(self, obj):
-        if not self.get_editable_queryset().filter(pk=obj.pk).exists():
-            raise PermissionDenied('Solo puede modificar sus propios registros.')
-        motivo = motivo_no_modificable(obj)
-        if motivo:
-            raise PermissionDenied(motivo)
+        if not puede_modificar(self.request.user, obj):
+            raise PermissionDenied(motivo_no_modificable(obj) or 'Solo puede modificar sus propios registros.')
 
     def active_filters(self):
         return {p: self.request.GET[p] for p in self.filters if self.request.GET.get(p, '').isdigit()}
@@ -148,7 +144,6 @@ class CrudConfig:
             'headers': [c.header for c in self.columns],
             'rows': self.build_rows(page_obj.object_list),
             'page_obj': page_obj,
-            self.context_object_name: page_obj.object_list,
             'page_size': page_size_from_session(self.request),
             'page_sizes': PAGE_SIZES,
             'filters': filtros,
