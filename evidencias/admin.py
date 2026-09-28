@@ -20,6 +20,8 @@ class EvidenciaAdmin(ScopedModelAdmin, admin.ModelAdmin):
         campos = list(super().get_readonly_fields(request, obj))
         if obj is not None and 'unique_code' not in campos:
             campos.append('unique_code')
+        if 'reviewed_by' not in campos:
+            campos.append('reviewed_by')  # lo fija la acción de aprobar / la revisión del verificador
         return campos
 
     def get_actions(self, request):
@@ -57,3 +59,9 @@ class ValidacionAdmin(ScopedModelAdmin, admin.ModelAdmin):
     list_filter = ('status',)
     ordering = ('-date',)
     list_select_related = ('evidence', 'reviewer')
+    readonly_fields = ('reviewer',)
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.reviewer = request.user  # quien registra la validación es el revisor
+        super().save_model(request, obj, form, change)

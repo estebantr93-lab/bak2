@@ -54,8 +54,8 @@ class CommitmentFollowUp(SoftDeleteModel):
     description = models.TextField('descripción')
     new_status = models.CharField('estado nuevo', max_length=20, choices=Commitment.STATUS_CHOICES)
 
-
     owner_field = 'commitment__responsible'
+
     class Meta:
         db_table = 'commitment_follow_up'
         ordering = ['-date']

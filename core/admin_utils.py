@@ -142,17 +142,29 @@ class ScopedModelAdmin:
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if not es_usuario_sin_restriccion(request.user):
-            delegacion = get_usuario_delegacion(request.user)
-            if delegacion is not None:
-                relacionado = db_field.related_model
-                if relacionado is type(delegacion):
-                    kwargs['queryset'] = relacionado.objects.filter(pk=delegacion.pk)
-                elif any(campo.name == 'delegation' for campo in relacionado._meta.fields):
-                    kwargs['queryset'] = relacionado.objects.filter(delegation=delegacion)
-            if 'queryset' in kwargs or getattr(db_field.related_model, 'owner_field', None) is not None:
-                base = kwargs.get('queryset', db_field.related_model._default_manager.all())
-                kwargs['queryset'] = modificables(base, request.user)
+            kwargs['queryset'] = self._opciones_relacionadas(db_field.related_model, request)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+    def _opciones_relacionadas(self, relacionado, request):
+        """Opciones de una llave foránea para un usuario acotado.
+
+        Se toman del Admin del modelo relacionado cuando es un ScopedModelAdmin: ese Admin ya sabe
+        llegar a la delegación (directa o indirecta, p. ej. evidence__activity__delegation) y excluir
+        eliminados. Encima se aplica la regla de dueño. Los usuarios se limitan a los de su delegación.
+        """
+        from django.contrib.auth.models import User
+
+        delegacion = get_usuario_delegacion(request.user)
+        admin_relacionado = self.admin_site._registry.get(relacionado)
+        if isinstance(admin_relacionado, ScopedModelAdmin):
+            base = admin_relacionado.get_queryset(request)
+        elif relacionado is User:
+            base = User.objects.filter(employee__delegation=delegacion) if delegacion else User.objects.none()
+        elif any(campo.name == 'delegation' for campo in relacionado._meta.fields):
+            base = relacionado._default_manager.filter(delegation=delegacion)
+        else:
+            base = relacionado._default_manager.all()  # datos maestros compartidos (cargo, tipo, período)
+        return modificables(base, request.user)
 
     def has_add_permission(self, request):
         if not super().has_add_permission(request):
