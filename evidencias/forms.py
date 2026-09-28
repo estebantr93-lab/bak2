@@ -9,7 +9,8 @@ from PIL import Image, UnidentifiedImageError
 from actividades.models import Activity
 from core.admin_utils import filtrar_por_delegacion, modificables
 
-from .models import EXTENSIONES_IMAGEN, Evidence, Validation
+from .models import EXTENSIONES_IMAGEN, Evidence
+from .services import ESTADOS_REVISION, registrar_revision
 
 EXTENSIONES_PERMITIDAS = EXTENSIONES_IMAGEN | {'.pdf'}
 
@@ -44,17 +45,9 @@ class EvidenciaForm(forms.ModelForm):
             del self.fields['result']
 
     def save(self, commit=True):
-        evidencia = super().save(commit=False)
-        revisa = 'status' in self.fields and 'status' in self.changed_data and evidencia.status != 'pending'
-        if revisa:
-            evidencia.reviewed_by = self.user
-        if commit:
-            evidencia.save()
-            if revisa:
-                Validation.objects.create(
-                    evidence=evidencia, reviewer=self.user, status=evidencia.status,
-                    comment=evidencia.result or 'Revisión desde el CRUD web.',
-                )
+        evidencia = super().save(commit=commit)
+        if commit and 'status' in self.fields and 'status' in self.changed_data and evidencia.status in ESTADOS_REVISION:
+            registrar_revision(evidencia, self.user, evidencia.status, evidencia.result or 'Revisión desde el CRUD web.')
         return evidencia
 
     def clean_file(self):

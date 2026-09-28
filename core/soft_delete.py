@@ -5,17 +5,12 @@
   así un valor ocupado por un registro eliminado no provoca un IntegrityError.
 - `delete()` marca `deleted_at` en vez de borrar la fila; `hard_delete()` borra de verdad.
 """
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
 
 class SoftDeleteQuerySet(models.QuerySet):
-    def activos(self):
-        return self.filter(deleted_at__isnull=True)
-
-    def eliminados(self):
-        return self.filter(deleted_at__isnull=False)
-
     def delete(self):
         # Uno a uno para que cada objeto propague el borrado lógico a sus hijos.
         total = 0
@@ -46,9 +41,15 @@ class SoftDeleteModel(models.Model):
     class Meta:
         abstract = True
 
-    @property
-    def eliminado(self):
-        return self.deleted_at is not None
+    def clean(self):
+        # Ningún registro nuevo puede colgar de algo bloqueado (p. ej. una evidencia en un período cerrado).
+        from .admin_utils import motivo_no_modificable
+
+        motivo = motivo_no_modificable(self)
+        if motivo:
+            bloqueo = type(self).bloqueo_modificacion
+            campo = next(iter(bloqueo[0])).split('__')[0]
+            raise ValidationError({campo: motivo} if campo != 'period' or self.pk else motivo)
 
     def soft_delete(self, momento=None):
         if self.deleted_at is not None:

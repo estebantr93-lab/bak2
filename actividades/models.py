@@ -30,6 +30,8 @@ class Activity(SoftDeleteModel):
 
     soft_delete_cascade = ('evidence_items', 'social_cases')
     owner_field = 'employee'  # el rol funcionario solo modifica sus propias actividades
+    # Lo registrado en un período cerrado queda congelado (web y Admin, también sus evidencias y gestiones).
+    bloqueo_modificacion = ({'period__is_closed': True}, 'Actividad de un período cerrado: no se puede modificar ni eliminar.')
 
     class Meta:
         db_table = 'activity'
@@ -39,12 +41,6 @@ class Activity(SoftDeleteModel):
 
     def __str__(self):
         return self.number
-
-    def motivo_no_modificable(self):
-        """Regla de negocio: lo registrado en un período cerrado queda congelado (web y Admin)."""
-        if self.period_id and self.period.is_closed:
-            return 'Actividad de un período cerrado: no se puede modificar ni eliminar.'
-        return None
 
     def clean(self):
         # evidence_code es obligatorio por el propio campo (blank=False); no se repite aquí.
@@ -68,6 +64,7 @@ class SocialCase(SoftDeleteModel):
     description = models.TextField('descripción')
 
     owner_field = 'activity__employee'
+    bloqueo_modificacion = ({'activity__period__is_closed': True}, 'La actividad es de un período cerrado: no se puede modificar.')
 
     class Meta:
         db_table = 'social_case'
@@ -82,6 +79,7 @@ class SocialCase(SoftDeleteModel):
         return f'{self.activity.number} - Gestión {self.step_number}'
 
     def clean(self):
+        super().clean()
         if self.activity_id and self.activity.activity_type.category != 'social':
             raise ValidationError({'activity': 'Solo las actividades de tipo "Atención social" admiten gestiones.'})
         if self.activity_id:

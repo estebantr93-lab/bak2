@@ -19,7 +19,6 @@ class ActivityCrud(CrudConfig):
     title = 'Actividades'
     singular = 'actividad'
     url_prefix = 'actividad'
-    context_object_name = 'activities'
     columns = [
         Column('Número', 'number'),
         Column('Fecha', 'date'),
@@ -41,7 +40,6 @@ class SocialCaseCrud(CrudConfig):
     title = 'Atenciones sociales'
     singular = 'atención social'
     url_prefix = 'atencion'
-    context_object_name = 'social_cases'
     filters = {'activity': 'activity_id'}
     columns = [
         Column('Actividad', 'activity.number'),

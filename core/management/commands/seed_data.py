@@ -12,6 +12,7 @@ from core.models import Position, Delegation, Parameter, Period, ActivityType
 from core.volume_data import borrar_volumen, build_volumen
 from evidencias.data import build_evidencias
 from evidencias.models import Evidence, Validation
+from evidencias.services import sincronizar_estado_actividades
 from funcionarios.data import CLAVES_GENERADAS, USUARIOS_DEMO, build_funcionarios
 from funcionarios.models import Employee
 from medicion.data import build_medicion
@@ -69,6 +70,8 @@ class Command(BaseCommand):
                 detalle = ', '.join(f'{k}: {v}' for k, v in creados.items())
                 self.stdout.write(self.style.SUCCESS(f'  volumen: {sum(creados.values())} registros ({detalle})'))
 
+        # El estado de cada actividad se deriva de sus evidencias (misma regla que en el uso normal).
+        sincronizar_estado_actividades(Activity.all_objects.all())
         self._imprimir_resumen()
 
     def _imprimir_resumen(self):

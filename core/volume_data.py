@@ -153,7 +153,8 @@ def build_volumen(total_actividades=500, con_archivos=True):
     #    Una de cada cuatro trae archivo real; las revisadas quedan con su Validation.
     evidencias = []
     for a in actividades:
-        if rng.random() >= 0.7:
+        # Una actividad aprobada o rechazada siempre tiene la evidencia que lo justifica.
+        if a.validation_status == 'pending' and rng.random() >= 0.5:
             continue
         evidencia = Evidence(
             unique_code=f'EVI-{PREFIJO}{a.pk:06d}', activity=a, status=a.validation_status,

@@ -61,7 +61,7 @@ class ActividadCrudTests(BaseWeb):
         self.ingresar('funcionario_centro', CLAVE_TEST)
         response = self.client.get(reverse('actividad_list'))
         self.assertEqual(response.status_code, 200)
-        self.assertEqual({a.delegation.name for a in response.context['activities']}, {'Delegación Centro'})
+        self.assertEqual({a.delegation.name for a in response.context['page_obj']}, {'Delegación Centro'})
         self.assertNotContains(response, self.actividad_norte.number)
 
     def test_page_size_se_guarda_en_la_sesion(self):
@@ -208,7 +208,7 @@ class EvidenciaArchivoTests(BaseWeb):
         self.assertTrue(storage.exists(nombre))
         # La evidencia eliminada ya no aparece en el listado.
         response = self.client.get(reverse('evidencia_list'), {'activity': self.actividad_centro.pk})
-        self.assertNotIn(evidencia, list(response.context['evidence_items']))
+        self.assertNotIn(evidencia, list(response.context['page_obj']))
 
     def test_hard_delete_borra_el_archivo_fisico(self):
         self.ingresar('admin_centro', CLAVE_TEST)

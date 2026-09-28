@@ -1,19 +1,10 @@
 from decimal import Decimal
 
 
-def calcular_avance(actividades_validas_qs):
-    return actividades_validas_qs.count()
-
-
 def calcular_cumplimiento_pct(avance, meta):
     if not meta:
         return Decimal('0')
     return (Decimal(avance) / Decimal(meta)) * 100
-
-
-def calcular_cumplimiento_ponderado(weight, compliance_pct, max_cap=Decimal('150')):
-    compliance_pct = min(compliance_pct, max_cap)
-    return (Decimal(weight) * compliance_pct) / 100
 
 
 def calcular_meta_esperada_al_dia(dias_transcurridos, dias_totales):

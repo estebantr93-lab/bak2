@@ -39,6 +39,7 @@ class Evidence(SoftDeleteModel):
 
     soft_delete_cascade = ('validations',)
     owner_field = 'activity__employee'
+    bloqueo_modificacion = ({'activity__period__is_closed': True}, 'La actividad es de un período cerrado: no se puede modificar.')
 
     class Meta:
         db_table = 'evidence'
@@ -80,6 +81,8 @@ class Validation(SoftDeleteModel):
     status = models.CharField('estado', max_length=20, choices=STATUS_CHOICES)
     comment = models.TextField('comentario', blank=True)
 
+
+    bloqueo_modificacion = ({'evidence__activity__period__is_closed': True}, 'La actividad es de un período cerrado: no se puede modificar.')
     class Meta:
         db_table = 'validation'
         ordering = ['-date']
