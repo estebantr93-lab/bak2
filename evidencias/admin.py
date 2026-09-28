@@ -1,7 +1,8 @@
 from django.contrib import admin, messages
 
-from core.admin_utils import ScopedModelAdmin, excluir_bloqueados
+from core.admin_utils import ROL_VERIFICADOR, ScopedModelAdmin, excluir_bloqueados, get_rol
 
+from .forms import CAMPOS_REVISION, EvidenciaAdminForm
 from .models import Evidence, Validation
 from .services import ESTADOS_REVISION, registrar_revision
 
@@ -9,6 +10,7 @@ from .services import ESTADOS_REVISION, registrar_revision
 @admin.register(Evidence)
 class EvidenciaAdmin(ScopedModelAdmin, admin.ModelAdmin):
     scope_by = 'activity__delegation'
+    form = EvidenciaAdminForm  # mismas validaciones de archivo y de rechazo que la web
     list_display = ('unique_code', 'activity', 'status', 'registered_at', 'reviewed_by')
     search_fields = ('unique_code', 'activity__number')
     list_filter = ('status', 'activity__delegation')
@@ -23,6 +25,10 @@ class EvidenciaAdmin(ScopedModelAdmin, admin.ModelAdmin):
             campos.append('unique_code')
         if 'reviewed_by' not in campos:
             campos.append('reviewed_by')  # lo fija la acción de aprobar / la revisión del verificador
+        if obj is not None and get_rol(request.user) == ROL_VERIFICADOR:
+            # El verificador revisa: no reasigna la evidencia ni reemplaza lo que cargó el funcionario.
+            campos += [f.name for f in Evidence._meta.fields
+                       if f.editable and f.name not in CAMPOS_REVISION and f.name not in campos]
         return campos
 
     def get_actions(self, request):

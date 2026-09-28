@@ -27,7 +27,10 @@ class BaseWeb(TestCase):
     @classmethod
     def setUpTestData(cls):
         sembrar_datos_demo()
-        cls.actividad_centro = Activity.objects.filter(delegation__name='Delegación Centro').first()
+        # Una actividad propia de funcionario_centro sin aprobar (una aprobada ya no la modifica él).
+        cls.actividad_centro = Activity.objects.filter(
+            delegation__name='Delegación Centro', employee__user__username='funcionario_centro',
+        ).exclude(validation_status='approved').first()
         cls.actividad_norte = Activity.objects.filter(delegation__name='Delegación Norte').first()
 
     def ingresar(self, username, password):

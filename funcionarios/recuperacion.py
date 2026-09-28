@@ -30,6 +30,12 @@ def solicitar_codigo(email):
     user = usuario_por_correo(email)
     if user is None:
         return None
+    # Tope de solicitudes por hora: cada código nuevo trae sus propios intentos, así que sin tope se
+    # podría adivinar pidiendo códigos sin fin (y saturar el correo del usuario). La respuesta al
+    # usuario es la misma genérica.
+    hace_una_hora = timezone.now() - timedelta(hours=1)
+    if PasswordResetCode.objects.filter(user=user, created_at__gte=hace_una_hora).count() >= settings.RECUPERACION_MAX_SOLICITUDES_HORA:
+        return None
     # Pedir un código nuevo invalida los anteriores.
     PasswordResetCode.objects.filter(user=user, is_used=False).update(is_used=True)
     codigo = generar_codigo()

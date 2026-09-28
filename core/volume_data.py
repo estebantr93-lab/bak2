@@ -60,8 +60,10 @@ def borrar_volumen():
 
 
 def _fecha_en(rng, periodo):
+    """Fecha dentro del período y no futura (las actividades se registran ya realizadas)."""
     dias = (periodo.end_date - periodo.start_date).days
-    return periodo.start_date + datetime.timedelta(days=rng.randint(0, dias))
+    fecha = periodo.start_date + datetime.timedelta(days=rng.randint(0, dias))
+    return min(fecha, max(timezone.localdate(), periodo.start_date))
 
 
 def _archivo_evidencia(rng, n, texto):

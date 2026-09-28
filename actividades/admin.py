@@ -1,6 +1,7 @@
 from django.contrib import admin
 
-from core.admin_utils import ScopedModelAdmin, es_usuario_sin_restriccion
+from core.admin_utils import ScopedModelAdmin
+from evidencias.forms import EvidenciaAdminForm
 from evidencias.models import Evidence
 
 from .forms import ActividadForm
@@ -9,8 +10,10 @@ from .models import Activity, SocialCase
 
 class EvidenciaInline(admin.TabularInline):
     model = Evidence
+    form = EvidenciaAdminForm  # valida tipo, tamaño y contenido del archivo, igual que la web
     extra = 0
-    readonly_fields = ('unique_code', 'registered_at')
+    # El estado se cambia solo revisando (Evidencias o Validaciones), que registra revisor y Validation.
+    readonly_fields = ('unique_code', 'registered_at', 'status', 'result', 'reviewed_by')
     can_delete = False
 
     def get_queryset(self, request):
@@ -29,11 +32,9 @@ class ActividadAdmin(ScopedModelAdmin, admin.ModelAdmin):
     autocomplete_fields = ('employee', 'activity_type')
     inlines = [EvidenciaInline]
 
-    def get_readonly_fields(self, request, obj=None):
-        campos = list(super().get_readonly_fields(request, obj))
-        if not es_usuario_sin_restriccion(request.user) and 'validation_status' not in campos:
-            campos.append('validation_status')
-        return campos
+    # El estado de validación se deriva de las evidencias (evidencias/services.py): nadie lo edita a mano,
+    # porque la siguiente revisión lo recalcularía de todas formas.
+    readonly_fields = ('validation_status',)
 
 
 @admin.register(SocialCase)

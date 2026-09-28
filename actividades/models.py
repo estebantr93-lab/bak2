@@ -1,6 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils import timezone
 
 from core.models import Delegation, Period, ActivityType
 from core.soft_delete import SoftDeleteModel
@@ -32,6 +33,9 @@ class Activity(SoftDeleteModel):
     owner_field = 'employee'  # el rol funcionario solo modifica sus propias actividades
     # Lo registrado en un período cerrado queda congelado (web y Admin, también sus evidencias y gestiones).
     bloqueo_modificacion = ({'period__is_closed': True}, 'Actividad de un período cerrado: no se puede modificar ni eliminar.')
+    # Una vez aprobada, el funcionario ya no la cambia (la aprobación quedaría respaldando otro contenido);
+    # un administrador sí puede corregirla. Lo aplica core/admin_utils.modificables.
+    bloqueo_funcionario = ({'validation_status': 'approved'}, 'La actividad ya fue aprobada: solo un administrador puede modificarla.')
 
     class Meta:
         db_table = 'activity'
@@ -50,6 +54,13 @@ class Activity(SoftDeleteModel):
                 raise ValidationError({'period': 'La actividad pertenece a un período cerrado: no se puede cambiar de período.'})
         if self.period_id and self.period.is_closed:
             raise ValidationError({'period': 'Período cerrado: no se pueden registrar actividades.'})
+        if self.date and self.date > timezone.localdate():
+            raise ValidationError({'date': 'La fecha no puede ser futura: se registran actividades ya realizadas.'})
+        if self.date and self.period_id and not (self.period.start_date <= self.date <= self.period.end_date):
+            raise ValidationError({'date': (
+                f'La fecha debe estar dentro del período {self.period} '
+                f'({self.period.start_date:%d-%m-%Y} a {self.period.end_date:%d-%m-%Y}).'
+            )})
         if self.employee_id and self.delegation_id and self.employee.delegation_id != self.delegation_id:
             raise ValidationError('La delegación debe coincidir con la delegación del funcionario.')
 

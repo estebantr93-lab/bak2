@@ -67,11 +67,19 @@ def es_usuario_sin_restriccion(user):
     return get_rol(user) in (ROL_SUPERADMIN, ROL_VERIFICADOR)
 
 
+def perfil_desactivado(user):
+    """True si el usuario tiene perfil de funcionario y está desactivado (Employee.is_active=False)."""
+    Employee = apps.get_model('funcionarios', 'Employee')
+    return Employee.objects.filter(user=user, is_active=False).exists()
+
+
 def tiene_acceso_al_sistema(user):
-    """Puede usar el sistema quien tiene rol y, salvo los roles globales, un perfil con delegación."""
+    """Puede usar el sistema quien tiene rol y, salvo los roles globales, un perfil activo con delegación."""
     if get_rol(user) is None:
         return False
-    return es_usuario_sin_restriccion(user) or get_usuario_delegacion(user) is not None
+    if es_usuario_sin_restriccion(user):
+        return True
+    return get_usuario_delegacion(user) is not None and not perfil_desactivado(user)
 
 
 def solo_propios(queryset, user, campo_funcionario):
@@ -100,10 +108,17 @@ def excluir_bloqueados(queryset):
 
 
 def modificables(queryset, user):
-    """Lo que el usuario puede modificar: sin bloqueados y, para el funcionario, solo lo propio."""
+    """Lo que el usuario puede modificar: sin bloqueados y, para el funcionario, solo lo propio y
+    sin lo que el modelo le congela (Model.bloqueo_funcionario, p. ej. una actividad ya aprobada)."""
     queryset = excluir_bloqueados(queryset)
     campo = getattr(queryset.model, 'owner_field', None)
-    return queryset if campo is None else solo_propios(queryset, user, campo)
+    if campo is None:
+        return queryset
+    queryset = solo_propios(queryset, user, campo)
+    bloqueo = getattr(queryset.model, 'bloqueo_funcionario', None)
+    if bloqueo and get_rol(user) == ROL_FUNCIONARIO:
+        queryset = queryset.exclude(**bloqueo[0])
+    return queryset
 
 
 def motivo_no_modificable(obj):
@@ -120,6 +135,19 @@ def motivo_no_modificable(obj):
                 break
         if valor == esperado:
             return mensaje
+    return None
+
+
+def motivo_para_usuario(user, obj):
+    """Por qué este usuario no puede modificar el objeto (bloqueo general o propio del funcionario)."""
+    motivo = motivo_no_modificable(obj)
+    if motivo:
+        return motivo
+    bloqueo = getattr(type(obj), 'bloqueo_funcionario', None)
+    if bloqueo and get_rol(user) == ROL_FUNCIONARIO and all(
+        getattr(obj, campo, None) == valor for campo, valor in bloqueo[0].items()
+    ):
+        return bloqueo[1]
     return None
 
 

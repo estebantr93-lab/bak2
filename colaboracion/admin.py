@@ -28,3 +28,13 @@ class TrazaAuditoriaAdmin(admin.ModelAdmin):
     list_filter = ('action', 'date')
     ordering = ('-date',)
     list_select_related = ('user',)
+
+    # Es una traza de auditoría: se consulta, no se crea, edita ni borra a mano.
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

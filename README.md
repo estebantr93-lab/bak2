@@ -231,6 +231,8 @@ Enlace **¿Olvidó su contraseña?** en el login → correo → código de 6 dí
 Solo se guarda el **hash** del código (`PasswordResetCode`). El código vence en **120 s**, es de **uso único**, admite **5 intentos** y pedir uno nuevo invalida los anteriores. La respuesta es siempre genérica («Si el correo corresponde…»).
 En desarrollo el correo se imprime en la terminal de `runserver`. Django 6.1 reemplaza `EMAIL_BACKEND`/`EMAIL_HOST`/... por `MAILERS`, y definir ambos es un error; por eso `settings.py` lee las mismas variables de `.env` (`EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`) dentro de `MAILERS`. Para usar Mailtrap basta con cambiar esas variables.
 
+Cada usuario puede pedir como máximo `RECUPERACION_MAX_SOLICITUDES_HORA` (5) códigos por hora: cada código trae sus propios intentos, así que sin tope se podría adivinar pidiendo códigos sin fin. Pasado el tope, la respuesta es la misma genérica y no se envía correo.
+
 ### Política de contraseñas
 
 `AUTH_PASSWORD_VALIDATORS` exige **mínimo 10 caracteres** (`MinimumLengthValidator`) y **mayúscula, minúscula, número y carácter especial** (`core/validators.py`), además de los validadores de similitud con el usuario y de contraseñas comunes. Se aplica en la recuperación de contraseña, que pide la clave dos veces con `SetPasswordForm`, y en el Admin. Django guarda solo el hash (PBKDF2), nunca el texto plano.
@@ -258,6 +260,14 @@ Hay cuatro CRUD completos (crear, listar, editar y eliminar lógicamente) constr
 - Aprobar o rechazar una evidencia pasa **siempre** por `registrar_revision()` (`evidencias/services.py`): formulario web del verificador, acción masiva, formulario de cambio y alta de `Validation` en el Admin. Esa función guarda el estado, asigna el revisor, crea la `Validation` y deja una traza en `AuditLog`. Una `Validation` ya registrada no se edita.
 - **Regla del estado de la actividad:** una actividad queda **aprobada** si tiene al menos una evidencia aprobada; **pendiente** si alguna evidencia espera revisión (por ejemplo, la corrección de una rechazada) o si no tiene evidencias; y **rechazada** solo si todas sus evidencias fueron rechazadas. Así una actividad rechazada se recupera cuando el funcionario sube una evidencia corregida y el verificador la aprueba. Se recalcula sola (señal `post_save` de `Evidence`) al revisar, agregar, eliminar o restaurar una evidencia, y por eso el dashboard avanza con cada aprobación.
 - **Período cerrado:** se declara una sola vez por modelo con `bloqueo_modificacion`. La actividad y todo lo que depende de ella (evidencias, gestiones y validaciones) quedan congelados en la web y en el Admin, también para el superusuario. Las listas de los formularios no ofrecen actividades cerradas.
+- **Actividad aprobada:** el funcionario ya no la modifica (ni le agrega evidencias); un administrador sí. Se declara en el modelo con `bloqueo_funcionario` y la aplica la misma política única (`core/admin_utils.modificables`), en la web y en el Admin.
+- **Fecha de la actividad:** debe estar dentro de su período y no puede ser futura (se registran actividades ya realizadas).
+- **Revisión de evidencias:** rechazar exige indicar el motivo, para que el funcionario sepa qué corregir. El verificador solo cambia estado y resultado: no reasigna la evidencia a otra actividad ni reemplaza el archivo. El estado de validación de la actividad es de solo lectura también en el Admin, porque se deriva de las evidencias.
+- **Archivos en el Admin:** el formulario de Evidencias y la evidencia en línea dentro de una actividad validan tipo, tamaño y contenido igual que la web (antes el Admin aceptaba cualquier archivo). Una imagen que declara millones de píxeles se rechaza en vez de agotar la memoria.
+- **Seguimiento de compromisos:** registrar un seguimiento cambia el compromiso al «estado nuevo» indicado; si queda realizado sin observaciones, la descripción del seguimiento se usa como tales.
+- **Funcionario desactivado** (`Employee.is_active=False`): no puede ingresar, aunque su usuario siga activo, y una sesión ya abierta recibe 403.
+- **Metas de un período cerrado:** no se modifican, porque cambiarían el cumplimiento histórico.
+- **Traza de auditoría:** en el Admin es de solo lectura (no se crea, edita ni borra a mano).
 
 ### Borrado lógico (`deleted_at`)
 
@@ -327,6 +337,7 @@ python manage.py migrate                    # aplica migraciones
 python manage.py seed_data --volumen        # demo + 1.600 registros (idempotente)
 python manage.py revisar_archivos           # archivos de evidencias faltantes, dañados o huérfanos
 python manage.py test                       # pruebas automáticas
+python manage.py shell < scripts/verificacion_e2e.py  # recorre todos los puntos pedidos como cada rol (no deja cambios)
 python manage.py runserver                  # servidor de desarrollo
 ```
 
