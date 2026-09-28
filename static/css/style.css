@@ -332,3 +332,24 @@ body { background: var(--sgr-fondo); }
     .dash-card { padding: 1.1rem; }
     .dash-resumen-cab { padding: 1.1rem; }
 }
+
+/* ===================== Tablas en celular: una tarjeta por fila =====================
+   Las celdas llevan data-etiqueta (encabezado de su columna); así no hay que desplazar la tabla de lado. */
+@media (max-width: 767.98px) {
+    .tabla-tarjetas thead { display: none; }
+    .tabla-tarjetas, .tabla-tarjetas tbody, .tabla-tarjetas tr, .tabla-tarjetas td { display: block; width: 100%; }
+    .tabla-tarjetas tr { padding: .5rem .25rem; border-bottom: 1px solid var(--bs-border-color); }
+    .tabla-tarjetas > :not(caption) > * > * { border-bottom: 0; }
+    .tabla-tarjetas td {
+        display: flex; justify-content: space-between; gap: 1rem; padding: .3rem .75rem !important;
+        text-align: right !important; white-space: normal;
+    }
+    .tabla-tarjetas td[data-etiqueta]::before {
+        content: attr(data-etiqueta); flex: 0 0 40%; text-align: left;
+        color: var(--bs-secondary-color); font-size: .75rem; font-weight: 600; text-transform: uppercase;
+    }
+    .tabla-tarjetas td.celda-acciones { justify-content: flex-end; flex-wrap: wrap; }
+    .tabla-tarjetas .dash-grupo th { display: block; }
+    .table-responsive:has(.tabla-tarjetas) { overflow-x: visible; }
+    .dash-tabla td:first-child, .dash-tabla td:last-child { min-width: 0; }
+}

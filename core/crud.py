@@ -170,7 +170,7 @@ class CrudConfig:
             for col in self.columns:
                 valor = col.resolve(obj)
                 celdas.append({
-                    'text': as_text(valor), 'raw': valor, 'kind': col.kind,
+                    'header': col.header, 'text': as_text(valor), 'raw': valor, 'kind': col.kind,
                     'badge': col.badge(obj) if col.badge else '',
                 })
             enlaces = [

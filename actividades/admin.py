@@ -21,13 +21,18 @@ class EvidenciaInline(admin.TabularInline):
         return qs if ve_eliminados(request.user) else qs.filter(deleted_at__isnull=True)
 
 
+class PeriodoFilter(admin.RelatedFieldListFilter):
+    """Filtro por período sin la opción «-» (vacío): toda actividad nueva exige período."""
+    include_empty_choice = False
+
+
 @admin.register(Activity)
 class ActividadAdmin(ScopedModelAdmin, admin.ModelAdmin):
     scope_by = 'delegation'
     form = ActividadForm
     list_display = ('number', 'employee', 'delegation', 'date', 'activity_type', 'validation_status')
     search_fields = ('number', 'employee__name', 'contact', 'evidence_code', 'description')
-    list_filter = ('delegation', 'validation_status', 'period', 'date')
+    list_filter = ('delegation', 'validation_status', ('period', PeriodoFilter), 'date')
     ordering = ('-date',)
     list_select_related = ('employee', 'delegation', 'activity_type', 'period')
     autocomplete_fields = ('employee', 'activity_type')

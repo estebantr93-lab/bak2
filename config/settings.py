@@ -175,6 +175,8 @@ USE_I18N = True
 
 # Traducciones propias (locale/es) para textos de Django 6.1 que aún no vienen en español.
 LOCALE_PATHS = [BASE_DIR / 'locale']
+# Fechas en formato chileno (dd-mm-aaaa) también en el Admin: config/formats/es/formats.py.
+FORMAT_MODULE_PATH = ['config.formats']
 
 USE_TZ = True
 

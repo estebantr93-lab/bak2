@@ -10,6 +10,15 @@ El tema se comparte con la app: ambos guardan la preferencia en localStorage["th
 {% block extrahead %}
     {{ block.super }}
     {% include "includes/tema_inicial.html" %}
+    <script>
+        // La barra lateral de modelos parte cerrada (deja el ancho a la tabla); se abre con «.
+        // Solo es el valor inicial: si el usuario la abre, el Admin recuerda su elección.
+        try {
+            if (localStorage.getItem('django.admin.navSidebarIsOpen') === null) {
+                localStorage.setItem('django.admin.navSidebarIsOpen', 'false');
+            }
+        } catch (e) {}
+    </script>
 {% endblock %}
 
 {% block extrastyle %}
@@ -71,4 +80,5 @@ El tema se comparte con la app: ambos guardan la preferencia en localStorage["th
     {{ block.super }}
     <script src="{% static 'js/tema.js' %}"></script>
     <script src="{% static 'js/menu_admin.js' %}"></script>
+    <script src="{% static 'js/filtros_admin.js' %}"></script>
 {% endblock %}
