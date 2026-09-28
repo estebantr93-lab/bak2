@@ -1,9 +1,23 @@
+import datetime
+
 from django.core.exceptions import ValidationError
 from django.db import models
 
 from core.models import Delegation
 from core.soft_delete import SoftDeleteModel
 from funcionarios.models import Employee
+
+
+# "Por vencer": vence desde hoy hasta dentro de esta cantidad de días. Lo usan la lista y el dashboard.
+DIAS_POR_VENCER = 7
+
+
+def compromisos_vencidos(qs, hoy):
+    return qs.exclude(status='done').filter(due_date__lt=hoy)
+
+
+def compromisos_por_vencer(qs, hoy):
+    return qs.exclude(status='done').filter(due_date__gte=hoy, due_date__lte=hoy + datetime.timedelta(days=DIAS_POR_VENCER))
 
 
 class Commitment(SoftDeleteModel):

@@ -8,6 +8,19 @@ from core.soft_delete import SoftDeleteModel
 from funcionarios.models import Employee
 
 
+def sin_evidencia(qs):
+    """Actividades sin ninguna evidencia activa, evaluado por actividad con una subconsulta EXISTS.
+
+    No sirve filtrar por un conteo agregado (al agrupar después por funcionario la condición pasa al
+    grupo) ni exclude(evidence_items__deleted_at__isnull=True) (una actividad sin evidencias también
+    «cumple» isnull). Lo usan el dashboard y el filtro ?sin_evidencia=1 de la lista.
+    """
+    from evidencias.models import Evidence  # evidencias depende de actividades: import local
+
+    activas = Evidence.objects.filter(activity=models.OuterRef('pk'))  # objects = solo no eliminadas
+    return qs.filter(~models.Exists(activas))
+
+
 class Activity(SoftDeleteModel):
     STATUS_CHOICES = [
         ('pending', 'Pendiente'),
@@ -76,6 +89,8 @@ class SocialCase(SoftDeleteModel):
 
     owner_field = 'activity__employee'
     bloqueo_modificacion = ({'activity__period__is_closed': True}, 'La actividad es de un período cerrado: no se puede modificar.')
+    # Aprobada la actividad, el funcionario tampoco cambia sus gestiones (mismo criterio que la actividad).
+    bloqueo_funcionario = ({'activity__validation_status': 'approved'}, 'La actividad ya fue aprobada: solo un administrador puede modificar sus gestiones.')
 
     class Meta:
         db_table = 'social_case'

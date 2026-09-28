@@ -1,5 +1,7 @@
 import datetime
 
+from django.utils import timezone
+
 from core.models import Delegation
 from funcionarios.models import Employee
 
@@ -12,11 +14,14 @@ def build_agenda():
     func_centro = Employee.objects.get(name='Ana Pérez (Centro)')
     func_norte = Employee.objects.get(name='Carlos Rojas (Norte)')
 
+    # Vencimientos relativos a la fecha de la carga: dos vencidos y dos por venir, siempre.
+    hoy = timezone.localdate()
+    dias = datetime.timedelta
     compromisos_data = [
-        ('Instalar señalética en plaza de armas', centro, func_centro, datetime.date(2026, 8, 1), 'pending'),
-        ('Coordinar operativo de verano', centro, func_centro, datetime.date(2026, 10, 15), 'in_progress'),
-        ('Reparación de luminarias sector norte', norte, func_norte, datetime.date(2026, 7, 20), 'registered'),
-        ('Catastro de organizaciones sociales', norte, func_norte, datetime.date(2026, 11, 1), 'done'),
+        ('Instalar señalética en plaza de armas', centro, func_centro, hoy - dias(days=58), 'pending'),
+        ('Coordinar operativo de verano', centro, func_centro, hoy + dias(days=17), 'in_progress'),
+        ('Reparación de luminarias sector norte', norte, func_norte, hoy - dias(days=70), 'registered'),
+        ('Catastro de organizaciones sociales', norte, func_norte, hoy + dias(days=34), 'done'),
     ]
 
     compromisos = {}

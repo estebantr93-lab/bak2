@@ -2,6 +2,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import render
 from django.urls import reverse
+from django.utils.http import urlencode
 from django.utils import timezone
 
 from core.admin_utils import (
@@ -38,56 +39,60 @@ def _periodo_elegido(request, periodos):
     return periodo_por_defecto()
 
 
-def _url_si_puede(user, permiso, nombre_url, consulta=''):
-    """Enlace a una lista solo si el usuario puede verla (no se ofrecen enlaces que terminan en 403)."""
+def _url_si_puede(user, permiso, nombre_url, **filtros):
+    """Enlace a una lista filtrada, solo si el usuario puede verla (no se ofrecen enlaces que terminan en 403).
+    Los filtros hacen que la lista muestre exactamente lo que cuenta el indicador."""
     if not user.has_perm(permiso):
         return None
-    return reverse(nombre_url) + (f'?{consulta}' if consulta else '')
+    return reverse(nombre_url) + ('?' + urlencode(filtros) if filtros else '')
 
 
-def _indicadores(user, rol, datos, delegacion):
-    """Los 4 indicadores superiores, según lo que le sirve a cada rol."""
+def _indicadores(user, rol, datos, delegacion, periodo):
+    """Los 4 indicadores superiores, según lo que le sirve a cada rol. Cada enlace lleva los mismos
+    filtros que el conteo (período, «solo los míos», estado), así la lista coincide con el número."""
     t = datos['totales']
-    evidencias_pendientes = _url_si_puede(user, 'evidencias.view_evidence', 'evidencia_list', 'status=pending')
+    p = {'period': periodo.pk} if periodo else {}
     if rol == ROL_FUNCIONARIO:
+        mias = {**p, 'mias': 1}
         return [
             {'tono': 2, 'icono': 'lista', 'etiqueta': 'Mis actividades', 'valor': t['act_total'],
              'nota': f"{t['act_aprobadas']} aprobadas",
-             'url': _url_si_puede(user, 'actividades.view_activity', 'actividad_list')},
+             'url': _url_si_puede(user, 'actividades.view_activity', 'actividad_list', **mias)},
             {'tono': 3, 'icono': 'documento', 'etiqueta': 'Actividades sin evidencia', 'valor': t['act_sin_evidencia'],
              'nota': 'suba su respaldo',
-             'url': _url_si_puede(user, 'actividades.view_activity', 'actividad_list')},
-            {'tono': 1, 'icono': 'alerta', 'etiqueta': 'Evidencias rechazadas', 'valor': t['evi_rechazadas'],
-             'nota': 'suba una corregida',
-             'url': _url_si_puede(user, 'evidencias.view_evidence', 'evidencia_list', 'status=rejected')},
+             'url': _url_si_puede(user, 'actividades.view_activity', 'actividad_list', **mias, sin_evidencia=1)},
+            {'tono': 1, 'icono': 'alerta', 'etiqueta': 'Actividades rechazadas', 'valor': t['act_rechazadas'],
+             'nota': 'suba una evidencia corregida',
+             'url': _url_si_puede(user, 'actividades.view_activity', 'actividad_list', **mias, status='rejected')},
             {'tono': 4, 'icono': 'calendario', 'etiqueta': 'Compromisos por vencer', 'valor': t['comp_por_vencer'],
              'nota': f"próximos {datos['dias_por_vencer']} días · {t['comp_vencidos']} vencidos",
-             'url': _url_si_puede(user, 'agenda.view_commitment', 'compromiso_list')},
+             'url': _url_si_puede(user, 'agenda.view_commitment', 'compromiso_list', mias=1, por_vencer=1)},
         ]
+    pendientes = _url_si_puede(user, 'evidencias.view_evidence', 'evidencia_list', **p, status='pending')
     if rol == ROL_VERIFICADOR:
         dias = datos['dias_pendiente_mas_antigua']
         return [
             {'tono': 3, 'icono': 'documento', 'etiqueta': 'Evidencias por revisar', 'valor': t['evi_pendientes'],
-             'nota': 'del período', 'url': evidencias_pendientes},
+             'nota': 'del período', 'url': pendientes},
             {'tono': 4, 'icono': 'reloj', 'etiqueta': 'Espera más larga', 'valor': '—' if dias is None else f'{dias} d',
              'nota': 'sin pendientes' if dias is None else 'pendiente más antigua'},
             {'tono': 2, 'icono': 'check', 'etiqueta': 'Revisadas', 'valor': t['evi_revisadas'],
              'nota': f"de {t['evi_total']} del período"},
             {'tono': 1, 'icono': 'alerta', 'etiqueta': 'Rechazadas', 'valor': t['evi_rechazadas'],
-             'nota': 'a la espera de corrección',
-             'url': _url_si_puede(user, 'evidencias.view_evidence', 'evidencia_list', 'status=rejected')},
+             'nota': 'evidencias del período',
+             'url': _url_si_puede(user, 'evidencias.view_evidence', 'evidencia_list', **p, status='rejected')},
         ]
     return [
         {'tono': 1, 'icono': 'personas', 'etiqueta': 'Funcionarios', 'valor': t['employees'],
          'nota': 'en su delegación' if delegacion else 'en ambas delegaciones'},
         {'tono': 2, 'icono': 'lista', 'etiqueta': 'Actividades', 'valor': t['act_total'],
          'nota': f"{t['act_aprobadas']} aprobadas",
-         'url': _url_si_puede(user, 'actividades.view_activity', 'actividad_list')},
+         'url': _url_si_puede(user, 'actividades.view_activity', 'actividad_list', **p)},
         {'tono': 3, 'icono': 'documento', 'etiqueta': 'Evidencias por revisar', 'valor': t['evi_pendientes'],
-         'nota': 'del período', 'url': evidencias_pendientes},
+         'nota': 'del período', 'url': pendientes},
         {'tono': 4, 'icono': 'calendario', 'etiqueta': 'Compromisos vencidos', 'valor': t['comp_vencidos'],
          'nota': f"a hoy · de {t['comp_abiertos']} abiertos",
-         'url': _url_si_puede(user, 'agenda.view_commitment', 'compromiso_list')},
+         'url': _url_si_puede(user, 'agenda.view_commitment', 'compromiso_list', vencidos=1)},
     ]
 
 
@@ -119,9 +124,10 @@ def dashboard(request):
         'delegacion_usuario': delegacion_propia,
         'periodos': periodos,
         'period': periodo,
-        'indicadores': _indicadores(request.user, rol, datos, delegacion_propia),
+        'indicadores': _indicadores(request.user, rol, datos, delegacion_propia, periodo),
         'url_evidencias_pendientes': _url_si_puede(
-            request.user, 'evidencias.view_evidence', 'evidencia_list', 'status=pending'),
+            request.user, 'evidencias.view_evidence', 'evidencia_list',
+            **({'period': periodo.pk} if periodo else {}), status='pending'),
         **datos,
     }
     return render(request, 'dashboard/index.html', contexto)

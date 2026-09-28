@@ -1,15 +1,18 @@
 import datetime
 
-from core.models import Period, ActivityType
+from django.utils import timezone
+
+from core.data import periodo_actual as obtener_periodo_actual
+from core.models import ActivityType
 from funcionarios.models import Employee
 
 from .models import Activity, SocialCase
 
-FECHA_BASE = datetime.date(2026, 7, 10)
-
 
 def build_actividades():
-    periodo_actual = Period.objects.get(name='2026-S2 (actual)')
+    periodo_actual = obtener_periodo_actual()
+    # Fecha de ejemplo dentro del período actual y no futura.
+    fecha_base = min(periodo_actual.start_date + datetime.timedelta(days=40), timezone.localdate())
     func_centro = Employee.objects.get(name='Ana Pérez (Centro)')
     func_norte = Employee.objects.get(name='Carlos Rojas (Norte)')
 
@@ -46,7 +49,7 @@ def build_actividades():
                 'delegation': funcionario.delegation,
                 'period': periodo_actual,
                 'activity_type': tipo,
-                'date': FECHA_BASE,
+                'date': fecha_base,
                 'description': descripcion,
                 'contact': 'Vecino/a de la delegación',
                 'phone': '+56900000000',

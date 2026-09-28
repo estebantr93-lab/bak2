@@ -20,7 +20,8 @@ class EvidenceCrud(CrudConfig):
     title = 'Evidencias'
     singular = 'evidencia'
     url_prefix = 'evidencia'
-    filters = {'activity': 'activity_id'}  # /evidencias/?activity=<id> desde el listado de actividades
+    # ?activity=<id> desde el listado de actividades; ?period=<id> desde el dashboard.
+    filters = {'activity': 'activity_id', 'period': 'activity__period_id'}
     # /evidencias/?status=pending (cola del verificador) o ?status=rejected (por corregir), desde el dashboard.
     choice_filters = {'status': ('status', {clave for clave, _ in Evidence.STATUS_CHOICES})}
     columns = [

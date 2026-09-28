@@ -139,7 +139,23 @@ python manage.py migrate
 python manage.py seed_data
 ```
 
-El comando `seed_data` (definido en `core/management/commands/seed_data.py`) ejecuta, en orden de dependencias, los seeders de `core → funcionarios → medicion → actividades → evidencias → agenda → colaboracion`, creando de forma **idempotente**: 2 delegaciones, 4 cargos, 5 tipos de actividad, 2 períodos (uno cerrado, uno abierto), parámetros, metas/ponderaciones/indicadores, 8 actividades (con evidencias y validaciones) repartidas entre ambas delegaciones, 4 compromisos de agenda (con seguimientos) y los usuarios/grupos de prueba. Al finalizar recalcula el estado de cada actividad según sus evidencias e imprime un resumen de conteos y las cuentas de prueba. Las contraseñas solo se muestran si se generaron al azar.
+El comando `seed_data` (definido en `core/management/commands/seed_data.py`) ejecuta, en orden de dependencias, los seeders de `core → funcionarios → medicion → actividades → evidencias → agenda → colaboracion`, creando de forma **idempotente**: 2 delegaciones, 4 cargos, 5 tipos de actividad, 2 períodos relativos a la fecha de la carga (ver abajo), parámetros, metas/ponderaciones/indicadores, 8 actividades (con evidencias y validaciones) repartidas entre ambas delegaciones, 4 compromisos de agenda (con seguimientos) y los usuarios/grupos de prueba. Al finalizar recalcula el estado de cada actividad según sus evidencias e imprime un resumen de conteos y las cuentas de prueba. Las contraseñas solo se muestran si se generaron al azar.
+
+#### Fechas relativas al día de la carga
+
+Para que la demo funcione el día que se presente, los datos se arman alrededor de la fecha en que se ejecuta `seed_data`:
+
+- **Período actual:** desde el primer día de hace 3 meses hasta el último día de dentro de 2 meses (por ejemplo, «jun–nov 2026 (actual)»). Hoy siempre queda dentro, así se pueden registrar actividades.
+- **Período cerrado:** los 6 meses anteriores (por ejemplo, «dic 2025–may 2026 (cerrado)»). Llega completamente revisado: no deja evidencias pendientes que nadie podría revisar.
+- **Actividades:** entre el inicio del período y hoy (nunca futuras). **Compromisos:** vencen entre 60 días atrás y 120 días adelante, así siempre hay vencidos y por vencer.
+- **Metas:** acordes al volumen generado, así el semáforo muestra verdes, ámbar y rojos.
+- Si ya existen períodos, `seed_data` los conserva (no crea otros que se solapen). Para volver a armar todo con la fecha de hoy:
+
+```bash
+python manage.py flush --noinput          # vacía la base (usuarios incluidos)
+python manage.py seed_data --volumen      # recrea demo y volumen con las fechas de hoy
+python manage.py revisar_archivos --borrar-huerfanos   # borra los archivos de la carga anterior
+```
 
 #### Datos de volumen (1.000+ registros)
 
@@ -147,17 +163,17 @@ El comando `seed_data` (definido en `core/management/commands/seed_data.py`) eje
 python manage.py seed_data --volumen
 ```
 
-Además de la demo, agrega de forma **reproducible** (semilla fija) e **idempotente**, sin duplicar si se vuelve a ejecutar, **más de 1.600 registros de negocio** repartidos **en partes iguales entre ambas delegaciones** y entre ambos períodos:
+Además de la demo, agrega de forma **reproducible** (semilla fija) e **idempotente**, sin duplicar si se vuelve a ejecutar, **más de 1.600 registros de negocio** repartidos **en partes iguales entre ambas delegaciones** (tres de cada cuatro actividades en el período actual):
 
 | Por delegación (aprox.) | Centro | Norte |
 | --- | --- | --- |
 | Actividades | 254 | 254 |
-| Evidencias (con archivo PNG/PDF real) | 181 (49) | 197 (44) |
-| Atenciones sociales | 94 | 94 |
+| Evidencias (con archivo PNG/PDF real) | 206 (54) | 210 (48) |
+| Atenciones sociales | 105 | 87 |
 | Compromisos | 64 | 65 |
 | Funcionarios | 10 | 10 |
 
-- Las cuentas de demostración tienen datos propios. `funcionario_centro` y `funcionario_norte` tienen unas 60 actividades cada uno, con evidencias y compromisos. Los admins tienen un bloque menor.
+- Las cuentas de demostración tienen datos propios. `funcionario_centro` y `funcionario_norte` tienen entre 50 y 60 actividades cada uno, con evidencias y compromisos. Los admins tienen un bloque menor.
 - Los funcionarios generados tienen cargos operativos (Atención Ciudadana y Social) y no tienen contraseña utilizable: son datos, no cuentas de acceso.
 - Las evidencias aprobadas o rechazadas incluyen su `Validation` hecha por el verificador.
 - Para regenerar desde cero solo el volumen (por ejemplo en AWS): `python manage.py seed_data --rehacer-volumen`.
@@ -195,6 +211,8 @@ Cada rol ve lo que le sirve (banderas `es_funcionario`, `es_verificador` y `es_g
 | Funcionario (grupo `Funcionarios`) | Solo sus datos | Su avance: actividades, actividades sin evidencia, evidencias rechazadas por corregir y compromisos por vencer; su cumplimiento y el **avance por tipo de actividad** que lo explica. |
 
 **Cumplimiento.** Las metas (`Goal`) son por cargo, período y tipo de actividad, con ponderador. Para cada tipo con meta se calcula `aprobadas del tipo / meta`, con el tope del período (`Period.max_cap`, 150 %) para que sobrecumplir un tipo no tape el incumplimiento de otro, y luego el promedio ponderado (`medicion.services.calcular_cumplimiento_ponderado`). Las actividades de tipos sin meta no cuentan. El cumplimiento de un grupo es el promedio del de sus funcionarios con meta. El semáforo compara con el % esperado a la fecha. Si el período no tiene metas, el dashboard lo dice en vez de mostrar 0 %.
+
+**Cada indicador coincide con su lista.** Los indicadores con enlace abren la lista con los mismos filtros que su conteo (período, «solo los míos», estado, sin evidencia, vencidos o por vencer), y la lista dice qué filtro aplica, por ejemplo «Filtrado: período jun–nov 2026 (actual) · rechazada · solo las mías (3)». Los filtros también sirven escritos a mano: `?period=`, `?status=`, `?mias=1`, `?sin_evidencia=1` (Actividades), `?vencidos=1` y `?por_vencer=1` (Compromisos).
 
 **Qué depende del período.** Actividades, evidencias y cumplimiento son del período elegido. Los compromisos se muestran **a hoy** (vencidos y por vencer en los próximos 7 días), porque no pertenecen a un período.
 
@@ -260,7 +278,7 @@ Hay cuatro CRUD completos (crear, listar, editar y eliminar lógicamente) constr
 - Aprobar o rechazar una evidencia pasa **siempre** por `registrar_revision()` (`evidencias/services.py`): formulario web del verificador, acción masiva, formulario de cambio y alta de `Validation` en el Admin. Esa función guarda el estado, asigna el revisor, crea la `Validation` y deja una traza en `AuditLog`. Una `Validation` ya registrada no se edita.
 - **Regla del estado de la actividad:** una actividad queda **aprobada** si tiene al menos una evidencia aprobada; **pendiente** si alguna evidencia espera revisión (por ejemplo, la corrección de una rechazada) o si no tiene evidencias; y **rechazada** solo si todas sus evidencias fueron rechazadas. Así una actividad rechazada se recupera cuando el funcionario sube una evidencia corregida y el verificador la aprueba. Se recalcula sola (señal `post_save` de `Evidence`) al revisar, agregar, eliminar o restaurar una evidencia, y por eso el dashboard avanza con cada aprobación.
 - **Período cerrado:** se declara una sola vez por modelo con `bloqueo_modificacion`. La actividad y todo lo que depende de ella (evidencias, gestiones y validaciones) quedan congelados en la web y en el Admin, también para el superusuario. Las listas de los formularios no ofrecen actividades cerradas.
-- **Actividad aprobada:** el funcionario ya no la modifica (ni le agrega evidencias); un administrador sí. Se declara en el modelo con `bloqueo_funcionario` y la aplica la misma política única (`core/admin_utils.modificables`), en la web y en el Admin.
+- **Actividad aprobada:** el funcionario ya no la modifica, ni le agrega evidencias, ni edita sus gestiones sociales; un administrador sí. Se declara en el modelo con `bloqueo_funcionario` y la aplica la misma política única (`core/admin_utils.modificables`), en la web y en el Admin.
 - **Fecha de la actividad:** debe estar dentro de su período y no puede ser futura (se registran actividades ya realizadas).
 - **Revisión de evidencias:** rechazar exige indicar el motivo, para que el funcionario sepa qué corregir. El verificador solo cambia estado y resultado: no reasigna la evidencia a otra actividad ni reemplaza el archivo. El estado de validación de la actividad es de solo lectura también en el Admin, porque se deriva de las evidencias.
 - **Archivos en el Admin:** el formulario de Evidencias y la evidencia en línea dentro de una actividad validan tipo, tamaño y contenido igual que la web (antes el Admin aceptaba cualquier archivo). Una imagen que declara millones de píxeles se rechaza en vez de agotar la memoria.

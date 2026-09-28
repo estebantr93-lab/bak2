@@ -8,6 +8,7 @@
         <h1 class="h3 mb-1">{{ title }}</h1>
         <p class="text-muted small mb-0">
             Solo se muestran los registros de su alcance.
+            {% if filters_desc %}<br><strong>Filtrado:</strong> {{ filters_desc|join:" · " }} ({{ page_obj.paginator.count }}).{% endif %}
             {% if filters %}<a href="{{ list_url }}">Quitar filtro</a>{% endif %}
         </p>
     </div>

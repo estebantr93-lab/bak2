@@ -121,9 +121,9 @@ def modificables(queryset, user):
     return queryset
 
 
-def motivo_no_modificable(obj):
-    """Mensaje del bloqueo si aplica. Recorre la ruta del lookup sobre el objeto (sirve aunque no esté guardado)."""
-    bloqueo = getattr(type(obj), 'bloqueo_modificacion', None)
+def _cumple_bloqueo(obj, bloqueo):
+    """Mensaje del bloqueo si el objeto cumple alguno de sus lookups. Recorre rutas con '__' sobre el
+    objeto (p. ej. 'activity__period__is_closed'), así sirve aunque no esté guardado."""
     if not bloqueo:
         return None
     lookups, mensaje = bloqueo
@@ -138,17 +138,17 @@ def motivo_no_modificable(obj):
     return None
 
 
+def motivo_no_modificable(obj):
+    """Mensaje del bloqueo general (Model.bloqueo_modificacion), que vale para todos los roles."""
+    return _cumple_bloqueo(obj, getattr(type(obj), 'bloqueo_modificacion', None))
+
+
 def motivo_para_usuario(user, obj):
     """Por qué este usuario no puede modificar el objeto (bloqueo general o propio del funcionario)."""
     motivo = motivo_no_modificable(obj)
-    if motivo:
-        return motivo
-    bloqueo = getattr(type(obj), 'bloqueo_funcionario', None)
-    if bloqueo and get_rol(user) == ROL_FUNCIONARIO and all(
-        getattr(obj, campo, None) == valor for campo, valor in bloqueo[0].items()
-    ):
-        return bloqueo[1]
-    return None
+    if motivo is None and get_rol(user) == ROL_FUNCIONARIO:
+        motivo = _cumple_bloqueo(obj, getattr(type(obj), 'bloqueo_funcionario', None))
+    return motivo
 
 
 def puede_modificar(user, obj):

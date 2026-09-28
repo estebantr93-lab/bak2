@@ -15,8 +15,8 @@ from core.admin_utils import (
     get_rol,
     get_usuario_delegacion,
 )
-from actividades.models import Activity
-from agenda.models import Commitment
+from actividades.models import Activity, sin_evidencia
+from agenda.models import DIAS_POR_VENCER, Commitment, compromisos_por_vencer, compromisos_vencidos
 from core.models import Delegation, Period
 from evidencias.models import Evidence
 from funcionarios.models import Employee
@@ -29,8 +29,6 @@ from medicion.services import (
 
 # Orden en que se muestran los grupos de rol dentro de cada delegación.
 ORDEN_ROLES = [ROL_ADMIN_DELEGACION, ROL_FUNCIONARIO, ROL_VERIFICADOR, ROL_SUPERADMIN, None]
-# Compromisos "por vencer": los que vencen desde hoy hasta dentro de esta cantidad de días.
-DIAS_POR_VENCER = 7
 
 
 def periodo_por_defecto():
@@ -107,12 +105,10 @@ def _anotar_resumen(funcionarios, periodo, hoy):
 
 def _compromisos(qs, hoy):
     """Compromisos abiertos, vencidos y por vencer de un QuerySet (a hoy, sin importar el período)."""
-    abiertos = qs.exclude(status='done')
     return {
-        'comp_abiertos': abiertos.count(),
-        'comp_vencidos': abiertos.filter(due_date__lt=hoy).count(),
-        'comp_por_vencer': abiertos.filter(
-            due_date__gte=hoy, due_date__lte=hoy + datetime.timedelta(days=DIAS_POR_VENCER)).count(),
+        'comp_abiertos': qs.exclude(status='done').count(),
+        'comp_vencidos': compromisos_vencidos(qs, hoy).count(),
+        'comp_por_vencer': compromisos_por_vencer(qs, hoy).count(),
     }
 
 
@@ -138,8 +134,7 @@ def _aprobadas_por_tipo(actividades):
 
 def _sin_evidencia(actividades):
     """{employee_id: actividades sin ninguna evidencia activa}."""
-    filas = (actividades.annotate(n_evi=Count('evidence_items', filter=Q(evidence_items__deleted_at__isnull=True)))
-             .filter(n_evi=0).values('employee_id').annotate(n=Count('pk')))
+    filas = sin_evidencia(actividades).values('employee_id').annotate(n=Count('pk'))
     return {fila['employee_id']: fila['n'] for fila in filas}
 
 
@@ -183,6 +178,7 @@ def _totales(filas):
     totales['employees'] = len(filas)
     con_meta = [fila['compliance_pct'] for fila in filas if fila['con_meta']]
     totales['con_meta'] = len(con_meta)
+    totales['bajo_meta'] = sum(1 for fila in filas if fila['traffic_light'] == 'red')
     promedio = sum(con_meta) / len(con_meta) if con_meta else Decimal('0')
     totales['compliance_pct'] = Decimal(promedio).quantize(Decimal('0.1'))
     totales['evi_total'] = totales['evi_pendientes'] + totales['evi_aprobadas'] + totales['evi_rechazadas']
