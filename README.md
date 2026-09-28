@@ -194,9 +194,11 @@ Diseño (paleta institucional roja/vinotinto/terracota de `static/css/style.css`
 - **Estado de actividades**: dona SVG con barras de aprobadas / pendientes / rechazadas (cada color va con su etiqueta y cantidad).
 - **Cumplimiento del período**: % real frente al % esperado a la fecha.
 - **Panel derecho**: anillo de cumplimiento con saludo, actividades por mes (el mes actual destacado, detalle al pasar el cursor) y funcionarios destacados.
-- La **tabla por funcionario** sigue siendo la vista completa y accesible de los datos.
+- El **resumen por funcionario** muestra cerrado solo los roles y la cantidad de funcionarios; el botón **Ver detalle** despliega la tabla completa (Bootstrap collapse).
 
-Todo se calcula en `dashboard/services.py` (sin JavaScript ni librerías de gráficos). Los números que van en CSS/SVG usan `|unlocalize`, porque en `es-cl` los decimales llevan coma.
+Todo se calcula en `dashboard/services.py` (sin librerías de gráficos). Los números que van en CSS/SVG usan `|unlocalize`, porque en `es-cl` los decimales llevan coma.
+
+**Menú y tema.** La navegación, el selector de tema y **Cerrar sesión** están en el menú hamburguesa de la barra superior (en todos los tamaños de pantalla), con texto oscuro sobre fondo claro para mejor contraste. El tema puede ser **Claro**, **Oscuro** o **Por defecto** (sigue al sistema operativo); usa los modos de color de Bootstrap 5.3 (`data-bs-theme`) y la preferencia se guarda en el navegador (`static/js/tema.js`). Los colores de estado del dashboard tienen una versión propia para el modo oscuro, validada para daltonismo.
 
 | Rol | Qué ve en el dashboard |
 | --- | --- |
