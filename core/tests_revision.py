@@ -216,3 +216,57 @@ class PoliticaUnicaEnElAdminTests(SesionTestMixin, TestCase):
         })
         numeros = {item['text'] for item in response.json()['results']}
         self.assertNotIn('ADM-AJENA', numeros)
+
+
+class AlcanceDeLlavesForaneasEnElAdminTests(SesionTestMixin, TestCase):
+    """Ningún campo relacionado de ningún Admin acotado ofrece datos de otra delegación."""
+
+    @classmethod
+    def setUpTestData(cls):
+        sembrar_datos_demo()
+
+    def test_ningun_campo_relacionado_ofrece_datos_de_otra_delegacion(self):
+        from django.contrib import admin
+        from django.contrib.auth.models import User
+        from django.db import models
+        from django.test import RequestFactory
+
+        from core.admin_utils import ScopedModelAdmin
+
+        for username, ajena in [('admin_centro', 'Delegación Norte'), ('admin_norte', 'Delegación Centro'),
+                                ('funcionario_centro', 'Delegación Norte')]:
+            request = RequestFactory().get('/')
+            request.user = User.objects.get(username=username)
+            for modelo, model_admin in admin.site._registry.items():
+                if not isinstance(model_admin, ScopedModelAdmin):
+                    continue
+                for campo in modelo._meta.fields:
+                    if not isinstance(campo, models.ForeignKey):
+                        continue
+                    opciones = model_admin.formfield_for_foreignkey(campo, request).queryset
+                    relacionado = admin.site._registry.get(campo.related_model)
+                    if isinstance(relacionado, ScopedModelAdmin):
+                        ruta = 'name' if relacionado.scope_by == 'pk' else f'{relacionado.scope_by}__name'
+                        fuera = opciones.filter(**{ruta: ajena})
+                    elif campo.related_model is User:
+                        fuera = opciones.exclude(employee__delegation=request.user.employee.delegation)
+                    else:
+                        continue
+                    self.assertFalse(fuera.exists(), f'{username}: {modelo.__name__}.{campo.name}')
+
+    def test_admin_centro_no_valida_evidencias_de_norte_y_el_revisor_es_el_propio_usuario(self):
+        from evidencias.models import Validation
+
+        self.ingresar('admin_centro')
+        norte = Evidence.objects.filter(activity__delegation__name='Delegación Norte').first()
+        centro = Evidence.objects.filter(activity__delegation__name='Delegación Centro').first()
+        response = self.client.post('/admin/evidencias/validation/add/', {
+            'evidence': norte.pk, 'status': 'approved', 'comment': 'intento',
+        })
+        self.assertEqual(response.status_code, 200)  # formulario con error: la opción no es válida
+        self.assertFalse(Validation.objects.filter(evidence=norte, comment='intento').exists())
+        response = self.client.post('/admin/evidencias/validation/add/', {
+            'evidence': centro.pk, 'status': 'approved', 'comment': 'ok centro',
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Validation.objects.get(comment='ok centro').reviewer.username, 'admin_centro')

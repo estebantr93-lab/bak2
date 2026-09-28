@@ -67,8 +67,8 @@ class SocialCase(SoftDeleteModel):
     )
     description = models.TextField('descripción')
 
-
     owner_field = 'activity__employee'
+
     class Meta:
         db_table = 'social_case'
         ordering = ['activity', 'step_number']

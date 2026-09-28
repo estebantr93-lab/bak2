@@ -11,8 +11,10 @@ class Employee(models.Model):
     name = models.CharField('nombre', max_length=150)
     is_active = models.BooleanField('activo', default=True)
 
+    # '' = el dueño es el propio registro (un funcionario solo puede elegirse a sí mismo).
+    # Distinto de None, que significa «sin dueño» (datos maestros, sin regla de propiedad).
+    owner_field = ''
 
-    owner_field = ''  # el propio registro: un funcionario solo puede elegirse a sí mismo
     class Meta:
         db_table = 'employee'
         ordering = ['name']
