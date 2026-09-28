@@ -1,5 +1,6 @@
 # /etc/systemd/system/gunicorn-sgr.service
 # Ejecuta la aplicación Django con gunicorn; nginx le envía las peticiones por un socket Unix.
+# setup_ec2.sh ajusta User y Group: ec2-user/nginx en Amazon Linux, ubuntu/www-data en Ubuntu.
 [Unit]
 Description=SGR (Django) con gunicorn
 After=network.target

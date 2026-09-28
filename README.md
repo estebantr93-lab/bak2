@@ -31,7 +31,7 @@ Esta entrega corresponde a la **Evaluación Formativa – Unidad II (Programaci�
 - **Git** instalado.
 - **Python 3.12+** instalado (Django 6.1 no funciona con versiones anteriores).
 - **MySQL 8.4+ o MariaDB 10.11+** en ejecución (local, en Docker o Amazon RDS).
-- Para compilar `mysqlclient` en Linux: `sudo apt install pkg-config libmariadb-dev` (Debian/Ubuntu) o `sudo dnf install pkgconf mariadb-connector-c-devel gcc python3-devel` (Amazon Linux). En Windows y macOS `pip` descarga una rueda precompilada.
+- Para compilar `mysqlclient` en Linux: `sudo apt install pkg-config libmariadb-dev` (Debian/Ubuntu) o `sudo dnf install python3.12 python3.12-devel gcc pkgconf mariadb1011-devel` (Amazon Linux 2023; si `mariadb1011-devel` no existe en su versión, use `mariadb-connector-c-devel`). En Amazon Linux 2023 `python3` es la 3.9: cree el entorno con `python3.12 -m venv .venv`. En Windows y macOS `pip` descarga una rueda precompilada.
 - Se documentan comandos para **Linux/macOS (bash/zsh)**; para Windows se usan los equivalentes de `venv`/`activate`.
 
 ## Arquitectura modular (apps Django)
@@ -304,17 +304,17 @@ Hay cuatro CRUD completos (crear, listar, editar y eliminar lógicamente) constr
 
 La carga (`enctype="multipart/form-data"`) valida el tamaño (máximo 2 MB), la extensión (JPG, PNG o PDF) y el **contenido real**: `Image.open().verify()` de Pillow para imágenes y la firma `%PDF-` para PDF. El nombre enviado se descarta y se guarda con un nombre UUID en `media/evidencias/AAAA/MM/`.
 Al reemplazar el archivo de una evidencia, el anterior se borra (`evidencias/signals.py`). Al eliminarla, el borrado es lógico y el archivo se conserva; solo `hard_delete()` lo borra del disco.
-SweetAlert2 (`static/js/confirmar.js`) pide confirmación antes de eliminar. Es solo una ayuda visual: Django sigue exigiendo POST, CSRF, login y permisos.
+SweetAlert2 (`static/js/confirmar.js`) pide confirmación antes de eliminar. La librería (v11.26.25, licencia MIT) se sirve desde `static/vendor/sweetalert2/`, así que la demo no depende de un CDN; si aun así no cargara, se usa la confirmación nativa del navegador y nunca se elimina sin preguntar. Es solo una ayuda visual: Django sigue exigiendo POST, CSRF, login y permisos.
 
 ## Despliegue en AWS Academy (EC2 + nginx + gunicorn)
 
 Arquitectura: **nginx** (puerto 80) sirve `/static/` y `/media/` y reenvía el resto a **gunicorn** por un socket Unix. **systemd** mantiene gunicorn en ejecución. La base de datos es **RDS** (MySQL 8.4 / MariaDB 10.11 o superior) o **MariaDB 10.11 en la misma EC2**. Los archivos están en `deploy/`.
 
-> ⚠️ Django 6.1 exige **Python 3.12+** y **MySQL 8.4+ / MariaDB 10.11+**. Ubuntu Server 24.04 trae Python 3.12 y MariaDB 10.11. Si el Learner Lab no ofrece esas versiones en RDS, use la opción `--db-local`.
+> ⚠️ Django 6.1 exige **Python 3.12+** y **MySQL 8.4+ / MariaDB 10.11+**. El script sirve para **Amazon Linux 2023** (instala `python3.12` y `mariadb1011-server`, porque su `python3` es la 3.9) y para **Ubuntu Server 24.04** (trae Python 3.12 y MariaDB 10.11). Detecta el sistema solo (`dnf` o `apt`) y usa el usuario de la instancia (`ec2-user` o `ubuntu`) y el grupo de nginx (`nginx` o `www-data`). Si el Learner Lab no ofrece esas versiones en RDS, use la opción `--db-local`.
 
-1. **Learner Lab → AWS Console → EC2 → Launch instance:** Ubuntu Server 24.04 LTS, `t3.small` (o `t2.small`) y el key pair `vockey`.
+1. **Learner Lab → AWS Console → EC2 → Launch instance:** **Amazon Linux 2023** (o Ubuntu Server 24.04 LTS), `t3.small` (o `t2.small`) y el key pair `vockey`.
    *Security group:* entrada **22** (solo su IP) y **80** (0.0.0.0/0). Si usa RDS, el security group de RDS debe permitir **3306 solo desde el security group de la EC2**.
-2. Conectarse (`ssh -i labsuser.pem ubuntu@<IP-publica>`) y ejecutar:
+2. Conectarse (`ssh -i labsuser.pem ec2-user@<IP-publica>` en Amazon Linux, `ubuntu@<IP-publica>` en Ubuntu) y ejecutar:
    ```bash
    curl -O https://raw.githubusercontent.com/<usuario>/<repo>/<rama>/deploy/setup_ec2.sh
    bash setup_ec2.sh https://github.com/<usuario>/<repo>.git <rama> --db-local   # o sin --db-local para RDS
@@ -328,6 +328,15 @@ Arquitectura: **nginx** (puerto 80) sirve `/static/` y `/media/` y reenvía el r
 ```bash
 cd /srv/sgr && git pull && .venv/bin/pip install -r requirements.txt
 .venv/bin/python manage.py migrate && .venv/bin/python manage.py collectstatic --noinput
+sudo systemctl restart gunicorn-sgr
+```
+
+**Antes de la revisión, volver a cargar los datos con la fecha del día** (una base cargada antes conserva sus períodos y metas, ver «Fechas relativas al día de la carga»):
+```bash
+cd /srv/sgr
+.venv/bin/python manage.py flush --noinput
+.venv/bin/python manage.py seed_data --volumen
+.venv/bin/python manage.py revisar_archivos --borrar-huerfanos
 sudo systemctl restart gunicorn-sgr
 ```
 
@@ -421,7 +430,7 @@ Las pruebas de cada regla están en `core/tests_reglas_negocio.py` (`ReglasDeLaG
 | Revisión de evidencias y estado de la actividad | `evidencias/services.py` (`registrar_revision`, `estado_segun_evidencias`), `evidencias/signals.py` |
 | CRUD, modal, paginación en sesión | `core/crud.py`, `*/views.py`, `*/forms.py`, `templates/crud/list.html` |
 | Archivos e imágenes | `evidencias/forms.py` (`clean_file`), `evidencias/models.py` (`ruta_evidencia`), `evidencias/signals.py` |
-| SweetAlert2 | `static/js/confirmar.js`, `templates/base.html` |
+| SweetAlert2 | `static/js/confirmar.js`, `static/vendor/sweetalert2/`, `templates/base.html` |
 | Excel | `reportes/services.py` (`respuesta_xlsx`), `core/crud.py` (`CrudExportView`) |
 | Datos de volumen | `core/volume_data.py`, `core/management/commands/seed_data.py` |
 | Dashboard por rol | `dashboard/views.py`, `dashboard/services.py` |

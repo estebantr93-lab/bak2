@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Instalación del SGR en una instancia EC2 de AWS Academy con Ubuntu Server 24.04 LTS.
-# Uso (en la instancia, como usuario ubuntu):
+# Instalación del SGR en una instancia EC2 de AWS Academy.
+# Sistemas: Amazon Linux 2023 (usuario ec2-user) o Ubuntu Server 24.04 LTS (usuario ubuntu).
+# Uso (en la instancia, con el usuario por defecto):
 #   curl -O <url-cruda-de-este-archivo>   (o copiarlo con scp)
 #   DEMO_PASSWORD='<clave-nueva>' bash setup_ec2.sh <url-del-repositorio> <rama> [--db-local]
 #
@@ -16,18 +17,37 @@ REPO_URL="${1:?Indique la URL del repositorio}"
 RAMA="${2:-main}"
 DB_LOCAL="${3:-}"
 APP_DIR=/srv/sgr
+APP_USER="$(id -un)"
 
 echo "==> Paquetes del sistema"
-sudo apt-get update -y
-sudo apt-get install -y python3 python3-venv python3-dev build-essential pkg-config \
-    libmariadb-dev nginx git
-if [[ "$DB_LOCAL" == "--db-local" ]]; then
-    sudo apt-get install -y mariadb-server
+if command -v dnf >/dev/null; then
+    # Amazon Linux 2023: python3 es 3.9, Django 6.1 necesita 3.12. nginx corre con el grupo nginx.
+    PYTHON=python3.12
+    WEB_GROUP=nginx
+    sudo dnf install -y python3.12 python3.12-devel gcc pkgconf git nginx
+    # Cabeceras para compilar mysqlclient (el nombre del paquete cambia según la versión de AL2023).
+    sudo dnf install -y mariadb1011-devel || sudo dnf install -y mariadb-connector-c-devel
+    if [[ "$DB_LOCAL" == "--db-local" ]]; then
+        sudo dnf install -y mariadb1011-server
+        sudo systemctl enable --now mariadb
+    fi
+else
+    # Ubuntu 24.04: python3 ya es 3.12. nginx corre con el grupo www-data.
+    PYTHON=python3
+    WEB_GROUP=www-data
+    sudo apt-get update -y
+    sudo apt-get install -y python3 python3-venv python3-dev build-essential pkg-config \
+        libmariadb-dev nginx git
+    if [[ "$DB_LOCAL" == "--db-local" ]]; then
+        sudo apt-get install -y mariadb-server
+        sudo systemctl enable --now mariadb
+    fi
 fi
+"$PYTHON" -c 'import sys; assert sys.version_info >= (3, 12), "Se necesita Python 3.12 o superior"'
 
 echo "==> Código en $APP_DIR (rama $RAMA)"
 sudo mkdir -p "$APP_DIR"
-sudo chown ubuntu:www-data "$APP_DIR"
+sudo chown "$APP_USER:$WEB_GROUP" "$APP_DIR"
 if [[ -d "$APP_DIR/.git" ]]; then
     git -C "$APP_DIR" fetch origin "$RAMA" && git -C "$APP_DIR" checkout "$RAMA" && git -C "$APP_DIR" pull origin "$RAMA"
 else
@@ -36,7 +56,7 @@ fi
 cd "$APP_DIR"
 
 echo "==> Entorno virtual y dependencias"
-python3 -m venv .venv
+"$PYTHON" -m venv .venv
 .venv/bin/pip install --upgrade pip
 .venv/bin/pip install -r requirements.txt
 
@@ -72,16 +92,26 @@ echo "==> Migraciones, archivos estáticos y datos"
 .venv/bin/python manage.py migrate --noinput
 .venv/bin/python manage.py collectstatic --noinput
 .venv/bin/python manage.py seed_data --volumen
-mkdir -p media && sudo chown -R ubuntu:www-data media && chmod 775 media
+mkdir -p media && sudo chown -R "$APP_USER:$WEB_GROUP" media && chmod 775 media
 
 echo "==> gunicorn (systemd) y nginx"
-sudo cp deploy/gunicorn-sgr.service /etc/systemd/system/gunicorn-sgr.service
+# El servicio se escribe con el usuario de la instancia y el grupo de nginx (así nginx puede usar el socket).
+sed -e "s/^User=.*/User=$APP_USER/" -e "s/^Group=.*/Group=$WEB_GROUP/" deploy/gunicorn-sgr.service \
+    | sudo tee /etc/systemd/system/gunicorn-sgr.service >/dev/null
 sudo systemctl daemon-reload
 sudo systemctl enable --now gunicorn-sgr
 sudo systemctl restart gunicorn-sgr
-sudo cp deploy/nginx-sgr.conf /etc/nginx/sites-available/sgr
-sudo ln -sf /etc/nginx/sites-available/sgr /etc/nginx/sites-enabled/sgr
-sudo rm -f /etc/nginx/sites-enabled/default
+# nginx.conf trae su propio sitio de ejemplo en el puerto 80: se le quita default_server para que
+# el del SGR atienda las peticiones por IP.
+sudo sed -i 's/\(listen[^;]*\) default_server/\1/' /etc/nginx/nginx.conf
+if [[ -d /etc/nginx/sites-available ]]; then
+    sudo cp deploy/nginx-sgr.conf /etc/nginx/sites-available/sgr
+    sudo ln -sf /etc/nginx/sites-available/sgr /etc/nginx/sites-enabled/sgr
+    sudo rm -f /etc/nginx/sites-enabled/default
+else
+    sudo cp deploy/nginx-sgr.conf /etc/nginx/conf.d/sgr.conf
+fi
+sudo systemctl enable nginx
 sudo nginx -t
 sudo systemctl restart nginx
 

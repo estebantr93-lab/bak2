@@ -236,7 +236,7 @@ with override_settings(MEDIA_ROOT=media, MAILERS=correo_locmem, ALLOWED_HOSTS=['
        Evidence.objects.filter(activity=nueva_act, description='Hija').exists())
     ok('Eliminar: solo por POST', c.get(reverse('actividad_delete', args=[nueva_act.pk])).status_code == 405)
     lista = c.get(reverse('actividad_list')).content.decode()
-    ok('SweetAlert2: el listado carga la confirmación de borrado', 'sweetalert2' in lista and 'confirmar.js' in lista)
+    ok('SweetAlert2: el listado carga la confirmación de borrado', 'vendor/sweetalert2/sweetalert2.all.min.js' in lista and 'confirmar.js' in lista)
 
     # ---------------- 6. Revisión de evidencias y estado de la actividad ----------------
     Activity.objects.filter(pk=nueva_act.pk).update(validation_status='pending')
