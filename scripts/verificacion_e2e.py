@@ -222,6 +222,14 @@ with override_settings(MEDIA_ROOT=media, MAILERS=correo_locmem, ALLOWED_HOSTS=['
        nueva_act.deleted_at and not Evidence.objects.filter(activity=nueva_act).exists())
     ok('Borrado lógico: no aparece en el listado', not c.get(reverse('actividad_list'), {'page_size': 30}).context[
         'page_obj'].paginator.object_list.filter(pk=nueva_act.pk).exists())
+    ok('Borrado lógico: admin_centro ya no ve la actividad eliminada en el Admin',
+       c.get(f'/admin/actividades/activity/{nueva_act.pk}/change/').status_code == 302 if nueva_act.deleted_at else True)
+    sa = cliente('admin_sgr')
+    ok('Regla de negocio: el superadmin ve lo que eliminó un admin de delegación (solo lectura)',
+       nueva_act.deleted_at and sa.get(f'/admin/actividades/activity/{nueva_act.pk}/change/').status_code == 200
+       and nueva_act in list(sa.get('/admin/actividades/activity/', {'registro': 'eliminados'}).context['cl'].result_list))
+    ok('Regla de negocio: queda registrado quién eliminó',
+       AuditLog.objects.filter(action='eliminar', entity_type='Activity', entity_id=nueva_act.pk, user__username='admin_centro').exists())
     nueva_act.restore()
     ok('Borrado lógico: restaurar recupera la actividad y las evidencias que cayeron con ella',
        Evidence.objects.filter(activity=nueva_act, description='Hija').exists())

@@ -28,12 +28,17 @@ class AuditoriaRubricaTests(SesionTestMixin, TestCase):
         for url in ['/accounts/password_reset/', '/accounts/password_reset/done/', '/accounts/reset/abc/def-123/']:
             self.assertRedirects(self.client.get(url), reverse('recuperar_solicitar'), msg_prefix=url)
 
-    def test_validaciones_de_evidencias_eliminadas_no_se_listan(self):
-        self.ingresar('admin_sgr')
-        validacion = Validation.objects.first()
+    def test_validaciones_de_evidencias_eliminadas_solo_las_ve_el_superadmin(self):
+        validacion = Validation.objects.filter(evidence__activity__delegation__name='Delegación Centro').first()
         Evidence.objects.get(pk=validacion.evidence_id).delete()
-        response = self.client.get('/admin/evidencias/validation/')
-        self.assertNotIn(validacion, list(response.context['cl'].queryset))
+        # Regla de negocio: el administrador general sigue viendo lo eliminado (marcado) y lo puede filtrar.
+        self.ingresar('admin_sgr')
+        self.assertIn(validacion, list(self.client.get('/admin/evidencias/validation/').context['cl'].queryset))
+        activos = self.client.get('/admin/evidencias/validation/', {'registro': 'activos'})
+        self.assertNotIn(validacion, list(activos.context['cl'].queryset))
+        # Un administrador de delegación ya no la ve.
+        self.ingresar('admin_centro')
+        self.assertNotIn(validacion, list(self.client.get('/admin/evidencias/validation/').context['cl'].queryset))
 
     def test_funcionario_no_se_borra_fisicamente_desde_el_admin(self):
         self.ingresar('admin_sgr')

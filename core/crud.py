@@ -24,7 +24,7 @@ from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
 from reportes.services import as_text, respuesta_xlsx, valor_excel
 
-from .admin_utils import filtrar_por_delegacion, modificables, motivo_no_modificable, motivo_para_usuario, puede_modificar
+from .admin_utils import filtrar_por_delegacion, registrar_en_auditoria, modificables, motivo_no_modificable, motivo_para_usuario, puede_modificar
 
 PAGE_SIZES = [5, 15, 30]
 PAGE_SIZE_DEFAULT = 15
@@ -306,6 +306,7 @@ class CrudDeleteView(ScopedCrudMixin, CrudConfig, DeleteView):
     def form_valid(self, form):
         nombre = str(self.object)
         respuesta = super().form_valid(form)  # llama a object.delete(): borrado lógico (SoftDeleteModel)
+        registrar_en_auditoria(self.request.user, 'eliminar', self.object)  # el superadmin ve quién lo eliminó
         messages.success(self.request, f'{self.singular.capitalize()} «{nombre}» eliminad{self.fin}.')
         return respuesta
 
