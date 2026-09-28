@@ -1,3 +1,5 @@
+import uuid
+
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
@@ -39,7 +41,8 @@ class Activity(SoftDeleteModel):
     contact = models.CharField('contacto', max_length=150, blank=True)
     phone = models.CharField('teléfono', max_length=30, blank=True)
     is_agenda_item = models.BooleanField('indicador de agenda', default=False)
-    evidence_code = models.CharField('código de evidencia', max_length=40, unique=True)
+    # RN-010 / RF-011: lo genera el sistema al registrar la actividad y no cambia nunca (ver save() y clean()).
+    evidence_code = models.CharField('código de evidencia', max_length=40, unique=True, blank=True)
     validation_status = models.CharField('estado de validación', max_length=20, choices=STATUS_CHOICES, default='pending')
 
     soft_delete_cascade = ('evidence_items', 'social_cases')
@@ -59,9 +62,20 @@ class Activity(SoftDeleteModel):
     def __str__(self):
         return self.number
 
+    @staticmethod
+    def generar_codigo_evidencia():
+        return f'EV-{timezone.now():%Y%m}-{uuid.uuid4().hex[:8].upper()}'
+
+    def save(self, *args, **kwargs):
+        if not self.evidence_code:
+            self.evidence_code = self.generar_codigo_evidencia()
+        super().save(*args, **kwargs)
+
     def clean(self):
-        # evidence_code es obligatorio por el propio campo (blank=False); no se repite aquí.
         if self.pk:
+            codigo = Activity.all_objects.filter(pk=self.pk).values_list('evidence_code', flat=True).first()
+            if codigo and self.evidence_code != codigo:
+                raise ValidationError({'evidence_code': 'El código de evidencia es inmutable: no se puede cambiar.'})
             original = Activity.all_objects.filter(pk=self.pk).values('period_id', 'period__is_closed').first()
             if original and original['period__is_closed'] and original['period_id'] != self.period_id:
                 raise ValidationError({'period': 'La actividad pertenece a un período cerrado: no se puede cambiar de período.'})
@@ -86,6 +100,9 @@ class SocialCase(SoftDeleteModel):
         'número de gestión', validators=[MinValueValidator(1), MaxValueValidator(3)],
     )
     description = models.TextField('descripción')
+    # RN-012: cada gestión conserva su fecha y su resultado.
+    date = models.DateField('fecha de la gestión', default=timezone.localdate)
+    result = models.CharField('resultado', max_length=200, blank=True)
 
     owner_field = 'activity__employee'
     bloqueo_modificacion = ({'activity__period__is_closed': True}, 'La actividad es de un período cerrado: no se puede modificar.')
@@ -109,6 +126,10 @@ class SocialCase(SoftDeleteModel):
         if self.activity_id and self.activity.activity_type.category != 'social':
             raise ValidationError({'activity': 'Solo las actividades de tipo "Atención social" admiten gestiones.'})
         if self.activity_id:
+            if self.date and self.activity.date and self.date < self.activity.date:
+                raise ValidationError({'date': 'La gestión no puede ser anterior a la actividad.'})
+            if self.date and self.date > timezone.localdate():
+                raise ValidationError({'date': 'La fecha de la gestión no puede ser futura.'})
             existentes = SocialCase.objects.filter(activity=self.activity).exclude(pk=self.pk).count()
             if existentes >= 3:
                 raise ValidationError('Una actividad no puede tener más de 3 gestiones de atención social.')

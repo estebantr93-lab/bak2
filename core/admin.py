@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .admin_utils import ScopedModelAdmin
+from .admin_utils import AuditarCambiosAdmin, ScopedModelAdmin
 
 from .models import Position, Delegation, Parameter, Period, ActivityType
 
@@ -19,7 +19,7 @@ class DelegacionAdmin(ScopedModelAdmin, admin.ModelAdmin):
 
 
 @admin.register(Position)
-class CargoAdmin(admin.ModelAdmin):
+class CargoAdmin(AuditarCambiosAdmin, admin.ModelAdmin):
     list_display = ('name', 'area')
     search_fields = ('name', 'area')
     list_filter = ('area',)
@@ -27,7 +27,7 @@ class CargoAdmin(admin.ModelAdmin):
 
 
 @admin.register(ActivityType)
-class TipoActividadAdmin(admin.ModelAdmin):
+class TipoActividadAdmin(AuditarCambiosAdmin, admin.ModelAdmin):
     list_display = ('code', 'name', 'category', 'is_active')
     search_fields = ('code', 'name')
     list_filter = ('category', 'is_active')
@@ -35,7 +35,7 @@ class TipoActividadAdmin(admin.ModelAdmin):
 
 
 @admin.register(Period)
-class PeriodoAdmin(admin.ModelAdmin):
+class PeriodoAdmin(AuditarCambiosAdmin, admin.ModelAdmin):
     list_display = ('name', 'start_date', 'end_date', 'is_closed', 'min_threshold', 'max_cap')
     search_fields = ('name',)
     list_filter = ('is_closed',)
@@ -43,7 +43,7 @@ class PeriodoAdmin(admin.ModelAdmin):
 
 
 @admin.register(Parameter)
-class ParametroAdmin(admin.ModelAdmin):
+class ParametroAdmin(AuditarCambiosAdmin, admin.ModelAdmin):
     list_display = ('key', 'value', 'is_active')
     search_fields = ('key', 'value')
     list_filter = ('is_active',)

@@ -25,3 +25,12 @@ def tope(valor, maximo=100):
         return min(float(valor), float(maximo))
     except (TypeError, ValueError):
         return 0
+
+
+@register.filter
+def sub(valor, restar):
+    """Resta simple para textos del dashboard (p. ej. puntos que faltan para un umbral)."""
+    try:
+        return valor - restar
+    except TypeError:
+        return ''

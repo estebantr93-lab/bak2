@@ -200,6 +200,31 @@ class EstadoRegistroFilter(admin.SimpleListFilter):
         return queryset
 
 
+class AuditarCambiosAdmin:
+    """Traza de los cambios de configuración hechos en el Admin (RF-036): quién creó, modificó o
+    eliminó un período, una meta, un parámetro o un catálogo, y qué campos cambió. Cerrar o reabrir
+    un período queda con su propia acción (RN-013: la reapertura debe quedar auditada)."""
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        campos = [campo for campo in form.changed_data]
+        if change and 'is_closed' in campos:
+            accion = 'cerrar_periodo' if obj.is_closed else 'reabrir_periodo'
+        else:
+            accion = 'modificar_configuracion' if change else 'crear_configuracion'
+        detalle = f'{obj}' + (f' · campos: {", ".join(campos)}' if campos else '')
+        registrar_en_auditoria(request.user, accion, obj, detalle)
+
+    def delete_model(self, request, obj):
+        registrar_en_auditoria(request.user, 'eliminar_configuracion', obj)
+        super().delete_model(request, obj)
+
+    def delete_queryset(self, request, queryset):
+        for obj in queryset:
+            registrar_en_auditoria(request.user, 'eliminar_configuracion', obj)
+        super().delete_queryset(request, queryset)
+
+
 class ScopedModelAdmin:
     scope_by = 'delegation'
 

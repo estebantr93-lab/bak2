@@ -169,8 +169,11 @@ class CrudConfig:
             celdas = []
             for col in self.columns:
                 valor = col.resolve(obj)
+                texto = as_text(valor)
                 celdas.append({
-                    'text': as_text(valor), 'raw': valor, 'kind': col.kind,
+                    'header': col.header, 'text': texto, 'raw': valor, 'kind': col.kind,
+                    # Códigos, fechas y cifras (cortos y sin espacios) no se parten en dos líneas.
+                    'nowrap': ' ' not in texto and len(texto) <= 16,
                     'badge': col.badge(obj) if col.badge else '',
                 })
             enlaces = [

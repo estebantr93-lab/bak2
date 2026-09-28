@@ -4,6 +4,7 @@ import io
 
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 from openpyxl import load_workbook
 
 from actividades.models import Activity, SocialCase
@@ -122,7 +123,7 @@ class RevisionCompaneroTests(SesionTestMixin, TestCase):
         actividad, paso = gestion.activity, gestion.step_number
         gestion.delete()
         response = self.client.post(reverse('atencion_create'), {
-            'activity': actividad.pk, 'step_number': paso, 'description': 'Nueva gestión',
+            'activity': actividad.pk, 'step_number': paso, 'description': 'Nueva gestión', 'date': timezone.localdate().isoformat(),
         })
         self.assertRedirects(response, reverse('atencion_list'))
         activa = SocialCase.objects.get(activity=actividad, step_number=paso)

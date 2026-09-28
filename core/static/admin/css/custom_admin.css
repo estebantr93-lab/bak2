@@ -499,6 +499,182 @@ fieldset.module,
     background: var(--sgr-superficie);
 }
 
+/* Filtros plegables (static/js/filtros_admin.js): la tabla usa todo el ancho y el panel se despliega encima. */
+#changelist.sgr-filtros-plegables .changelist-form-container {
+    position: relative;
+}
+
+/* :has(#changelist-filter) iguala la especificidad de la regla de Django que reserva 270px para el panel. */
+#changelist.sgr-filtros-plegables .changelist-form-container:has(#changelist-filter) > div {
+    max-width: 100%;
+}
+
+#changelist.sgr-filtros-plegables #changelist-filter {
+    display: none;
+    position: absolute;
+    top: 64px;
+    right: 16px;
+    z-index: 50;
+    width: 280px;
+    max-height: 70vh;
+    overflow-y: auto;
+    margin: 0;
+    box-shadow: 0 12px 32px rgba(40, 10, 5, .22);
+}
+
+#changelist.sgr-filtros-abiertos #changelist-filter {
+    display: block;
+}
+
+#changelist #toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+#changelist #toolbar form {
+    flex: 1 1 auto;
+}
+
+.sgr-filtros-boton {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    padding: 6px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: var(--sgr-superficie);
+    color: var(--body-fg);
+    font: inherit;
+    font-size: .875rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.sgr-filtros-boton:hover,
+#changelist.sgr-filtros-abiertos .sgr-filtros-boton {
+    border-color: var(--sgr-rojo);
+    color: var(--link-fg);
+}
+
+.sgr-filtros-boton svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+
+.sgr-filtros-cuenta {
+    display: inline-grid;
+    place-items: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--sgr-rojo);
+    color: #fff;
+    font-size: .75rem;
+}
+
+.sgr-toolbar-solo-filtros {
+    justify-content: flex-end;
+}
+
+/* Tabla: los textos largos se ajustan en varias líneas; códigos, fechas y cifras quedan en una sola.
+   Así caben todas las columnas sin desplazar la tabla hacia el lado. */
+#result_list td,
+#result_list th {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+#result_list thead th {
+    overflow-wrap: normal;  /* los encabezados se ajustan entre palabras, nunca a mitad de una */
+}
+
+#result_list .action-checkbox,
+#result_list .action-checkbox-column,
+#result_list .field-number,
+#result_list .field-unique_code,
+#result_list .field-code,
+#result_list .field-date,
+#result_list .field-due_date,
+#result_list .field-registered_at,
+#result_list .field-created_at,
+#result_list .field-expires_at,
+#result_list .field-generated_at,
+#result_list .field-start_date,
+#result_list .field-end_date,
+#result_list .field-progress,
+#result_list .field-target,
+#result_list .field-weight,
+#result_list .field-compliance_pct,
+#result_list .field-step_number {
+    white-space: nowrap;
+    overflow-wrap: normal;
+}
+
+/* Celular: cada fila es una tarjeta «etiqueta: valor» (las etiquetas las pone static/js/filtros_admin.js). */
+@media (max-width: 767px) {
+    #result_list thead {
+        display: none;
+    }
+
+    #result_list,
+    #result_list tbody,
+    #result_list tr,
+    #result_list td,
+    #result_list th {
+        display: block;
+        width: auto;
+    }
+
+    #result_list tr {
+        margin: 0 0 12px;
+        padding: 8px 4px;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        background: var(--sgr-superficie);
+    }
+
+    #result_list td,
+    #result_list tbody th {
+        display: flex;
+        gap: 10px;
+        padding: 4px 10px;
+        border: 0;
+        white-space: normal;
+    }
+
+    #result_list td[data-etiqueta]::before,
+    #result_list tbody th[data-etiqueta]::before {
+        content: attr(data-etiqueta);
+        flex: 0 0 38%;
+        color: var(--body-quiet-color);
+        font-size: .75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+
+    #changelist .results {
+        overflow-x: visible;
+    }
+
+    #changelist.sgr-filtros-plegables #changelist-filter {
+        position: fixed;
+        top: 70px;
+        right: 12px;
+        left: 12px;
+        width: auto;
+        max-height: 75vh;
+    }
+}
+
 /* Formularios */
 fieldset.module .form-row {
     padding: 12px 16px;

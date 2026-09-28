@@ -25,6 +25,7 @@ from evidencias.models import Evidence, Validation, ruta_evidencia
 from funcionarios.models import Employee
 
 PREFIJO = 'VOL-'
+RESULTADOS_GESTION = ['Derivado a programa municipal', 'Beneficio otorgado', 'En seguimiento', 'Sin respuesta del usuario']
 SEMILLA = 2026
 FUNCIONARIOS_POR_DELEGACION = 8
 # Parte de las actividades de cada delegación que se asigna a las cuentas de demostración.
@@ -200,8 +201,11 @@ def build_volumen(total_actividades=500, con_archivos=True):
     for a in actividades:
         if a.activity_type.category == 'social':
             for paso in range(1, rng.randint(1, 3) + 1):
-                gestiones.append(SocialCase(activity=a, step_number=paso,
-                                            description=f'Gestión {paso}: {rng.choice(ACCIONES).lower()}.'))
+                # RN-012: cada etapa con su fecha (después de la actividad, nunca futura) y su resultado.
+                fecha = min(a.date + datetime.timedelta(days=7 * (paso - 1)), timezone.localdate())
+                gestiones.append(SocialCase(activity=a, step_number=paso, date=fecha,
+                                            description=f'Gestión {paso}: {rng.choice(ACCIONES).lower()}.',
+                                            result=RESULTADOS_GESTION[(a.pk + paso) % len(RESULTADOS_GESTION)]))
     SocialCase.objects.bulk_create(gestiones, batch_size=500)
 
     # 5) Compromisos (mitad por delegación) y sus seguimientos.

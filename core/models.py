@@ -63,7 +63,8 @@ class Period(models.Model):
     end_date = models.DateField('fecha de término')
     is_closed = models.BooleanField('cerrado', default=False)
     min_threshold = models.DecimalField('umbral mínimo', max_digits=5, decimal_places=2, default=80.00)
-    max_cap = models.DecimalField('tope máximo', max_digits=5, decimal_places=2, default=150.00)
+    # RN-005: % máximo computable por ítem. 100 = nadie supera el 100 % (configurable por período).
+    max_cap = models.DecimalField('tope máximo', max_digits=5, decimal_places=2, default=100.00)
 
     class Meta:
         db_table = 'period'
