@@ -45,7 +45,9 @@
                             {% if cell.kind == 'badge' %}
                                 <span class="badge {{ cell.badge }}">{{ cell.text }}</span>
                             {% elif cell.kind == 'file' %}
-                                {% if cell.raw %}
+                                {% if cell.raw and not row.obj.archivo_disponible %}
+                                    <span class="badge text-bg-warning" title="El archivo ya no está en el servidor; vuelva a subirlo.">Archivo no disponible</span>
+                                {% elif cell.raw %}
                                     {% if row.obj.es_imagen %}
                                         <a href="{{ cell.raw.url }}" target="_blank" rel="noopener"><img src="{{ cell.raw.url }}" alt="Archivo de {{ row.obj }}" class="miniatura"></a>
                                     {% else %}

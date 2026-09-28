@@ -200,6 +200,17 @@ Todo se calcula en `dashboard/services.py` (sin librerías de gráficos). Los n�
 
 **Menú y tema.** La navegación, el selector de tema y **Cerrar sesión** están en el menú hamburguesa de la barra superior (en todos los tamaños de pantalla), con texto oscuro sobre fondo claro para mejor contraste. El tema puede ser **Claro**, **Oscuro** o **Por defecto** (sigue al sistema operativo); usa los modos de color de Bootstrap 5.3 (`data-bs-theme`) y la preferencia se guarda en el navegador (`static/js/tema.js`). Los colores de estado del dashboard tienen una versión propia para el modo oscuro, validada para daltonismo.
 
+**Admin integrado al sistema.** `/admin/` usa la misma barra roja, el mismo menú hamburguesa (enlaces de `templates/includes/menu_navegacion.html`, compartidos con la app), el mismo pie y la misma paleta en tarjetas (`templates/admin/base_site.html` y `core/static/admin/css/custom_admin.css`, sin librerías externas). El tema es uno solo: la app y el admin guardan la preferencia en la misma clave del navegador (`theme`), así que elegir «Oscuro» en uno se respeta en el otro. Los textos nuevos de Django 6.1 que aún no traía traducidos («- Select an option -», «Run», avisos de zona horaria, algunos errores de formulario) están traducidos en `locale/es/` (`LOCALE_PATHS`). Si se editan los `.po`, recompilar con `python manage.py compilemessages` (requiere `sudo apt install gettext`); los `.mo` ya compilados vienen en el repositorio.
+
+**Archivos de evidencias.** La carga de volumen genera imágenes PNG y PDF de una página válidos (`evidencias/archivos.py`). Para revisar la carpeta de archivos:
+
+```bash
+python manage.py revisar_archivos                              # informa faltantes, dañados y huérfanos
+python manage.py revisar_archivos --reparar --borrar-huerfanos # regenera los de ejemplo y borra los huérfanos
+```
+
+`--reparar` solo regenera archivos de ejemplo (código `EVI-VOL-…`); un archivo subido por un usuario nunca se reemplaza, se informa para volver a subirlo. En los listados, una evidencia cuyo archivo ya no está en el servidor muestra «Archivo no disponible» en vez de un enlace roto. Los huérfanos aparecen, por ejemplo, al recrear la base de datos sin vaciar `media/`.
+
 | Rol | Qué ve en el dashboard |
 | --- | --- |
 | Administrador general (superusuario) | Ambas delegaciones |
@@ -317,6 +328,7 @@ python manage.py check                      # configuración
 python manage.py makemigrations --check     # modelos y migraciones sincronizados
 python manage.py migrate                    # aplica migraciones
 python manage.py seed_data --volumen        # demo + 1.600 registros (idempotente)
+python manage.py revisar_archivos           # archivos de evidencias faltantes, dañados o huérfanos
 python manage.py test                       # pruebas automáticas
 python manage.py runserver                  # servidor de desarrollo
 ```

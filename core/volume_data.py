@@ -10,17 +10,16 @@
 - Usa bulk_create por rendimiento (evita miles de INSERT individuales).
 """
 import datetime
-import io
 import random
 
 from django.contrib.auth.models import Group, User
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
-from PIL import Image, ImageDraw
 
 from actividades.models import Activity, SocialCase
 from agenda.models import Commitment, CommitmentFollowUp
 from core.models import ActivityType, Delegation, Period, Position
+from evidencias.archivos import pdf_de_texto, png_de_texto
 from evidencias.models import Evidence, Validation, ruta_evidencia
 from funcionarios.models import Employee
 
@@ -65,17 +64,18 @@ def _fecha_en(rng, periodo):
 
 
 def _archivo_evidencia(rng, n, texto):
-    """Genera un PNG (con Pillow) o un PDF mínimo válido; ambos pasan las validaciones de la app."""
+    """Genera un PNG o un PDF de una página, ambos válidos (se abren en el navegador)."""
     if n % 3:
-        imagen = Image.new('RGB', (320, 200), rng.choice(COLORES))
-        dibujo = ImageDraw.Draw(imagen)
-        dibujo.rectangle((12, 12, 308, 188), outline=(255, 255, 255), width=3)
-        dibujo.text((24, 90), texto, fill=(255, 255, 255))
-        buffer = io.BytesIO()
-        imagen.save(buffer, format='PNG')
-        return 'respaldo.png', buffer.getvalue()
-    contenido = f'Acta de respaldo {texto}'.encode('latin-1', 'replace')
-    return 'acta.pdf', b'%PDF-1.4\n% SGR\n' + contenido + b'\n%%EOF\n'
+        return 'respaldo.png', png_de_texto(texto, rng.choice(COLORES))
+    return 'acta.pdf', pdf_de_acta(texto)
+
+
+def pdf_de_acta(numero_actividad):
+    return pdf_de_texto([
+        f'Acta de respaldo {numero_actividad}',
+        'Sistema de Gestion de Resultados - Municipalidad de La Serena',
+        'Documento de ejemplo generado por la carga de datos (datos ficticios).',
+    ])
 
 
 def build_volumen(total_actividades=500, con_archivos=True):

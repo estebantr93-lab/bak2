@@ -57,6 +57,11 @@ class Evidence(SoftDeleteModel):
     def es_imagen(self):
         return bool(self.file) and os.path.splitext(self.file.name)[1].lower() in EXTENSIONES_IMAGEN
 
+    @property
+    def archivo_disponible(self):
+        """False si la evidencia apunta a un archivo que ya no está en el servidor (enlace roto)."""
+        return bool(self.file) and self.file.storage.exists(self.file.name)
+
     @staticmethod
     def generar_codigo_unico():
         return f'EVI-{timezone.now():%Y%m}-{uuid.uuid4().hex[:8].upper()}'

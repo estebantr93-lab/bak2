@@ -6,11 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}SGR{% endblock %} · Sistema de Gestión de Resultados</title>
 
-    {# Aplica el tema antes de pintar para evitar el parpadeo (preferencia guardada en este navegador). #}
+    {# Aplica el tema antes de pintar para evitar el parpadeo. La preferencia se guarda en este navegador #}
+    {# con la misma clave ("theme") que usa el admin de Django, así ambos comparten el tema elegido. #}
     <script>
         (function () {
             var t = null;
-            try { t = localStorage.getItem('sgr-tema'); } catch (e) {}
+            try { t = localStorage.getItem('theme'); } catch (e) {}
             var oscuro = t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
             document.documentElement.setAttribute('data-bs-theme', oscuro ? 'dark' : 'light');
         })();
@@ -31,7 +32,6 @@
                 {% if user.is_authenticated %}
                     <span class="sgr-usuario d-none d-sm-inline">{{ user.get_username }}</span>
                 {% endif %}
-                {% with n=request.resolver_match.url_name|default:'' %}
                 <div class="dropdown">
                     <button class="sgr-menu-boton" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside"
                             aria-expanded="false" aria-label="Abrir menú">
@@ -40,22 +40,7 @@
                     <ul class="dropdown-menu dropdown-menu-end sgr-menu">
                         {% if user.is_authenticated %}
                             <li class="dropdown-header d-sm-none">{{ user.get_username }}</li>
-                            <li><a class="dropdown-item{% if n == 'dashboard' %} active{% endif %}" href="{% url 'dashboard' %}">Dashboard</a></li>
-                            {% if perms.actividades.view_activity %}
-                                <li><a class="dropdown-item{% if 'actividad' in n %} active{% endif %}" href="{% url 'actividad_list' %}">Actividades</a></li>
-                            {% endif %}
-                            {% if perms.actividades.view_socialcase %}
-                                <li><a class="dropdown-item{% if 'atencion' in n %} active{% endif %}" href="{% url 'atencion_list' %}">Atenciones</a></li>
-                            {% endif %}
-                            {% if perms.evidencias.view_evidence %}
-                                <li><a class="dropdown-item{% if 'evidencia' in n %} active{% endif %}" href="{% url 'evidencia_list' %}">Evidencias</a></li>
-                            {% endif %}
-                            {% if perms.agenda.view_commitment %}
-                                <li><a class="dropdown-item{% if 'compromiso' in n %} active{% endif %}" href="{% url 'compromiso_list' %}">Compromisos</a></li>
-                            {% endif %}
-                            {% if user.is_staff %}
-                                <li><a class="dropdown-item" href="{% url 'admin:index' %}">Administración</a></li>
-                            {% endif %}
+                            {% include "includes/menu_navegacion.html" with clase="dropdown-item" %}
                         {% else %}
                             <li><a class="dropdown-item" href="{% url 'login' %}">Ingresar</a></li>
                         {% endif %}
@@ -81,7 +66,6 @@
                         {% endif %}
                     </ul>
                 </div>
-                {% endwith %}
             </div>
         </div>
     </nav>
