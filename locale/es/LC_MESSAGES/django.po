@@ -1,0 +1,98 @@
+# Traducciones del SGR para textos de Django 6.1 que aún no vienen traducidos al español
+# (admin, formularios y autenticación). Tienen prioridad sobre las de Django (LOCALE_PATHS).
+# Tras editar este archivo: python manage.py compilemessages (requiere gettext: sudo apt install gettext).
+msgid ""
+msgstr ""
+"Project-Id-Version: SGR\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+# --- Admin: acciones y listados ---
+msgid "- Select an option -"
+msgstr "- Seleccione una opción -"
+
+msgid "Run"
+msgstr "Ejecutar"
+
+#, python-format
+msgid "Filter by %(field_name)s"
+msgstr "Filtrar por %(field_name)s"
+
+#, python-format
+msgid "Pagination %(name)s entries"
+msgstr "Paginación de registros de %(name)s"
+
+#, python-format
+msgid "Pagination %(name)s"
+msgstr "Paginación de %(name)s"
+
+#, python-format
+msgid "Search %(name)s"
+msgstr "Buscar %(name)s"
+
+msgid "Logout"
+msgstr "Cerrar sesión"
+
+#, python-format
+msgid "The app \"%s\" could not be found."
+msgstr "No se encontró la aplicación \"%s\"."
+
+msgid "Hold down “Control”, or “Command” on a Mac, to select more than one."
+msgstr "Mantenga presionado “Control”, o “Command” en Mac, para seleccionar más de uno."
+
+msgid "After you’ve created a user, you’ll be able to edit more user options."
+msgstr "Después de crear el usuario podrá editar más opciones."
+
+#, python-format
+msgid "Enter a new password for the user <strong>%(username)s</strong>."
+msgstr "Ingrese una nueva contraseña para el usuario <strong>%(username)s</strong>."
+
+msgid "Your password has been set.  You may go ahead and log in now."
+msgstr "Su contraseña ha sido establecida. Ya puede iniciar sesión."
+
+# --- Formularios y modelos ---
+#, python-format
+msgid "Ensure this value is %(limit_value)s (it is %(show_value)s)."
+msgstr "Asegúrese de que este valor sea %(limit_value)s (actualmente es %(show_value)s)."
+
+#, python-format
+msgid "“%(value)s” is not a valid binary value."
+msgstr "“%(value)s” no es un valor binario válido."
+
+#, python-format
+msgid "%(model)s instance with %(field)s %(value)r is not a valid choice."
+msgstr "La instancia de %(model)s con %(field)s %(value)r no es una opción válida."
+
+msgid "No file was submitted. Check the encoding type on the form."
+msgstr "No se envió ningún archivo. Revise el tipo de codificación del formulario."
+
+msgid "Please either submit a file or check the clear checkbox, not both."
+msgstr "Envíe un archivo o marque la casilla para quitarlo, pero no ambas cosas."
+
+#, python-format
+msgid "Select a valid choice. %(value)s is not one of the available choices."
+msgstr "Seleccione una opción válida. %(value)s no es una de las opciones disponibles."
+
+#, python-format
+msgid "Please correct the duplicate data for %(field)s, which must be unique."
+msgstr "Corrija los datos duplicados de %(field)s, que debe ser único."
+
+#, python-format
+msgid "No %s matches the given query."
+msgstr "Ningún registro de %s coincide con la búsqueda."
+
+# --- Autenticación ---
+msgid "Conflicting form data submitted. Please try again."
+msgstr "Se enviaron datos del formulario en conflicto. Inténtelo de nuevo."
+
+msgid "Your old password was entered incorrectly. Please enter it again."
+msgstr "La contraseña anterior es incorrecta. Ingrésela de nuevo."
+
+msgid "Required. 150 characters or fewer. Letters, digits and @/./+/-/_ only."
+msgstr "Obligatorio. 150 caracteres como máximo. Solo letras, dígitos y @/./+/-/_."
+
+msgid "Your password can’t be too similar to your other personal information."
+msgstr "Su contraseña no puede ser muy similar a su otra información personal."

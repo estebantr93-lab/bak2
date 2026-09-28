@@ -1,0 +1,22 @@
+# Traducciones del SGR para textos JavaScript del admin de Django 6.1 que aún no vienen en español.
+# Tras editar este archivo: python manage.py compilemessages (requiere gettext: sudo apt install gettext).
+msgid ""
+msgstr ""
+"Project-Id-Version: SGR\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#, javascript-format
+msgid "Note: Enter times in the %(timezone)s timezone. (You are %(offset)s hour ahead.)"
+msgid_plural "Note: Enter times in the %(timezone)s timezone. (You are %(offset)s hours ahead.)"
+msgstr[0] "Nota: ingrese las horas en la zona horaria %(timezone)s. (Usted está %(offset)s hora adelantado)."
+msgstr[1] "Nota: ingrese las horas en la zona horaria %(timezone)s. (Usted está %(offset)s horas adelantado)."
+
+#, javascript-format
+msgid "Note: Enter times in the %(timezone)s timezone. (You are %(offset)s hour behind.)"
+msgid_plural "Note: Enter times in the %(timezone)s timezone. (You are %(offset)s hours behind.)"
+msgstr[0] "Nota: ingrese las horas en la zona horaria %(timezone)s. (Usted está %(offset)s hora atrasado)."
+msgstr[1] "Nota: ingrese las horas en la zona horaria %(timezone)s. (Usted está %(offset)s horas atrasado)."

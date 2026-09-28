@@ -1,0 +1,22 @@
+{% comment %}
+Enlaces del menú principal, compartidos por la app (base.html) y el admin (admin/base_site.html).
+Parámetros: clase (clase CSS de cada enlace) y en_admin (marca "Administración" como activa).
+{% endcomment %}
+{% with n=request.resolver_match.url_name|default:'' %}
+<li><a class="{{ clase }}{% if not en_admin and n == 'dashboard' %} active{% endif %}" href="{% url 'dashboard' %}">Dashboard</a></li>
+{% if perms.actividades.view_activity %}
+    <li><a class="{{ clase }}{% if not en_admin and 'actividad' in n %} active{% endif %}" href="{% url 'actividad_list' %}">Actividades</a></li>
+{% endif %}
+{% if perms.actividades.view_socialcase %}
+    <li><a class="{{ clase }}{% if not en_admin and 'atencion' in n %} active{% endif %}" href="{% url 'atencion_list' %}">Atenciones</a></li>
+{% endif %}
+{% if perms.evidencias.view_evidence %}
+    <li><a class="{{ clase }}{% if not en_admin and 'evidencia' in n %} active{% endif %}" href="{% url 'evidencia_list' %}">Evidencias</a></li>
+{% endif %}
+{% if perms.agenda.view_commitment %}
+    <li><a class="{{ clase }}{% if not en_admin and 'compromiso' in n %} active{% endif %}" href="{% url 'compromiso_list' %}">Compromisos</a></li>
+{% endif %}
+{% if user.is_staff %}
+    <li><a class="{{ clase }}{% if en_admin %} active{% endif %}" href="{% url 'admin:index' %}">Administración</a></li>
+{% endif %}
+{% endwith %}

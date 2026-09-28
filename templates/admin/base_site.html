@@ -1,7 +1,81 @@
 {% extends "admin/base_site.html" %}
 {% load static %}
 
+{% comment %}
+Admin con la misma apariencia que el resto del sistema: barra roja con la marca, usuario y menú
+hamburguesa (mismos enlaces que la app, tema y cerrar sesión), fondo crema, tarjetas y pie.
+El tema se comparte con la app: ambos guardan la preferencia en localStorage["theme"].
+{% endcomment %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <script>
+        (function () {
+            var t = null;
+            try { t = localStorage.getItem('theme'); } catch (e) {}
+            var oscuro = t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            document.documentElement.setAttribute('data-bs-theme', oscuro ? 'dark' : 'light');
+        })();
+    </script>
+{% endblock %}
+
 {% block extrastyle %}
     {{ block.super }}
     <link rel="stylesheet" href="{% static 'admin/css/custom_admin.css' %}">
+{% endblock %}
+
+{% block branding %}
+    <div id="site-name">
+        <a href="{% url 'inicio' %}">SGR · La Serena</a>
+        <span class="sgr-admin-etiqueta">Administración</span>
+    </div>
+{% endblock %}
+
+{% block usertools %}
+    {% if has_permission %}
+    <div id="user-tools">
+        <span class="sgr-usuario">{% firstof user.get_short_name user.get_username %}</span>
+        <details class="sgr-menu">
+            <summary class="sgr-menu-boton" aria-label="Abrir menú">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+            </summary>
+            <div class="sgr-menu-panel">
+                <span class="sgr-menu-titulo sgr-solo-movil">{{ user.get_username }}</span>
+                <ul>
+                    {% include "includes/menu_navegacion.html" with clase="sgr-menu-item" en_admin=True %}
+                </ul>
+                <hr>
+                <span class="sgr-menu-titulo">Tema</span>
+                <div class="sgr-tema" role="group" aria-label="Tema de colores">
+                    <button type="button" data-tema="light" aria-pressed="false">Claro</button>
+                    <button type="button" data-tema="dark" aria-pressed="false">Oscuro</button>
+                    <button type="button" data-tema="auto" aria-pressed="false">Por defecto</button>
+                </div>
+                <hr>
+                <ul>
+                    {% if user.has_usable_password %}
+                        <li><a class="sgr-menu-item" href="{% url 'admin:password_change' %}">Cambiar contraseña</a></li>
+                    {% endif %}
+                    <li>
+                        {# Desde Django 5 el logout solo acepta POST. #}
+                        <form method="post" action="{% url 'logout' %}">
+                            {% csrf_token %}
+                            <button type="submit" class="sgr-menu-item sgr-salir">Cerrar sesión</button>
+                        </form>
+                    </li>
+                </ul>
+            </div>
+        </details>
+    </div>
+    {% endif %}
+{% endblock %}
+
+{% block footer %}
+    <div class="sgr-pie">&copy; {% now "Y" %} SGR · Ilustre Municipalidad de La Serena · Proyecto académico con datos ficticios.</div>
+{% endblock %}
+
+{% block extrabody %}
+    {{ block.super }}
+    <script src="{% static 'js/tema.js' %}"></script>
+    <script src="{% static 'js/menu_admin.js' %}"></script>
 {% endblock %}

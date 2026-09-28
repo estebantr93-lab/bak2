@@ -54,6 +54,8 @@ cover/
 # Translations
 *.mo
 *.pot
+# Traducciones propias ya compiladas: se versionan para no exigir gettext al levantar el proyecto.
+!locale/**/*.mo
 
 # Django stuff:
 *.log

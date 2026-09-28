@@ -173,6 +173,9 @@ TIME_ZONE = 'America/Santiago'
 
 USE_I18N = True
 
+# Traducciones propias (locale/es) para textos de Django 6.1 que aún no vienen en español.
+LOCALE_PATHS = [BASE_DIR / 'locale']
+
 USE_TZ = True
 
 
