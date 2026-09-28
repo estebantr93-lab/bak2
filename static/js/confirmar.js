@@ -6,7 +6,12 @@ document.addEventListener('submit', async function (event) {
         return;
     }
     if (typeof Swal === 'undefined') {
-        return; // sin SweetAlert2 disponible, el formulario se envía igual (el backend decide).
+        // Si SweetAlert2 no cargó, se pide la confirmación nativa del navegador: nunca se elimina sin preguntar.
+        // Aceptar deja seguir este mismo envío (un requestSubmit() aquí sería ignorado por el navegador).
+        if (!window.confirm(form.dataset.confirmar)) {
+            event.preventDefault();
+        }
+        return;
     }
     event.preventDefault();
     const result = await Swal.fire({
