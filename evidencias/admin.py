@@ -36,11 +36,12 @@ class EvidenciaAdmin(ScopedModelAdmin, admin.ModelAdmin):
             self.message_user(request, 'No tiene permiso para aprobar evidencias.', level=messages.ERROR)
             return
         pendientes = queryset.exclude(status='approved')
-        revisables = excluir_bloqueados(pendientes)  # las de un período cerrado no se tocan
+        # Se materializa antes de aprobar: después ya no estarían "pendientes" y los conteos saldrían mal.
+        revisables = list(excluir_bloqueados(pendientes))  # las de un período cerrado no se tocan
+        omitidas = pendientes.count() - len(revisables)
         for evidencia in revisables:
             registrar_revision(evidencia, request.user, 'approved', 'Aprobada mediante acción masiva del Admin.')
-        omitidas = pendientes.count() - revisables.count()
-        self.message_user(request, f'{revisables.count()} evidencia(s) aprobada(s) correctamente.', level=messages.SUCCESS)
+        self.message_user(request, f'{len(revisables)} evidencia(s) aprobada(s) correctamente.', level=messages.SUCCESS)
         if omitidas:
             self.message_user(request, f'{omitidas} evidencia(s) omitida(s) por pertenecer a un período cerrado.',
                               level=messages.WARNING)

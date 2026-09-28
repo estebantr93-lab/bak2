@@ -185,16 +185,20 @@ El proyecto expone estas rutas:
 
 ### Dashboard por rol
 
-Por cada funcionario visible muestra, para el período elegido: actividades (total, aprobadas, pendientes, rechazadas), evidencias pendientes, compromisos abiertos y vencidos, meta del cargo y % de cumplimiento con semáforo (`medicion/services.py`). Los funcionarios se agrupan por delegación y, dentro de ella, por rol, con subtotales.
+Cada rol ve lo que le sirve (banderas `es_funcionario`, `es_verificador` y `es_gestor` en `dashboard/views.py`, con las constantes de rol de `core/admin_utils.py`):
 
-Diseño (paleta institucional roja/vinotinto/terracota de `static/css/style.css`, clases `.dash-*`):
+| Rol | Alcance | Qué muestra |
+| --- | --- | --- |
+| Administrador general (superusuario) | Ambas delegaciones | Avance del equipo: funcionarios, actividades, evidencias por revisar y compromisos vencidos (a hoy); estado de actividades; cumplimiento promedio; resumen por funcionario (con **Ver detalle**) y destacados. |
+| Administrador de delegación (grupo `Administradores`) | Solo **su** delegación | Lo mismo que el administrador general, acotado a su delegación. |
+| Verificador (grupo `Verificadores`) | Ambas delegaciones | Su cola de trabajo: evidencias por revisar (con enlace a la lista filtrada), espera más larga, revisadas y rechazadas; estado de evidencias; pendientes por delegación; evidencias recibidas por mes. No se le ofrecen enlaces a listas que no puede abrir. |
+| Funcionario (grupo `Funcionarios`) | Solo sus datos | Su avance: actividades, actividades sin evidencia, evidencias rechazadas por corregir y compromisos por vencer; su cumplimiento y el **avance por tipo de actividad** que lo explica. |
 
-- **Banner** con el período, el rol y la delegación, selector de período y acceso a Actividades.
-- **4 indicadores**: funcionarios en su alcance, actividades, evidencias pendientes y compromisos vencidos.
-- **Estado de actividades**: dona SVG con barras de aprobadas / pendientes / rechazadas (cada color va con su etiqueta y cantidad).
-- **Cumplimiento del período**: % real frente al % esperado a la fecha.
-- **Panel derecho**: anillo de cumplimiento con saludo, actividades por mes (el mes actual destacado, detalle al pasar el cursor) y funcionarios destacados.
-- El **resumen por funcionario** muestra cerrado solo los roles y la cantidad de funcionarios; el botón **Ver detalle** despliega la tabla completa (Bootstrap collapse).
+**Cumplimiento.** Las metas (`Goal`) son por cargo, período y tipo de actividad, con ponderador. Para cada tipo con meta se calcula `aprobadas del tipo / meta`, con el tope del período (`Period.max_cap`, 150 %) para que sobrecumplir un tipo no tape el incumplimiento de otro, y luego el promedio ponderado (`medicion.services.calcular_cumplimiento_ponderado`). Las actividades de tipos sin meta no cuentan. El cumplimiento de un grupo es el promedio del de sus funcionarios con meta. El semáforo compara con el % esperado a la fecha. Si el período no tiene metas, el dashboard lo dice en vez de mostrar 0 %.
+
+**Qué depende del período.** Actividades, evidencias y cumplimiento son del período elegido. Los compromisos se muestran **a hoy** (vencidos y por vencer en los próximos 7 días), porque no pertenecen a un período.
+
+Diseño (paleta institucional roja/vinotinto/terracota de `static/css/style.css`, clases `.dash-*`): banner con período y rol, 4 indicadores (enlazan a la lista correspondiente cuando el usuario puede verla), dona de estados, anillo con el % de evidencias del período ya revisadas y barras por mes. Parciales: `templates/dashboard/_kpi.html`, `_dona.html` y `_por_mes.html`.
 
 Todo se calcula en `dashboard/services.py` (sin librerías de gráficos). Los números que van en CSS/SVG usan `|unlocalize`, porque en `es-cl` los decimales llevan coma.
 
@@ -210,13 +214,6 @@ python manage.py revisar_archivos --reparar --borrar-huerfanos # regenera los de
 ```
 
 `--reparar` solo regenera archivos de ejemplo (código `EVI-VOL-…`); un archivo subido por un usuario nunca se reemplaza, se informa para volver a subirlo. En los listados, una evidencia cuyo archivo ya no está en el servidor muestra «Archivo no disponible» en vez de un enlace roto. Los huérfanos aparecen, por ejemplo, al recrear la base de datos sin vaciar `media/`.
-
-| Rol | Qué ve en el dashboard |
-| --- | --- |
-| Administrador general (superusuario) | Ambas delegaciones |
-| Administrador de delegación (grupo `Administradores`) | Solo los funcionarios de **su** delegación |
-| Verificador (grupo `Verificadores`) | Ambas delegaciones (revisa evidencias de todas) |
-| Funcionario (grupo `Funcionarios`) | Solo su propio resumen |
 
 ### Autenticación y sesiones (Clase 6)
 
@@ -259,7 +256,7 @@ Hay cuatro CRUD completos (crear, listar, editar y eliminar lógicamente) constr
 ### Revisión de evidencias y estado de la actividad
 
 - Aprobar o rechazar una evidencia pasa **siempre** por `registrar_revision()` (`evidencias/services.py`): formulario web del verificador, acción masiva, formulario de cambio y alta de `Validation` en el Admin. Esa función guarda el estado, asigna el revisor, crea la `Validation` y deja una traza en `AuditLog`. Una `Validation` ya registrada no se edita.
-- **Regla del estado de la actividad:** una actividad queda **rechazada** si alguna de sus evidencias fue rechazada, **aprobada** si tiene al menos una aprobada, y **pendiente** en otro caso. Se recalcula sola (señal `post_save` de `Evidence`) al revisar, agregar, eliminar o restaurar una evidencia, y por eso el dashboard avanza con cada aprobación.
+- **Regla del estado de la actividad:** una actividad queda **aprobada** si tiene al menos una evidencia aprobada; **pendiente** si alguna evidencia espera revisión (por ejemplo, la corrección de una rechazada) o si no tiene evidencias; y **rechazada** solo si todas sus evidencias fueron rechazadas. Así una actividad rechazada se recupera cuando el funcionario sube una evidencia corregida y el verificador la aprueba. Se recalcula sola (señal `post_save` de `Evidence`) al revisar, agregar, eliminar o restaurar una evidencia, y por eso el dashboard avanza con cada aprobación.
 - **Período cerrado:** se declara una sola vez por modelo con `bloqueo_modificacion`. La actividad y todo lo que depende de ella (evidencias, gestiones y validaciones) quedan congelados en la web y en el Admin, también para el superusuario. Las listas de los formularios no ofrecen actividades cerradas.
 
 ### Borrado lógico (`deleted_at`)

@@ -15,6 +15,7 @@ import random
 from django.contrib.auth.models import Group, User
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from django.utils import timezone
 
 from actividades.models import Activity, SocialCase
 from agenda.models import Commitment, CommitmentFollowUp
@@ -167,6 +168,17 @@ def build_volumen(total_actividades=500, con_archivos=True):
             evidencia.file.name = default_storage.save(ruta_evidencia(evidencia, nombre), ContentFile(contenido))
         evidencias.append(evidencia)
     Evidence.objects.bulk_create(evidencias, batch_size=500)
+    # registered_at es auto_now_add (todas quedarían con la hora de la carga): se reparte entre la
+    # fecha de la actividad y los días siguientes, sin pasar de hoy. Generador propio para no alterar
+    # la secuencia del resto de la carga.
+    rng_fechas = random.Random(SEMILLA + 1)
+    ahora = timezone.now()
+    creadas = list(Evidence.objects.filter(activity__number__startswith=PREFIJO).select_related('activity').order_by('pk'))
+    for e in creadas:
+        dia = e.activity.date + datetime.timedelta(days=rng_fechas.randint(0, 6))
+        momento = timezone.make_aware(datetime.datetime.combine(dia, datetime.time(rng_fechas.randint(9, 17))))
+        e.registered_at = min(momento, ahora)
+    Evidence.objects.bulk_update(creadas, ['registered_at'], batch_size=500)
     revisadas = list(Evidence.objects.filter(activity__number__startswith=PREFIJO).exclude(status='pending'))
     validaciones = [
         Validation(evidence=e, reviewer=verificador, status=e.status, comment=e.result)

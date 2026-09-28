@@ -1,7 +1,8 @@
+import datetime
+from collections import Counter
 from decimal import Decimal
 
-from django.db.models import Count, Q, Sum
-from django.db.models.functions import TruncMonth
+from django.db.models import Count, Min, Q
 from django.utils import timezone
 
 from core.admin_utils import (
@@ -16,16 +17,19 @@ from core.admin_utils import (
 )
 from actividades.models import Activity
 from core.models import Delegation, Period
+from evidencias.models import Evidence
 from funcionarios.models import Employee
 from medicion.models import Goal
 from medicion.services import (
-    calcular_cumplimiento_pct,
+    calcular_cumplimiento_ponderado,
     calcular_meta_esperada_al_dia,
     calcular_semaforo,
 )
 
 # Orden en que se muestran los grupos de rol dentro de cada delegación.
 ORDEN_ROLES = [ROL_ADMIN_DELEGACION, ROL_FUNCIONARIO, ROL_VERIFICADOR, ROL_SUPERADMIN, None]
+# Compromisos "por vencer": los que vencen desde hoy hasta dentro de esta cantidad de días.
+DIAS_POR_VENCER = 7
 
 
 def periodo_por_defecto():
@@ -68,47 +72,68 @@ def _porcentaje_esperado(periodo, hoy):
 
 
 def _anotar_resumen(funcionarios, periodo, hoy):
+    """Conteos por funcionario. Actividades y evidencias son del período; los compromisos son
+    "a hoy" (no dependen del período elegido)."""
     filtro_periodo = Q(activities__period=periodo, activities__deleted_at__isnull=True)
     filtro_evidencias = filtro_periodo & Q(
         activities__evidence_items__isnull=False, activities__evidence_items__deleted_at__isnull=True,
     )
     compromiso_abierto = ~Q(commitments__status='done') & Q(commitments__deleted_at__isnull=True)
+    por_vencer = Q(commitments__due_date__gte=hoy, commitments__due_date__lte=hoy + datetime.timedelta(days=DIAS_POR_VENCER))
+
+    def actividades(estado):
+        return Count('activities', filter=filtro_periodo & Q(activities__validation_status=estado), distinct=True)
+
+    def evidencias(estado):
+        return Count(
+            'activities__evidence_items',
+            filter=filtro_evidencias & Q(activities__evidence_items__status=estado), distinct=True,
+        )
+
     return funcionarios.annotate(
         act_total=Count('activities', filter=filtro_periodo, distinct=True),
-        act_aprobadas=Count(
-            'activities', filter=filtro_periodo & Q(activities__validation_status='approved'), distinct=True,
-        ),
-        act_pendientes=Count(
-            'activities', filter=filtro_periodo & Q(activities__validation_status='pending'), distinct=True,
-        ),
-        act_rechazadas=Count(
-            'activities', filter=filtro_periodo & Q(activities__validation_status='rejected'), distinct=True,
-        ),
-        evi_pendientes=Count(
-            'activities__evidence_items',
-            filter=filtro_evidencias & Q(activities__evidence_items__status='pending'), distinct=True,
-        ),
-        evi_aprobadas=Count(
-            'activities__evidence_items',
-            filter=filtro_evidencias & Q(activities__evidence_items__status='approved'), distinct=True,
-        ),
+        act_aprobadas=actividades('approved'),
+        act_pendientes=actividades('pending'),
+        act_rechazadas=actividades('rejected'),
+        evi_pendientes=evidencias('pending'),
+        evi_aprobadas=evidencias('approved'),
+        evi_rechazadas=evidencias('rejected'),
         comp_abiertos=Count('commitments', filter=compromiso_abierto, distinct=True),
-        comp_vencidos=Count(
-            'commitments', filter=compromiso_abierto & Q(commitments__due_date__lt=hoy), distinct=True,
-        ),
+        comp_vencidos=Count('commitments', filter=compromiso_abierto & Q(commitments__due_date__lt=hoy), distinct=True),
+        comp_por_vencer=Count('commitments', filter=compromiso_abierto & por_vencer, distinct=True),
     )
 
 
 def _metas_por_cargo(periodo):
+    """{position_id: [Goal, ...]} del período (meta y ponderador por tipo de actividad)."""
     if periodo is None:
         return {}
-    filas = Goal.objects.filter(period=periodo).values('position_id').annotate(total=Sum('target'))
-    return {fila['position_id']: fila['total'] for fila in filas}
+    metas = {}
+    for meta in Goal.objects.filter(period=periodo).select_related('activity_type').order_by('-weight'):
+        metas.setdefault(meta.position_id, []).append(meta)
+    return metas
 
 
-def _fila(funcionario, metas, esperado_pct):
-    meta = metas.get(funcionario.position_id, 0)
-    cumplimiento = calcular_cumplimiento_pct(funcionario.act_aprobadas, meta)
+def _aprobadas_por_tipo(actividades):
+    """{employee_id: {activity_type_id: aprobadas}} de las actividades dadas."""
+    conteo = {}
+    filas = (actividades.filter(validation_status='approved')
+             .values('employee_id', 'activity_type_id').annotate(n=Count('pk')))
+    for fila in filas:
+        conteo.setdefault(fila['employee_id'], {})[fila['activity_type_id']] = fila['n']
+    return conteo
+
+
+def _sin_evidencia(actividades):
+    """{employee_id: actividades sin ninguna evidencia activa}."""
+    filas = (actividades.annotate(n_evi=Count('evidence_items', filter=Q(evidence_items__deleted_at__isnull=True)))
+             .filter(n_evi=0).values('employee_id').annotate(n=Count('pk')))
+    return {fila['employee_id']: fila['n'] for fila in filas}
+
+
+def _fila(funcionario, metas, aprobadas_por_tipo, sin_evidencia, esperado_pct, tope):
+    metas_cargo = metas.get(funcionario.position_id, [])
+    cumplimiento, detalle = calcular_cumplimiento_ponderado(aprobadas_por_tipo.get(funcionario.pk, {}), metas_cargo, tope)
     return {
         'employee': funcionario,
         'rol': get_rol(funcionario.user),
@@ -116,28 +141,42 @@ def _fila(funcionario, metas, esperado_pct):
         'act_aprobadas': funcionario.act_aprobadas,
         'act_pendientes': funcionario.act_pendientes,
         'act_rechazadas': funcionario.act_rechazadas,
+        'act_sin_evidencia': sin_evidencia.get(funcionario.pk, 0),
         'evi_pendientes': funcionario.evi_pendientes,
         'evi_aprobadas': funcionario.evi_aprobadas,
+        'evi_rechazadas': funcionario.evi_rechazadas,
         'comp_abiertos': funcionario.comp_abiertos,
         'comp_vencidos': funcionario.comp_vencidos,
-        'target': meta,
+        'comp_por_vencer': funcionario.comp_por_vencer,
+        'target': sum(meta.target for meta in metas_cargo),
+        'aprobadas_con_meta': sum(d['aprobadas'] for d in detalle),
+        'con_meta': bool(metas_cargo),
+        'detalle_metas': detalle,
         'compliance_pct': cumplimiento.quantize(Decimal('0.1')),
-        'traffic_light': calcular_semaforo(cumplimiento, esperado_pct) if meta else None,
+        'traffic_light': calcular_semaforo(cumplimiento, esperado_pct) if metas_cargo else None,
     }
 
 
 CAMPOS_SUMABLES = [
-    'act_total', 'act_aprobadas', 'act_pendientes', 'act_rechazadas',
-    'evi_pendientes', 'evi_aprobadas', 'comp_abiertos', 'comp_vencidos', 'target',
+    'act_total', 'act_aprobadas', 'act_pendientes', 'act_rechazadas', 'act_sin_evidencia',
+    'evi_pendientes', 'evi_aprobadas', 'evi_rechazadas',
+    'comp_abiertos', 'comp_vencidos', 'comp_por_vencer', 'target', 'aprobadas_con_meta',
 ]
 
 
 def _totales(filas):
+    """Sumas de un grupo de filas. El cumplimiento del grupo es el promedio del cumplimiento
+    ponderado de quienes tienen meta (sumar aprobadas contra metas de cargos distintos no tiene sentido)."""
     totales = {campo: sum(fila[campo] for fila in filas) for campo in CAMPOS_SUMABLES}
     totales['employees'] = len(filas)
-    totales['compliance_pct'] = calcular_cumplimiento_pct(
-        totales['act_aprobadas'], totales['target'],
-    ).quantize(Decimal('0.1'))
+    con_meta = [fila['compliance_pct'] for fila in filas if fila['con_meta']]
+    totales['con_meta'] = len(con_meta)
+    promedio = sum(con_meta) / len(con_meta) if con_meta else Decimal('0')
+    totales['compliance_pct'] = Decimal(promedio).quantize(Decimal('0.1'))
+    totales['evi_total'] = totales['evi_pendientes'] + totales['evi_aprobadas'] + totales['evi_rechazadas']
+    revisadas = totales['evi_aprobadas'] + totales['evi_rechazadas']
+    totales['evi_revisadas'] = revisadas
+    totales['revision_pct'] = round(revisadas * 100 / totales['evi_total']) if totales['evi_total'] else 0
     return totales
 
 
@@ -145,13 +184,18 @@ def construir_dashboard(user, periodo, hoy=None):
     """Resumen por delegación → rol → funcionario, acotado a lo que el usuario puede ver."""
     hoy = hoy or timezone.localdate()
     esperado_pct = _porcentaje_esperado(periodo, hoy)
+    tope = periodo.max_cap if periodo else None
     metas = _metas_por_cargo(periodo)
-    funcionarios = _anotar_resumen(funcionarios_visibles(user), periodo, hoy)
+    visibles = funcionarios_visibles(user)
+    actividades = Activity.objects.filter(employee__in=visibles, period=periodo) if periodo else Activity.objects.none()
+    aprobadas_por_tipo = _aprobadas_por_tipo(actividades)
+    sin_evidencia = _sin_evidencia(actividades)
+    funcionarios = _anotar_resumen(visibles, periodo, hoy)
 
     filas_por_delegacion = {}
     for funcionario in funcionarios.order_by('delegation__name', 'name'):
         filas_por_delegacion.setdefault(funcionario.delegation_id, []).append(
-            _fila(funcionario, metas, esperado_pct)
+            _fila(funcionario, metas, aprobadas_por_tipo, sin_evidencia, esperado_pct, tope)
         )
 
     secciones = []
@@ -171,12 +215,20 @@ def construir_dashboard(user, periodo, hoy=None):
 
     todas = [fila for filas in filas_por_delegacion.values() for fila in filas]
     totales = _totales(todas)
+    evidencias = Evidence.objects.filter(activity__in=actividades)
     return {
         'secciones': secciones,
         'totales': totales,
+        'propia': todas[0] if get_rol(user) == ROL_FUNCIONARIO and todas else None,
+        'hay_metas': bool(metas),
+        'tope_pct': tope,
+        'dias_por_vencer': DIAS_POR_VENCER,
         'esperado_pct': esperado_pct.quantize(Decimal('0.1')),
-        'estado_actividades': _estado_actividades(totales),
-        'por_mes': _actividades_por_mes(user, periodo, hoy),
+        'estado_actividades': _segmentos(totales, 'act_total', ESTADOS_ACTIVIDAD),
+        'estado_evidencias': _segmentos(totales, 'evi_total', ESTADOS_EVIDENCIA),
+        'dias_pendiente_mas_antigua': _dias_pendiente_mas_antigua(evidencias, hoy),
+        'por_mes': _por_mes(actividades, 'date', periodo, hoy),
+        'evidencias_por_mes': _por_mes(evidencias, 'registered_at', periodo, hoy),
         'destacados': _destacados(todas),
     }
 
@@ -184,20 +236,25 @@ def construir_dashboard(user, periodo, hoy=None):
 MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 # Colores de estado: escala fija y reservada (siempre acompañada de etiqueta), validada con el
 # validador de paleta del proyecto: CVD ΔE 12.3, visión normal ΔE 25.3.
-ESTADOS = [
+ESTADOS_ACTIVIDAD = [
     ('approved', 'Aprobadas', 'act_aprobadas', 'good'),
     ('pending', 'Pendientes', 'act_pendientes', 'warning'),
     ('rejected', 'Rechazadas', 'act_rechazadas', 'critical'),
 ]
+ESTADOS_EVIDENCIA = [
+    ('approved', 'Aprobadas', 'evi_aprobadas', 'good'),
+    ('pending', 'Por revisar', 'evi_pendientes', 'warning'),
+    ('rejected', 'Rechazadas', 'evi_rechazadas', 'critical'),
+]
 
 
-def _estado_actividades(totales):
+def _segmentos(totales, campo_total, estados):
     """Segmentos de la dona: el círculo mide 100 unidades, así cada % es directamente un largo."""
-    total = totales['act_total']
-    visibles = sum(1 for _, _, campo, _ in ESTADOS if totales[campo])
+    total = totales[campo_total]
+    visibles = sum(1 for _, _, campo, _ in estados if totales[campo])
     brecha = 1.2 if visibles > 1 else 0  # separación visual entre segmentos
     segmentos, acumulado = [], 0.0
-    for clave, etiqueta, campo, tono in ESTADOS:
+    for clave, etiqueta, campo, tono in estados:
         n = totales[campo]
         pct = (n * 100 / total) if total else 0
         largo = max(pct - brecha, 0) if n else 0
@@ -210,15 +267,23 @@ def _estado_actividades(totales):
     return {'total': total, 'segmentos': segmentos}
 
 
-def _actividades_por_mes(user, periodo, hoy):
-    """Actividades del período por mes (serie única), con los meses sin registros en cero."""
+def _dias_pendiente_mas_antigua(evidencias, hoy):
+    """Días que lleva esperando la evidencia pendiente más antigua (None si no hay pendientes)."""
+    mas_antigua = evidencias.filter(status='pending').aggregate(m=Min('registered_at'))['m']
+    if mas_antigua is None:
+        return None
+    return max((hoy - timezone.localdate(mas_antigua)).days, 0)
+
+
+def _por_mes(qs, campo_fecha, periodo, hoy):
+    """Registros del período por mes (serie única), con los meses sin registros en cero."""
     if periodo is None:
         return {'meses': [], 'maximo': 0}
-    conteos = dict(
-        Activity.objects.filter(employee__in=funcionarios_visibles(user), period=periodo)
-        .annotate(mes=TruncMonth('date')).values('mes').annotate(n=Count('pk')).values_list('mes', 'n')
-    )
-    conteos = {(m.year, m.month): n for m, n in conteos.items()}
+    # Se agrupa en Python: con fechas-hora, agrupar en MariaDB exige tener cargadas sus tablas de zonas horarias.
+    conteos = Counter()
+    for valor in qs.values_list(campo_fecha, flat=True):
+        fecha = timezone.localdate(valor) if isinstance(valor, datetime.datetime) else valor
+        conteos[(fecha.year, fecha.month)] += 1
     meses = []
     anio, mes = periodo.start_date.year, periodo.start_date.month
     while (anio, mes) <= (periodo.end_date.year, periodo.end_date.month):
@@ -233,6 +298,6 @@ def _actividades_por_mes(user, periodo, hoy):
 
 def _destacados(filas, cantidad=3):
     """Funcionarios con mejor cumplimiento del período (solo quienes tienen meta)."""
-    con_meta = [f for f in filas if f['target']]
-    con_meta.sort(key=lambda f: (f['compliance_pct'], f['act_aprobadas']), reverse=True)
+    con_meta = [f for f in filas if f['con_meta']]
+    con_meta.sort(key=lambda f: (f['compliance_pct'], f['aprobadas_con_meta']), reverse=True)
     return con_meta[:cantidad]

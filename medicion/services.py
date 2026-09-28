@@ -7,6 +7,32 @@ def calcular_cumplimiento_pct(avance, meta):
     return (Decimal(avance) / Decimal(meta)) * 100
 
 
+def calcular_cumplimiento_ponderado(aprobadas_por_tipo, metas, tope=None):
+    """Cumplimiento de un funcionario según las metas (Goal) de su cargo en el período.
+
+    - aprobadas_por_tipo: {activity_type_id: actividades aprobadas de ese tipo}.
+    - metas: objetos Goal del cargo (tipo de actividad, meta y ponderador).
+    - tope: % máximo que aporta cada tipo (Period.max_cap); así sobrecumplir un tipo no tapa
+      el incumplimiento de otro.
+
+    Solo cuentan las actividades de tipos con meta. Devuelve (porcentaje ponderado, detalle por tipo).
+    """
+    detalle, suma, suma_pesos = [], Decimal('0'), Decimal('0')
+    for meta in metas:
+        aprobadas = aprobadas_por_tipo.get(meta.activity_type_id, 0)
+        pct = calcular_cumplimiento_pct(aprobadas, meta.target)
+        aporte = min(pct, Decimal(tope)) if tope else pct
+        suma += aporte * meta.weight
+        suma_pesos += meta.weight
+        detalle.append({
+            'tipo': meta.activity_type, 'aprobadas': aprobadas, 'meta': meta.target,
+            'peso': meta.weight, 'pct': pct.quantize(Decimal('0.1')),
+        })
+    if not suma_pesos:
+        return Decimal('0'), detalle
+    return suma / suma_pesos, detalle
+
+
 def calcular_meta_esperada_al_dia(dias_transcurridos, dias_totales):
     if not dias_totales:
         return Decimal('0')
