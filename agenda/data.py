@@ -26,6 +26,8 @@ def build_agenda():
             defaults={
                 'delegation': delegacion, 'responsible': responsable,
                 'due_date': fecha_venc, 'status': estado,
+                # Regla del modelo: un compromiso realizado lleva observaciones.
+                'notes': 'Catastro entregado a la dirección.' if estado == 'done' else '',
             },
         )
         compromisos[titulo] = compromiso

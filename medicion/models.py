@@ -32,6 +32,9 @@ class Goal(models.Model):
             errores['weight'] = 'El ponderador debe ser mayor a 0.'
         if self.target is not None and self.target <= 0:
             errores['target'] = 'La meta debe ser mayor a 0.'
+        if self.period_id and self.period.is_closed:
+            # Cambiarlas reescribiría el cumplimiento de un período ya cerrado.
+            errores['period'] = 'El período está cerrado: sus metas ya no se pueden modificar.'
         if errores:
             raise ValidationError(errores)
 

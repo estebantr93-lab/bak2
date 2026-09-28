@@ -16,6 +16,7 @@ from core.admin_utils import (
     get_usuario_delegacion,
 )
 from actividades.models import Activity
+from agenda.models import Commitment
 from core.models import Delegation, Period
 from evidencias.models import Evidence
 from funcionarios.models import Employee
@@ -102,6 +103,17 @@ def _anotar_resumen(funcionarios, periodo, hoy):
         comp_vencidos=Count('commitments', filter=compromiso_abierto & Q(commitments__due_date__lt=hoy), distinct=True),
         comp_por_vencer=Count('commitments', filter=compromiso_abierto & por_vencer, distinct=True),
     )
+
+
+def _compromisos(qs, hoy):
+    """Compromisos abiertos, vencidos y por vencer de un QuerySet (a hoy, sin importar el período)."""
+    abiertos = qs.exclude(status='done')
+    return {
+        'comp_abiertos': abiertos.count(),
+        'comp_vencidos': abiertos.filter(due_date__lt=hoy).count(),
+        'comp_por_vencer': abiertos.filter(
+            due_date__gte=hoy, due_date__lte=hoy + datetime.timedelta(days=DIAS_POR_VENCER)).count(),
+    }
 
 
 def _metas_por_cargo(periodo):
@@ -211,10 +223,17 @@ def construir_dashboard(user, periodo, hoy=None):
                     'filas': filas_rol,
                     'totales': _totales(filas_rol),
                 })
-        secciones.append({'delegation': delegacion, 'grupos': grupos, 'totales': _totales(filas)})
+        totales_seccion = _totales(filas)
+        # Los compromisos de la delegación incluyen los que no tienen responsable asignado.
+        totales_seccion.update(_compromisos(Commitment.objects.filter(delegation=delegacion), hoy))
+        secciones.append({'delegation': delegacion, 'grupos': grupos, 'totales': totales_seccion})
 
     todas = [fila for filas in filas_por_delegacion.values() for fila in filas]
     totales = _totales(todas)
+    if get_rol(user) != ROL_FUNCIONARIO:
+        # El funcionario ve los suyos (como responsable); el resto, todos los de sus delegaciones.
+        for campo in ('comp_abiertos', 'comp_vencidos', 'comp_por_vencer'):
+            totales[campo] = sum(s['totales'][campo] for s in secciones)
     evidencias = Evidence.objects.filter(activity__in=actividades)
     return {
         'secciones': secciones,

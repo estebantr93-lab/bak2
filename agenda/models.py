@@ -64,3 +64,14 @@ class CommitmentFollowUp(SoftDeleteModel):
 
     def __str__(self):
         return f'{self.commitment.title} - {self.new_status}'
+
+    def save(self, *args, **kwargs):
+        nuevo = self._state.adding
+        super().save(*args, **kwargs)
+        if nuevo and self.deleted_at is None:
+            # Un seguimiento registra el avance: el compromiso pasa al estado indicado. Si queda
+            # realizado sin observaciones, la descripción del seguimiento sirve como tales.
+            cambios = {'status': self.new_status}
+            if self.new_status == 'done' and not self.commitment.notes.strip():
+                cambios['notes'] = self.description
+            Commitment.all_objects.filter(pk=self.commitment_id).update(**cambios)

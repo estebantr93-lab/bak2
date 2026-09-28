@@ -245,6 +245,7 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 # Recuperación de contraseña mediante código temporal
 RECUPERACION_CODIGO_VIGENCIA_SEGUNDOS = int(os.getenv('RECUPERACION_CODIGO_VIGENCIA_SEGUNDOS', '120'))
 RECUPERACION_CODIGO_MAX_INTENTOS = 5
+RECUPERACION_MAX_SOLICITUDES_HORA = 5  # códigos que un mismo usuario puede pedir por hora
 
 
 # Archivos de evidencia

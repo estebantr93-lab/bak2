@@ -59,7 +59,7 @@ class RevisionCompaneroTests(SesionTestMixin, TestCase):
 
     def test_periodo_es_obligatorio_en_el_formulario_web(self):
         self.ingresar('funcionario_centro')
-        propia = Activity.objects.filter(employee=self.ana, period=self.abierto).first()
+        propia = Activity.objects.filter(employee=self.ana, period=self.abierto).exclude(validation_status='approved').first()
         response = self.client.post(reverse('actividad_update', args=[propia.pk]), self._datos(propia, period=''))
         self.assertIn('period', response.context['form'].errors)
 
@@ -90,7 +90,7 @@ class RevisionCompaneroTests(SesionTestMixin, TestCase):
 
     def test_funcionario_si_edita_sus_actividades(self):
         self.ingresar('funcionario_centro')
-        propia = Activity.objects.filter(employee=self.ana, period=self.abierto).first()
+        propia = Activity.objects.filter(employee=self.ana, period=self.abierto).exclude(validation_status='approved').first()
         response = self.client.post(reverse('actividad_update', args=[propia.pk]), self._datos(propia, description='ok'))
         self.assertRedirects(response, reverse('actividad_list'))
 
@@ -157,7 +157,7 @@ class PoliticaUnicaEnElAdminTests(SesionTestMixin, TestCase):
             number='ADM-AJENA', employee=cls.maria, delegation=cls.maria.delegation, period=cls.abierto,
             activity_type=tipo, date=datetime.date(2026, 7, 1), description='De María', evidence_code='EV-ADM-AJ',
         )
-        cls.propia = Activity.objects.filter(employee=cls.ana, period=cls.abierto).first()
+        cls.propia = Activity.objects.filter(employee=cls.ana, period=cls.abierto).exclude(validation_status='approved').first()
         cls.cerrada = Activity.objects.create(
             number='ADM-CERR', employee=cls.ana, delegation=cls.ana.delegation, period=cls.cerrado,
             activity_type=tipo, date=datetime.date(2026, 2, 1), description='Cerrada', evidence_code='EV-ADM-CE',

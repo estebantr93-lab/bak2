@@ -24,7 +24,7 @@ from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
 from reportes.services import as_text, respuesta_xlsx, valor_excel
 
-from .admin_utils import filtrar_por_delegacion, modificables, motivo_no_modificable, puede_modificar
+from .admin_utils import filtrar_por_delegacion, modificables, motivo_no_modificable, motivo_para_usuario, puede_modificar
 
 PAGE_SIZES = [5, 15, 30]
 PAGE_SIZE_DEFAULT = 15
@@ -118,7 +118,7 @@ class CrudConfig:
 
     def check_modificable(self, obj):
         if not puede_modificar(self.request.user, obj):
-            raise PermissionDenied(motivo_no_modificable(obj) or 'Solo puede modificar sus propios registros.')
+            raise PermissionDenied(motivo_para_usuario(self.request.user, obj) or 'Solo puede modificar sus propios registros.')
 
     def active_filters(self):
         return {parametro: valor for parametro, (_, valor) in self._filtros_validos().items()}
