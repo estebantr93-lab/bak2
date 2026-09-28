@@ -61,11 +61,13 @@ def build_actividades():
 
     SocialCase.all_objects.get_or_create(
         activity=actividades['ACT-2026-004'], step_number=1,
-        defaults={'description': 'Primera gestión: diagnóstico social y derivación a beneficio municipal.'},
+        defaults={'description': 'Primera gestión: diagnóstico social y derivación a beneficio municipal.',
+                  'date': fecha_base, 'result': 'Derivado a programa municipal'},
     )
     SocialCase.all_objects.get_or_create(
         activity=actividades['ACT-2026-008'], step_number=1,
-        defaults={'description': 'Primera gestión: coordinación con empresa sanitaria para restablecer servicio.'},
+        defaults={'description': 'Primera gestión: coordinación con empresa sanitaria para restablecer servicio.',
+                  'date': fecha_base, 'result': 'En seguimiento'},
     )
 
     return actividades

@@ -42,6 +42,11 @@ class ActividadAdmin(ScopedModelAdmin, admin.ModelAdmin):
     # porque la siguiente revisión lo recalcularía de todas formas.
     readonly_fields = ('validation_status',)
 
+    def get_readonly_fields(self, request, obj=None):
+        # RN-010: el código de evidencia se genera al crear y ya no se cambia.
+        campos = list(super().get_readonly_fields(request, obj))
+        return campos + ['evidence_code'] if obj is not None else campos
+
 
 @admin.register(SocialCase)
 class AtencionSocialAdmin(ScopedModelAdmin, admin.ModelAdmin):

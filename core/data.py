@@ -49,12 +49,12 @@ def build_core():
         for inicio, termino, cerrado in [(inicio_cerrado, fin_cerrado, True), (inicio_actual, fin_actual, False)]:
             Period.objects.create(
                 name=f'{nombre_de_rango(inicio, termino)} ({"cerrado" if cerrado else "actual"})',
-                start_date=inicio, end_date=termino, is_closed=cerrado, min_threshold=80, max_cap=150,
+                start_date=inicio, end_date=termino, is_closed=cerrado, min_threshold=80, max_cap=100,
             )
     periodos = {p.name: p for p in Period.objects.all()}
 
     for clave, valor, descripcion in [
-        ('TOPE_MAXIMO', '150', 'Tope máximo de cumplimiento ponderado (RN-005).'),
+        ('TOPE_MAXIMO', '100', 'Tope máximo de cumplimiento por ítem (RN-005); el vigente es el de cada período.'),
         ('UMBRAL_MINIMO', '80', 'Umbral mínimo colectivo de cumplimiento (RN-006).'),
         ('AJUSTE_FELICITACION', '10', 'Ajuste porcentual por felicitación ciudadana (RN-011).'),
         ('AJUSTE_RECLAMO', '-20', 'Ajuste porcentual por reclamo ciudadano (RN-011).'),

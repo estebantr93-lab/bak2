@@ -148,10 +148,12 @@ Para que la demo funcione el día que se presente, los datos se arman alrededor 
 - **Período actual:** desde el primer día de hace 3 meses hasta el último día de dentro de 2 meses (por ejemplo, «jun–nov 2026 (actual)»). Hoy siempre queda dentro, así se pueden registrar actividades.
 - **Período cerrado:** los 6 meses anteriores (por ejemplo, «dic 2025–may 2026 (cerrado)»). Llega completamente revisado: no deja evidencias pendientes que nadie podría revisar.
 - **Actividades:** entre el inicio del período y hoy (nunca futuras). **Compromisos:** vencen entre 60 días atrás y 120 días adelante, así siempre hay vencidos y por vencer.
-- **Metas:** acordes al volumen generado, así el semáforo muestra verdes, ámbar y rojos.
+- **Metas:** acordes al volumen generado, así el semáforo muestra verdes, ámbar y rojos. Con el tope de 100 %, pocos funcionarios llegan al 100 % y la mayoría queda repartida entre 30 % y 90 %.
 - Si ya existen períodos, `seed_data` los conserva (no crea otros que se solapen). Para volver a armar todo con la fecha de hoy:
 
 ```bash
+git pull
+python manage.py migrate                  # aplica las migraciones nuevas
 python manage.py flush --noinput          # vacía la base (usuarios incluidos)
 python manage.py seed_data --volumen      # recrea demo y volumen con las fechas de hoy
 python manage.py revisar_archivos --borrar-huerfanos   # borra los archivos de la carga anterior
@@ -210,7 +212,7 @@ Cada rol ve lo que le sirve (banderas `es_funcionario`, `es_verificador` y `es_g
 | Verificador (grupo `Verificadores`) | Ambas delegaciones | Su cola de trabajo: evidencias por revisar (con enlace a la lista filtrada), espera más larga, revisadas y rechazadas; estado de evidencias; pendientes por delegación; evidencias recibidas por mes. No se le ofrecen enlaces a listas que no puede abrir. |
 | Funcionario (grupo `Funcionarios`) | Solo sus datos | Su avance: actividades, actividades sin evidencia, evidencias rechazadas por corregir y compromisos por vencer; su cumplimiento y el **avance por tipo de actividad** que lo explica. |
 
-**Cumplimiento.** Las metas (`Goal`) son por cargo, período y tipo de actividad, con ponderador. Para cada tipo con meta se calcula `aprobadas del tipo / meta`, con el tope del período (`Period.max_cap`, 150 %) para que sobrecumplir un tipo no tape el incumplimiento de otro, y luego el promedio ponderado (`medicion.services.calcular_cumplimiento_ponderado`). Las actividades de tipos sin meta no cuentan. El cumplimiento de un grupo es el promedio del de sus funcionarios con meta. El semáforo compara con el % esperado a la fecha. Si el período no tiene metas, el dashboard lo dice en vez de mostrar 0 %.
+**Cumplimiento.** Las metas (`Goal`) son por cargo, período y tipo de actividad, con ponderador. Para cada tipo con meta se calcula `aprobadas del tipo / meta`, con el tope del período (`Period.max_cap`, 100 %): nadie supera el 100 % y sobrecumplir un tipo no tapa el incumplimiento de otro, y luego el promedio ponderado (`medicion.services.calcular_cumplimiento_ponderado`). Las actividades de tipos sin meta no cuentan. El cumplimiento de un grupo es el promedio del de sus funcionarios con meta. El semáforo compara con el % esperado a la fecha. Si el período no tiene metas, el dashboard lo dice en vez de mostrar 0 %.
 
 **Cada indicador coincide con su lista.** Los indicadores con enlace abren la lista con los mismos filtros que su conteo (período, «solo los míos», estado, sin evidencia, vencidos o por vencer), y la lista dice qué filtro aplica, por ejemplo «Filtrado: período jun–nov 2026 (actual) · rechazada · solo las mías (3)». Los filtros también sirven escritos a mano: `?period=`, `?status=`, `?mias=1`, `?sin_evidencia=1` (Actividades), `?vencidos=1` y `?por_vencer=1` (Compromisos).
 
@@ -380,6 +382,28 @@ python manage.py runserver                  # servidor de desarrollo
 
 - `main` contiene solo el primer push de inicialización. El desarrollo se hace en ramas `feature/*` (por ejemplo `feature/soft-delete`, `feature/crud-excel-paginacion` o `feature/deploy-aws`), que se integran con `git merge --no-ff` para que el historial muestre cada integración, y luego se llevan a `main` mediante Pull Request.
 - `.env`, entornos virtuales, `media/`, `staticfiles/` y la base de datos no se versionan (`.gitignore`). La plantilla de configuración es `.env.example`.
+
+### Reglas de negocio de la guía (RN-001 a RN-013)
+
+| Regla | Estado | Dónde |
+| --- | --- | --- |
+| RN-001 Ponderadores de un cargo y período suman 100 % | Cumple. Si no suman 100, el dashboard no calcula el cumplimiento de ese cargo y lo avisa; el Admin de Metas muestra la suma por cargo y advierte al guardar | `medicion/services.py` (`suma_ponderadores`), `dashboard/services.py`, `medicion/admin.py` |
+| RN-002 Meta mayor que cero | Cumple | `medicion/models.py` (validación de `Goal`) |
+| RN-003 Avance = actividades válidas del período | Cumple (solo actividades aprobadas del período) | `dashboard/services.py` |
+| RN-004 % cumplimiento = avance / meta × 100 | Cumple | `medicion/services.py` (`calcular_cumplimiento_ponderado`) |
+| RN-005 Ponderado con tope | Cumple, tope configurable por período (`Period.max_cap`), fijado en **100 %** | `core/models.py`, `medicion/services.py` |
+| RN-006 Umbral colectivo configurable | Cumple (`Period.min_threshold`, 80 %); el dashboard dice si el grupo lo alcanza | `core/models.py`, `templates/dashboard/index.html` |
+| RN-007 Meta esperada al día | Cumple (días transcurridos desde el inicio / días del período) | `medicion/services.py` |
+| RN-008 Semáforo verde / ámbar (≥ 60 % de lo esperado) / rojo | Cumple | `medicion/services.py` (`calcular_semaforo`) |
+| RN-009 Solo validación aprobada suma; rechazada o anulada no | Cumple | `evidencias/services.py` (`estado_segun_evidencias`) |
+| RN-010 Código de evidencia único e inmutable | Cumple: lo genera el sistema (`EV-AAAAMM-XXXXXXXX`) y no se puede cambiar | `actividades/models.py` (`generar_codigo_evidencia`, `clean`) |
+| RN-011 Felicitaciones, reclamos y ajustes parametrizables | **Pendiente a propósito**: la guía pide no fijar valores hasta la definición oficial. Los parámetros (`Parameter`) ya existen para cargarlos | `core/models.py` |
+| RN-012 Hasta 3 gestiones por atención, con fecha y resultado | Cumple (gestión 1 a 3, fecha no futura ni anterior a la actividad, resultado) | `actividades/models.py` (`SocialCase`) |
+| RN-013 Período cerrado no se modifica salvo reapertura auditada | Cumple: bloquea actividades, evidencias y metas; cerrar, reabrir y cambiar configuración queda en la auditoría | `core/admin_utils.py` (`AuditarCambiosAdmin`), `core/admin.py` |
+
+Las pruebas de cada regla están en `core/tests_reglas_negocio.py` (`ReglasDeLaGuiaTests`).
+
+**Superadministrador y registros eliminados.** Lo que borra un administrador de delegación (actividad, evidencia, etc.) desaparece para él, pero el superadministrador lo sigue viendo en el Admin (columna «Estado», filtro «Eliminados», solo lectura) y puede restaurarlo con la acción «Restaurar». Ambas acciones quedan en la auditoría.
 
 ## Dónde está cada requisito en el código
 

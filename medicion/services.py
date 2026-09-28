@@ -1,5 +1,18 @@
 from decimal import Decimal
 
+# RN-001: los ponderadores de un cargo en un período deben sumar exactamente esto.
+SUMA_PONDERADORES = Decimal('100')
+
+
+def suma_ponderadores(metas):
+    return sum((meta.weight for meta in metas), Decimal('0'))
+
+
+def formato_numero(valor):
+    """100.00 → «100», 72.50 → «72,5» (Decimal.normalize() daría «1E+2»)."""
+    texto = f'{Decimal(valor):.2f}'.rstrip('0').rstrip('.')
+    return texto.replace('.', ',')
+
 
 def calcular_cumplimiento_pct(avance, meta):
     if not meta:

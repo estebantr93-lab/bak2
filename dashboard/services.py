@@ -22,6 +22,9 @@ from evidencias.models import Evidence
 from funcionarios.models import Employee
 from medicion.models import Goal
 from medicion.services import (
+    SUMA_PONDERADORES,
+    formato_numero,
+    suma_ponderadores,
     calcular_cumplimiento_ponderado,
     calcular_meta_esperada_al_dia,
     calcular_semaforo,
@@ -141,6 +144,12 @@ def _sin_evidencia(actividades):
 def _fila(funcionario, metas, aprobadas_por_tipo, sin_evidencia, esperado_pct, tope):
     metas_cargo = metas.get(funcionario.position_id, [])
     cumplimiento, detalle = calcular_cumplimiento_ponderado(aprobadas_por_tipo.get(funcionario.pk, {}), metas_cargo, tope)
+    # RN-001: si los ponderadores del cargo no suman 100 %, el cumplimiento no es válido y no se informa.
+    suma = suma_ponderadores(metas_cargo)
+    incompletos = bool(metas_cargo) and suma != SUMA_PONDERADORES
+    if incompletos:
+        cumplimiento = Decimal('0')
+    con_meta = bool(metas_cargo) and not incompletos
     return {
         'employee': funcionario,
         'rol': get_rol(funcionario.user),
@@ -157,10 +166,11 @@ def _fila(funcionario, metas, aprobadas_por_tipo, sin_evidencia, esperado_pct, t
         'comp_por_vencer': funcionario.comp_por_vencer,
         'target': sum(meta.target for meta in metas_cargo),
         'aprobadas_con_meta': sum(d['aprobadas'] for d in detalle),
-        'con_meta': bool(metas_cargo),
+        'con_meta': con_meta,
+        'ponderadores_incompletos': formato_numero(suma) if incompletos else None,
         'detalle_metas': detalle,
         'compliance_pct': cumplimiento.quantize(Decimal('0.1')),
-        'traffic_light': calcular_semaforo(cumplimiento, esperado_pct) if metas_cargo else None,
+        'traffic_light': calcular_semaforo(cumplimiento, esperado_pct) if con_meta else None,
     }
 
 
@@ -237,6 +247,8 @@ def construir_dashboard(user, periodo, hoy=None):
         'propia': todas[0] if get_rol(user) == ROL_FUNCIONARIO and todas else None,
         'hay_metas': bool(metas),
         'tope_pct': tope,
+        # RN-006: umbral mínimo de cumplimiento colectivo, configurable por período.
+        'umbral_colectivo': periodo.min_threshold if periodo else None,
         'dias_por_vencer': DIAS_POR_VENCER,
         'esperado_pct': esperado_pct.quantize(Decimal('0.1')),
         'estado_actividades': _segmentos(totales, 'act_total', ESTADOS_ACTIVIDAD),

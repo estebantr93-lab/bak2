@@ -26,6 +26,7 @@ class ActivityCrud(CrudConfig):
         Column('Delegación', 'delegation.name'),
         Column('Tipo', 'activity_type.name'),
         Column('Período', 'period.name'),
+        Column('Cód. evidencia', 'evidence_code'),
         Column('Estado', 'get_validation_status_display', kind='badge',
                badge=lambda a: f'estado-{a.validation_status}'),
     ]
@@ -53,7 +54,9 @@ class SocialCaseCrud(CrudConfig):
         Column('Delegación', 'activity.delegation.name'),
         Column('Funcionario', 'activity.employee.name'),
         Column('Gestión N°', 'step_number'),
+        Column('Fecha', 'date'),
         Column('Descripción', 'description'),
+        Column('Resultado', 'result'),
     ]
 
 

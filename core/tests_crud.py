@@ -189,7 +189,7 @@ class AtencionSocialTests(BaseCrud):
         self.ingresar('funcionario_centro')
         libre = next(n for n in (1, 2, 3) if not SocialCase.objects.filter(activity=self.social, step_number=n).exists())
         response = self.client.post(reverse('atencion_create'), {
-            'activity': self.social.pk, 'step_number': libre, 'description': 'Seguimiento en terreno',
+            'activity': self.social.pk, 'step_number': libre, 'description': 'Seguimiento en terreno', 'date': timezone.localdate().isoformat(),
         })
         self.assertRedirects(response, reverse('atencion_list'))
 

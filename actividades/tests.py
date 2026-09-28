@@ -52,11 +52,15 @@ class ActividadFormTests(TestCase):
         self.assertEqual(form.errors['period'], ['Período cerrado: no se pueden registrar actividades.'])
         self.assertEqual(form.non_field_errors(), [])
 
-    def test_codigo_evidencia_obligatorio(self):
+    def test_codigo_evidencia_lo_genera_el_sistema_y_es_inmutable(self):
+        # RN-010 / RF-011: sin código, el sistema genera uno único al guardar; después no cambia.
         form = ActividadForm(data=self._datos_base(evidence_code=''))
+        self.assertTrue(form.is_valid(), form.errors)
+        actividad = form.save()
+        self.assertTrue(actividad.evidence_code.startswith('EV-'))
+        form = ActividadForm(data=self._datos_base(evidence_code='OTRO-CODIGO'), instance=actividad)
         self.assertFalse(form.is_valid())
-        self.assertEqual(len(form.errors['evidence_code']), 1)
-        self.assertEqual(form.non_field_errors(), [])
+        self.assertIn('evidence_code', form.errors)
 
     def test_actividad_valida_se_guarda(self):
         form = ActividadForm(data=self._datos_base())

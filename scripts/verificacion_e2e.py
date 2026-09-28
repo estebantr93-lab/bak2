@@ -172,7 +172,8 @@ with override_settings(MEDIA_ROOT=media, MAILERS=correo_locmem, ALLOWED_HOSTS=['
     social = Activity.objects.filter(delegation__name='Delegación Centro', period=abierto,
                                      activity_type__category='social').exclude(social_cases__step_number=3).first()
     paso = next(p for p in (1, 2, 3) if not SocialCase.all_objects.filter(activity=social, step_number=p).exists())
-    r = c.post(reverse('atencion_create'), {'activity': social.pk, 'step_number': paso, 'description': 'Gestión verif'})
+    r = c.post(reverse('atencion_create'), {'activity': social.pk, 'step_number': paso, 'description': 'Gestión verif',
+                                            'date': fecha.isoformat(), 'result': 'En seguimiento'})  # RN-012
     ok('CRUD Atenciones: crear', r.status_code == 302)
     no_social = Activity.objects.filter(delegation__name='Delegación Centro', period=abierto).exclude(
         activity_type__category='social').first()

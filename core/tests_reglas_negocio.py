@@ -308,7 +308,8 @@ class ReglasDeNegocioTests(TestCase):
         metas = [SimpleNamespace(activity_type_id=1, activity_type='A', target=10, weight=Decimal('50')),
                  SimpleNamespace(activity_type_id=2, activity_type='B', target=10, weight=Decimal('50'))]
         pct, _ = calcular_cumplimiento_ponderado({1: 40, 3: 99}, metas, tope=self.abierto.max_cap)
-        self.assertEqual(pct, Decimal('75'))  # 400 % topado a 150 %; el tipo 3 no tiene meta
+        self.assertEqual(self.abierto.max_cap, Decimal('100'))
+        self.assertEqual(pct, Decimal('50'))  # 400 % topado a 100 % (nadie supera el 100 %); el tipo 3 no tiene meta
         self.assertEqual(calcular_semaforo(Decimal('80'), Decimal('70')), 'green')
         self.assertEqual(calcular_semaforo(Decimal('50'), Decimal('70')), 'amber')
         self.assertEqual(calcular_semaforo(Decimal('30'), Decimal('70')), 'red')
@@ -347,3 +348,130 @@ class ReglasDeNegocioTests(TestCase):
         formula = next(c for c in celdas if str(c.value).startswith('='))
         self.assertEqual(formula.data_type, 's')  # texto, no fórmula
         self.assertEqual({fila[1] for fila in hoja.iter_rows(min_row=2, values_only=True)}, {'Delegación Centro'})
+
+
+@override_settings(MEDIA_ROOT=MEDIA_TEMPORAL)
+class ReglasDeLaGuiaTests(TestCase):
+    """RN-001 a RN-013 de la «Guía Proyecto Software SGR» (sección 7), una prueba por regla."""
+
+    @classmethod
+    def setUpTestData(cls):
+        sembrar_datos_demo()
+        cls.abierto = Period.objects.get(is_closed=False)
+        cls.ana = Employee.objects.get(user__username='funcionario_centro')
+
+    def ingresar(self, username):
+        self.client.logout()
+        self.assertTrue(self.client.login(username=username, password=CLAVE_TEST))
+
+    def fila(self, response, empleado):
+        return next(f for s in response.context['secciones'] for g in s['grupos'] for f in g['filas']
+                    if f['employee'] == empleado)
+
+    def test_rn001_ponderadores_que_no_suman_100_no_dan_cumplimiento(self):
+        Goal.objects.filter(position=self.ana.position, period=self.abierto).first().delete()
+        self.ingresar('admin_centro')
+        fila = self.fila(self.client.get(reverse('dashboard')), self.ana)
+        self.assertIsNotNone(fila['ponderadores_incompletos'])
+        self.assertFalse(fila['con_meta'])
+        self.assertIsNone(fila['traffic_light'])
+
+    def test_rn002_meta_mayor_que_cero(self):
+        meta = Goal.objects.filter(period=self.abierto).first()
+        meta.target = 0
+        with self.assertRaises(ValidationError):
+            meta.full_clean()
+
+    def test_rn003_rn004_rn009_avance_solo_con_aprobadas_y_porcentaje_avance_sobre_meta(self):
+        from types import SimpleNamespace
+
+        meta = SimpleNamespace(activity_type_id=1, activity_type='A', target=8, weight=Decimal('100'))
+        pct, detalle = calcular_cumplimiento_ponderado({1: 2}, [meta], tope=Decimal('100'))
+        self.assertEqual((detalle[0]['aprobadas'], pct), (2, Decimal('25')))
+        # Una actividad rechazada o con la evidencia anulada no suma avance.
+        actividad = Activity.objects.filter(employee=self.ana, period=self.abierto).first()
+        Activity.objects.filter(pk=actividad.pk).update(validation_status='rejected')
+        self.ingresar('admin_centro')
+        antes = self.fila(self.client.get(reverse('dashboard')), self.ana)['aprobadas_con_meta']
+        self.assertEqual(antes, Activity.objects.filter(employee=self.ana, period=self.abierto, validation_status='approved',
+                                                        activity_type__goals__position=self.ana.position,
+                                                        activity_type__goals__period=self.abierto).count())
+
+    def test_rn005_nadie_supera_el_tope_de_100(self):
+        self.assertEqual(self.abierto.max_cap, Decimal('100'))
+        for actividad in Activity.objects.filter(employee=self.ana, period=self.abierto):
+            Activity.objects.filter(pk=actividad.pk).update(validation_status='approved')
+        for i in range(30):  # sobrecumple con creces
+            base = Activity.objects.filter(employee=self.ana, period=self.abierto).first()
+            Activity.objects.create(number=f'SOBRE-{i}', employee=self.ana, delegation=self.ana.delegation,
+                                    period=self.abierto, activity_type=base.activity_type, date=base.date,
+                                    description='x', validation_status='approved')
+        self.ingresar('admin_centro')
+        self.assertLessEqual(self.fila(self.client.get(reverse('dashboard')), self.ana)['compliance_pct'], Decimal('100'))
+
+    def test_rn006_umbral_colectivo_configurable_por_periodo(self):
+        Period.objects.filter(pk=self.abierto.pk).update(min_threshold=Decimal('70'))
+        self.ingresar('admin_centro')
+        response = self.client.get(reverse('dashboard'))
+        self.assertEqual(response.context['umbral_colectivo'], Decimal('70'))
+        self.assertContains(response, 'Umbral mínimo colectivo')
+
+    def test_rn007_meta_esperada_al_dia_entre_0_y_100(self):
+        from dashboard.services import _porcentaje_esperado
+
+        p = self.abierto
+        self.assertEqual(_porcentaje_esperado(p, p.start_date), Decimal('0'))
+        self.assertEqual(_porcentaje_esperado(p, p.end_date + datetime.timedelta(days=5)), Decimal('100'))
+        mitad = p.start_date + (p.end_date - p.start_date) / 2
+        self.assertTrue(Decimal('0') < _porcentaje_esperado(p, mitad) < Decimal('100'))
+
+    def test_rn008_semaforo_con_umbral_de_60(self):
+        self.assertEqual(calcular_semaforo(Decimal('50'), Decimal('50')), 'green')
+        self.assertEqual(calcular_semaforo(Decimal('30'), Decimal('50')), 'amber')   # 60 % de 50 = 30
+        self.assertEqual(calcular_semaforo(Decimal('29.9'), Decimal('50')), 'red')
+
+    def test_rn010_codigo_de_evidencia_unico_generado_e_inmutable(self):
+        self.ingresar('funcionario_centro')
+        datos = {'number': 'RN010-1', 'employee': self.ana.pk, 'period': self.abierto.pk,
+                 'activity_type': ActivityType.objects.first().pk, 'date': self.abierto.start_date.isoformat(),
+                 'description': 'RN-010', 'evidence_code': 'ESCRITO-A-MANO'}
+        self.client.post(reverse('actividad_create'), datos)
+        actividad = Activity.objects.get(number='RN010-1')
+        self.assertNotEqual(actividad.evidence_code, 'ESCRITO-A-MANO')  # lo genera el sistema
+        codigo = actividad.evidence_code
+        self.client.post(reverse('actividad_update', args=[actividad.pk]), {**datos, 'evidence_code': 'OTRO'})
+        actividad.refresh_from_db()
+        self.assertEqual(actividad.evidence_code, codigo)  # inmutable
+        otra = Activity.objects.create(number='RN010-2', employee=self.ana, delegation=self.ana.delegation,
+                                       period=self.abierto, activity_type=actividad.activity_type,
+                                       date=actividad.date, description='x')
+        self.assertNotEqual(otra.evidence_code, codigo)  # único
+
+    def test_rn012_gestiones_conservan_fecha_y_resultado_por_etapa(self):
+        social = Activity.objects.create(number='RN012', employee=self.ana, delegation=self.ana.delegation,
+                                         period=self.abierto, activity_type=ActivityType.objects.get(category='social'),
+                                         date=self.abierto.start_date, description='Caso social')
+        self.ingresar('funcionario_centro')
+        hoy = timezone.localdate()
+        self.client.post(reverse('atencion_create'), {'activity': social.pk, 'step_number': 1, 'date': hoy.isoformat(),
+                                                      'description': 'Diagnóstico', 'result': 'Derivado'})
+        gestion = SocialCase.objects.get(activity=social, step_number=1)
+        self.assertEqual((gestion.date, gestion.result), (hoy, 'Derivado'))
+        with self.assertRaises(ValidationError):  # nunca anterior a la actividad
+            SocialCase(activity=social, step_number=2, description='x',
+                       date=social.date - datetime.timedelta(days=1)).full_clean()
+
+    def test_rn013_cerrar_y_reabrir_un_periodo_queda_auditado(self):
+        self.ingresar('admin_sgr')
+        url = f'/admin/core/period/{self.abierto.pk}/change/'
+        datos = {'name': self.abierto.name, 'start_date': self.abierto.start_date.isoformat(),
+                 'end_date': self.abierto.end_date.isoformat(), 'min_threshold': '80', 'max_cap': '100'}
+        self.client.post(url, {**datos, 'is_closed': 'on'})
+        self.client.post(url, datos)
+        acciones = list(AuditLog.objects.filter(entity_type='Period', entity_id=self.abierto.pk)
+                        .order_by('date', 'pk').values_list('action', 'user__username'))
+        self.assertEqual(acciones, [('cerrar_periodo', 'admin_sgr'), ('reabrir_periodo', 'admin_sgr')])
+        # Solo el administrador general puede hacerlo: un admin de delegación solo consulta períodos.
+        self.ingresar('admin_centro')
+        self.client.post(url, {**datos, 'is_closed': 'on'})
+        self.assertFalse(Period.objects.get(pk=self.abierto.pk).is_closed)

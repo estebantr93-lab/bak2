@@ -112,6 +112,15 @@ Contenido según el rol (banderas es_funcionario / es_verificador / es_gestor de
                         <div class="d-flex justify-content-between small text-muted mt-1">
                             <span>0 %</span><span>Esperado {{ esperado_pct }} %</span><span>100 %</span>
                         </div>
+                        {% if es_gestor and umbral_colectivo %}
+                            {# RN-006: umbral mínimo colectivo del período (configurable en el Admin, Períodos). #}
+                            <p class="small mb-0 mt-2">
+                                Umbral mínimo colectivo: <strong>{{ umbral_colectivo|floatformat:0 }} %</strong> al cierre del período ·
+                                {% if totales.compliance_pct >= umbral_colectivo %}el equipo ya lo alcanza.{% else %}faltan {{ umbral_colectivo|sub:totales.compliance_pct|floatformat:1 }} puntos.{% endif %}
+                            </p>
+                        {% endif %}
+                    {% elif es_funcionario and propia.ponderadores_incompletos %}
+                        <p class="dash-vacio">Los ponderadores de su cargo suman {{ propia.ponderadores_incompletos }} % y deben sumar 100 %: el cumplimiento se calculará cuando se complete la configuración.</p>
                     {% elif hay_metas %}
                         <p class="dash-vacio">{% if es_funcionario %}Su cargo no tiene metas en este período.{% else %}Ningún cargo de su equipo tiene metas en este período.{% endif %}</p>
                     {% else %}
@@ -266,6 +275,8 @@ Contenido según el rol (banderas es_funcionario / es_verificador / es_gestor de
                                         <span class="small text-nowrap">{{ fila.compliance_pct }} %</span>
                                     </div>
                                     <span class="small text-muted"><span class="dash-punto semaforo-{{ fila.traffic_light }}" aria-hidden="true"></span>{{ fila.traffic_light|semaforo_texto }}</span>
+                                {% elif fila.ponderadores_incompletos %}
+                                    <span class="small dash-vencidos">Ponderadores incompletos: suman {{ fila.ponderadores_incompletos }} % (RN-001)</span>
                                 {% else %}
                                     <span class="small text-muted">Sin meta para su cargo</span>
                                 {% endif %}

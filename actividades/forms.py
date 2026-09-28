@@ -23,12 +23,12 @@ class ActividadWebForm(ActividadForm):
     class Meta(ActividadForm.Meta):
         fields = [
             'number', 'employee', 'period', 'activity_type', 'date', 'description',
-            'action', 'contact', 'phone', 'is_agenda_item', 'evidence_code',
-        ]
+            'action', 'contact', 'phone', 'is_agenda_item',
+        ]  # evidence_code no: lo genera el sistema y es inmutable (RN-010 / RF-011)
         labels = {
             'number': 'Número', 'period': 'Período', 'activity_type': 'Tipo de actividad',
             'description': 'Descripción', 'action': 'Acción', 'phone': 'Teléfono',
-            'is_agenda_item': 'Indicador de agenda', 'evidence_code': 'Código de evidencia',
+            'is_agenda_item': 'Indicador de agenda',
         }
         widgets = {
             'date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
@@ -75,9 +75,11 @@ class SocialCaseForm(forms.ModelForm):
 
     class Meta:
         model = SocialCase
-        fields = ['activity', 'step_number', 'description']
-        labels = {'activity': 'Actividad', 'step_number': 'Número de gestión (1 a 3)', 'description': 'Descripción'}
-        widgets = {'description': forms.Textarea(attrs={'rows': 3})}
+        fields = ['activity', 'step_number', 'date', 'description', 'result']
+        labels = {'activity': 'Actividad', 'step_number': 'Número de gestión (1 a 3)', 'date': 'Fecha de la gestión',
+                  'description': 'Descripción', 'result': 'Resultado'}
+        widgets = {'description': forms.Textarea(attrs={'rows': 3}),
+                   'date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d')}
 
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)

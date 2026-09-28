@@ -42,7 +42,7 @@
             {% for row in rows %}
                 <tr>
                     {% for cell in row.cells %}
-                        <td data-etiqueta="{{ cell.header }}">
+                        <td data-etiqueta="{{ cell.header }}"{% if cell.nowrap %} class="text-nowrap"{% endif %}>
                             {% if cell.kind == 'badge' %}
                                 <span class="badge {{ cell.badge }}">{{ cell.text }}</span>
                             {% elif cell.kind == 'file' %}
