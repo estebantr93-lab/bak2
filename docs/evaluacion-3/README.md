@@ -30,7 +30,7 @@ Aparecen al revisar la configuración actual. Cada una debe quedar con su caso d
 | A09 Fallas de registro y monitoreo | Los ingresos fallidos no quedan registrados | Registrar en `AuditLog` los ingresos fallidos y los accesos denegados (403) |
 | A05 Configuración de seguridad incorrecta | Sin política de seguridad de contenido (CSP) | Middleware de CSP de Django (`django.middleware.csp`) |
 | A06 Componentes vulnerables | No se revisan las dependencias | `pip-audit` sobre `requirements.txt` y registrar el resultado |
-| A03 Inyección (XSS) | `form_campos.html` muestra `help_text|safe`; hoy solo trae textos del propio código | Revisar que ningún `help_text` venga de datos de usuario, o quitar `|safe` |
+| A03 Inyección (XSS) | `form_campos.html` muestra `help_text\|safe`; hoy solo trae textos del propio código | Revisar que ningún `help_text` venga de datos de usuario, o quitar `\|safe` |
 | A02 Fallas criptográficas | El despliegue en AWS usa HTTP | Documentar HTTPS (certificado) o justificar el alcance académico; HSTS si hay HTTPS |
 
 ## Plan de trabajo sugerido
