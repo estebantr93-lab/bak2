@@ -3,7 +3,7 @@ Aplica el tema guardado antes de pintar la página (evita el parpadeo). Va en el
 (base.html) y del admin (admin/base_site.html); los cambios posteriores los maneja static/js/tema.js.
 La clave "theme" es la misma que usa el admin de Django, así ambos comparten el tema elegido.
 {% endcomment %}
-<script>
+<script nonce="{{ csp_nonce }}">
     (function () {
         var t = null;
         try { t = localStorage.getItem('theme'); } catch (e) {}

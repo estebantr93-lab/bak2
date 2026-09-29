@@ -67,6 +67,7 @@ if [[ ! -f .env ]]; then
     IP=$(curl -s --max-time 3 http://checkip.amazonaws.com || echo "")
     sed -i "s|^SECRET_KEY=.*|SECRET_KEY=${SECRET}|" .env
     sed -i "s|^DEBUG=.*|DEBUG=False|" .env
+    sed -i "s|^CONFIAR_X_FORWARDED_FOR=.*|CONFIAR_X_FORWARDED_FOR=True|" .env  # nginx va delante
     sed -i "s|^ALLOWED_HOSTS=.*|ALLOWED_HOSTS=localhost,127.0.0.1,${IP}|" .env
     sed -i "s|^CSRF_TRUSTED_ORIGINS=.*|CSRF_TRUSTED_ORIGINS=http://${IP}|" .env
     if [[ -n "${DEMO_PASSWORD:-}" ]]; then

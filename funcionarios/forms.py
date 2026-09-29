@@ -1,7 +1,10 @@
 from django import forms
+from django.conf import settings
 from django.contrib.auth.forms import AuthenticationForm
 
 from core.admin_utils import es_usuario_sin_restriccion, perfil_desactivado, tiene_acceso_al_sistema
+
+from .accesos import LOGIN_BLOQUEADO, esta_bloqueado, normalizar, registrar_acceso
 
 
 class LoginForm(AuthenticationForm):
@@ -11,7 +14,20 @@ class LoginForm(AuthenticationForm):
         'invalid_login': 'Usuario o contraseña incorrectos.',
         'sin_rol': 'Su cuenta no tiene un rol asignado. Contacte al administrador del sistema.',
         'desactivado': 'Su perfil de funcionario está desactivado. Contacte al administrador de su delegación.',
+        'bloqueado': 'Demasiados intentos fallidos. Espere %(minutos)s minutos antes de volver a intentarlo.',
     }
+
+    def clean(self):
+        # OWASP A07: se revisa antes de comprobar la contraseña, así el bloqueo responde lo mismo
+        # con la clave correcta o incorrecta y no sirve para adivinarla.
+        username = self.cleaned_data.get('username')
+        if username and esta_bloqueado(self.request, username):
+            registrar_acceso(self.request, LOGIN_BLOQUEADO, normalizar(username))
+            raise forms.ValidationError(
+                self.error_messages['bloqueado'], code='bloqueado',
+                params={'minutos': settings.LOGIN_VENTANA_MINUTOS},
+            )
+        return super().clean()
 
     def confirm_login_allowed(self, user):
         super().confirm_login_allowed(user)  # rechaza cuentas inactivas

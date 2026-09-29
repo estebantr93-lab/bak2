@@ -415,6 +415,13 @@ Las pruebas de cada regla están en `core/tests_reglas_negocio.py` (`ReglasDeLaG
 
 **Superadministrador y registros eliminados.** Lo que borra un administrador de delegación (actividad, evidencia, etc.) desaparece para él, pero el superadministrador lo sigue viendo en el Admin (columna «Estado», filtro «Eliminados», solo lectura) y puede restaurarlo con la acción «Restaurar». Ambas acciones quedan en la auditoría. Un registro cuyo padre sigue eliminado (una evidencia, gestión o seguimiento de una actividad o compromiso eliminado) no se restaura: el Admin avisa «Restaure primero…», porque quedaría activo colgando de algo que nadie ve (`SoftDeleteModel.padre_eliminado` en `core/soft_delete.py`).
 
+### Seguridad de la Evaluación 3 (OWASP)
+
+- **Límite de intentos de ingreso:** 5 fallos por usuario o 20 por IP en 15 minutos bloquean temporalmente el ingreso (`LOGIN_MAX_INTENTOS`, `LOGIN_MAX_INTENTOS_IP`, `LOGIN_VENTANA_MINUTOS`).
+- **Traza de accesos:** ingresos correctos y fallidos, bloqueos, cierres de sesión y accesos denegados (403) quedan en la traza de auditoría con usuario, IP y fecha (`funcionarios/accesos.py`). En AWS, con nginx delante, `CONFIAR_X_FORWARDED_FOR=True` para registrar la IP real del cliente.
+- **Política de seguridad de contenido (CSP):** `SECURE_CSP` en `config/settings.py`. Los `<script>` escritos en las plantillas llevan `nonce="{{ csp_nonce }}"`, y no se usan atributos `onclick=`/`onchange=` (el envío automático de selectores está en `static/js/autoenvio.js`).
+- Plan de pruebas, registro de deficiencias y capturas: [`docs/evaluacion-3/`](docs/evaluacion-3/README.md).
+
 ## Dónde está cada requisito en el código
 
 | Requisito | Archivos |
@@ -434,4 +441,5 @@ Las pruebas de cada regla están en `core/tests_reglas_negocio.py` (`ReglasDeLaG
 | Excel | `reportes/services.py` (`respuesta_xlsx`), `core/crud.py` (`CrudExportView`) |
 | Datos de volumen | `core/volume_data.py`, `core/management/commands/seed_data.py` |
 | Dashboard por rol | `dashboard/views.py`, `dashboard/services.py` |
+| Límite de intentos, traza de accesos y CSP | `funcionarios/accesos.py`, `funcionarios/forms.py`, `config/settings.py` (`SECURE_CSP`), `funcionarios/tests_seguridad_owasp.py` |
 | Despliegue | `deploy/setup_ec2.sh`, `deploy/gunicorn-sgr.service`, `deploy/nginx-sgr.conf` |

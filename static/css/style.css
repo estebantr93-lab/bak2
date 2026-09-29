@@ -333,9 +333,16 @@ body { background: var(--sgr-fondo); }
     .dash-resumen-cab { padding: 1.1rem; }
 }
 
-/* ===================== Tablas en celular: una tarjeta por fila =====================
-   Las celdas llevan data-etiqueta (encabezado de su columna); así no hay que desplazar la tabla de lado. */
-@media (max-width: 767.98px) {
+/* ===================== Tablas en celular y tablet vertical: una tarjeta por fila =====================
+   Las celdas llevan data-etiqueta (encabezado de su columna); así no hay que desplazar la tabla de lado.
+   Llega hasta 991px para que en una tablet vertical (768px) los botones Editar/Eliminar no queden fuera
+   de la vista (hallazgo U-01 de la Evaluación 3). */
+@media (min-width: 992px) and (max-width: 1199.98px) {
+    /* Tablet horizontal: los botones de acción pasan a una segunda línea en vez de ensanchar la tabla. */
+    .tabla-tarjetas td.celda-acciones { white-space: normal !important; }  /* gana a .text-nowrap de Bootstrap */
+    .tabla-tarjetas td.celda-acciones .btn { margin: .1rem 0; }
+}
+@media (max-width: 991.98px) {
     .tabla-tarjetas thead { display: none; }
     .tabla-tarjetas, .tabla-tarjetas tbody, .tabla-tarjetas tr, .tabla-tarjetas td { display: block; width: 100%; }
     .tabla-tarjetas tr { padding: .5rem .25rem; border-bottom: 1px solid var(--bs-border-color); }

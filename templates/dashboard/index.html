@@ -30,7 +30,7 @@ Contenido según el rol (banderas es_funcionario / es_verificador / es_gestor de
                 <div class="d-flex flex-wrap gap-2 align-items-center">
                     <form method="get" class="dash-periodo">
                         <label for="periodo" class="visually-hidden">Período</label>
-                        <select id="periodo" name="period" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <select id="periodo" name="period" class="form-select form-select-sm" data-autoenviar>
                             {% for p in periodos %}
                                 <option value="{{ p.pk }}" {% if period and p.pk == period.pk %}selected{% endif %}>{{ p.name }}</option>
                             {% endfor %}

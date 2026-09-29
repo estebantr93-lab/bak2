@@ -16,7 +16,7 @@
         <form method="get" class="d-flex gap-2 align-items-center">
             {% for clave, valor in filters.items %}<input type="hidden" name="{{ clave }}" value="{{ valor }}">{% endfor %}
             <label for="page_size" class="small text-muted text-nowrap">Por página</label>
-            <select id="page_size" name="page_size" class="form-select form-select-sm" onchange="this.form.submit()">
+            <select id="page_size" name="page_size" class="form-select form-select-sm" data-autoenviar>
                 {% for n in page_sizes %}<option value="{{ n }}" {% if n == page_size %}selected{% endif %}>{{ n }}</option>{% endfor %}
             </select>
             <noscript><button class="btn btn-sm btn-outline-secondary" type="submit">Aplicar</button></noscript>
@@ -119,7 +119,7 @@
 
 {% block extra_js %}
 {% if modal_abierto %}
-<script>
+<script nonce="{{ csp_nonce }}">
     // Edición o formulario con errores: la página vuelve con el modal abierto.
     document.addEventListener('DOMContentLoaded', function () {
         bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCrud')).show();

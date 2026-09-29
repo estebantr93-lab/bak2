@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
+from django.utils.csp import CSP
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -55,6 +56,24 @@ if os.getenv('BEHIND_HTTPS_PROXY', 'False') == 'True':
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 
+# OWASP A05 · Política de seguridad de contenido (CSP). El navegador solo ejecuta scripts del propio
+# sitio, de cdn.jsdelivr.net (Bootstrap, con hash de integridad) o con el nonce de la respuesta: un
+# script inyectado (XSS) no corre. Los estilos en línea se permiten porque la interfaz usa atributos
+# style (anchos de barras, colores) y un estilo no ejecuta código.
+SECURE_CSP = {
+    'default-src': [CSP.SELF],
+    'script-src': [CSP.SELF, 'https://cdn.jsdelivr.net', CSP.NONCE],
+    'style-src': [CSP.SELF, 'https://cdn.jsdelivr.net', CSP.UNSAFE_INLINE],
+    'img-src': [CSP.SELF, 'data:'],
+    'font-src': [CSP.SELF, 'https://cdn.jsdelivr.net'],
+    'connect-src': [CSP.SELF],
+    'object-src': [CSP.NONE],
+    'base-uri': [CSP.SELF],
+    'form-action': [CSP.SELF],
+    'frame-ancestors': [CSP.NONE],
+}
+
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -84,6 +103,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # OWASP A05: política de seguridad de contenido (cabecera Content-Security-Policy, ver SECURE_CSP).
+    'django.middleware.csp.ContentSecurityPolicyMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -96,6 +117,7 @@ TEMPLATES = [
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.request',
+                'django.template.context_processors.csp',  # {{ csp_nonce }} para los <script> en línea
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
             ],
@@ -246,6 +268,15 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 
 # Recuperación de contraseña mediante código temporal
 RECUPERACION_CODIGO_VIGENCIA_SEGUNDOS = int(os.getenv('RECUPERACION_CODIGO_VIGENCIA_SEGUNDOS', '120'))
+
+# OWASP A07 · Límite de intentos de ingreso (funcionarios/accesos.py). Superado el máximo dentro de la
+# ventana, el usuario (o la IP) queda bloqueado hasta que los fallos salen de la ventana.
+LOGIN_MAX_INTENTOS = int(os.getenv('LOGIN_MAX_INTENTOS', '5'))          # por nombre de usuario
+LOGIN_MAX_INTENTOS_IP = int(os.getenv('LOGIN_MAX_INTENTOS_IP', '20'))   # por IP (muchas cuentas)
+LOGIN_VENTANA_MINUTOS = int(os.getenv('LOGIN_VENTANA_MINUTOS', '15'))
+# Detrás de nginx la IP real llega en X-Forwarded-For. Solo activarlo si nginx está delante:
+# sin proxy, cualquiera podría escribir esa cabecera y hacerse pasar por otra IP.
+CONFIAR_X_FORWARDED_FOR = os.getenv('CONFIAR_X_FORWARDED_FOR', 'False') == 'True'
 RECUPERACION_CODIGO_MAX_INTENTOS = 5
 RECUPERACION_MAX_SOLICITUDES_HORA = 5  # códigos que un mismo usuario puede pedir por hora
 

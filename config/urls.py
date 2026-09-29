@@ -52,3 +52,6 @@ urlpatterns = [
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+# OWASP A09: los accesos denegados (403) quedan en la traza de auditoría.
+handler403 = 'funcionarios.accesos.acceso_denegado'

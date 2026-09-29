@@ -10,7 +10,7 @@ El tema se comparte con la app: ambos guardan la preferencia en localStorage["th
 {% block extrahead %}
     {{ block.super }}
     {% include "includes/tema_inicial.html" %}
-    <script>
+    <script nonce="{{ csp_nonce }}">
         // La barra lateral de modelos parte cerrada (deja el ancho a la tabla); se abre con «.
         // Solo es el valor inicial: si el usuario la abre, el Admin recuerda su elección.
         try {

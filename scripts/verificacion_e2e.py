@@ -69,6 +69,9 @@ with override_settings(MEDIA_ROOT=media, MAILERS=correo_locmem, ALLOWED_HOSTS=['
                                                 'funcionario_norte', 'verificador_leia']):
         u.set_password(CLAVE)
         u.save()
+    # Los intentos de ingreso anteriores (por ejemplo, de una demo reciente) no deben bloquear las cuentas
+    # de esta verificación. Todo lo que se hace aquí se revierte al final (set_rollback).
+    AuditLog.objects.filter(entity_type='Acceso').delete()
     abierto = Period.objects.get(is_closed=False)
     cerrado = Period.objects.get(is_closed=True)
     centro_act = Activity.objects.filter(delegation__name='Delegación Centro', period=abierto).first()
@@ -89,6 +92,17 @@ with override_settings(MEDIA_ROOT=media, MAILERS=correo_locmem, ALLOWED_HOSTS=['
     ok('Logout: POST cierra sesión y vuelve al login', r.status_code == 302 and reverse('login') in r.url)
     ok('Anónimo: dashboard redirige al login', Client().get(reverse('dashboard')).status_code == 302)
     ok('/admin/login/ redirige al login del sistema', reverse('login') in Client().get('/admin/login/').get('Location', ''))
+    # Límite de intentos (OWASP A07) y traza de accesos (A09), con una cuenta que no se usa después.
+    for _ in range(settings.LOGIN_MAX_INTENTOS):
+        Client().post(reverse('login'), {'username': 'admin_norte', 'password': 'mala'}, REMOTE_ADDR='10.20.30.40')
+    r = Client().post(reverse('login'), {'username': 'admin_norte', 'password': CLAVE}, REMOTE_ADDR='10.20.30.40')
+    ok('Login: tras 5 fallos se bloquea aunque la clave sea correcta', 'Demasiados intentos fallidos' in r.content.decode())
+    ok('Traza: ingresos fallidos y bloqueo con IP', AuditLog.objects.filter(
+        action='login_fallido', detail='admin_norte', ip='10.20.30.40').count() == settings.LOGIN_MAX_INTENTOS
+        and AuditLog.objects.filter(action='login_bloqueado', detail='admin_norte').exists())
+    AuditLog.objects.filter(entity_type='Acceso', detail='admin_norte').delete()  # la cuenta se usa más adelante
+    ok('CSP: la respuesta declara Content-Security-Policy', "default-src 'self'" in
+       Client().get(reverse('login')).headers.get('Content-Security-Policy', ''))
 
     # ---------------- 2. Recuperación por código de 6 dígitos ----------------
     mail.outbox = []
