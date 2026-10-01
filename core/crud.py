@@ -11,11 +11,15 @@ Cada CRUD declara su modelo, columnas, formulario y permisos; esta base aporta l
 - Exportar a Excel (.xlsx, reportes/services.py) el mismo QuerySet del listado: respeta permisos,
   scoping y borrado lógico.
 """
+import copy
+import datetime
+
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.contrib.messages.views import SuccessMessageMixin
+from django.apps import apps
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.urls import reverse
@@ -71,6 +75,171 @@ class Column:
         return resultado
 
 
+class Filtro:
+    """Filtro del panel «Filtros» de un listado.
+
+    Cada filtro valida lo que llega por GET contra una lista blanca (opciones conocidas o fechas
+    válidas); un valor no permitido se ignora. Solo agrega condiciones sobre el QuerySet que ya está
+    acotado por delegación, así que nunca muestra registros fuera del alcance del usuario."""
+
+    tipo = ''
+
+    def __init__(self, param, etiqueta):
+        self.param, self.etiqueta = param, etiqueta
+
+    def parametros(self):
+        return [self.param]
+
+    def preparar(self, vista):
+        """Datos que dependen del usuario (por ejemplo, las opciones de su alcance)."""
+        return self
+
+    def leer(self, params):
+        """{parámetro: valor} con solo los valores válidos."""
+        raise NotImplementedError
+
+    def condicion(self, valores):
+        raise NotImplementedError
+
+    def describir(self, valores):
+        raise NotImplementedError
+
+    def visible(self):
+        return True
+
+
+class FiltroOpciones(Filtro):
+    """Lista desplegable. `opciones(vista)` devuelve [(valor, texto)] dentro del alcance del usuario."""
+
+    tipo = 'opciones'
+
+    def __init__(self, param, etiqueta, lookup, opciones, minimo=2):
+        super().__init__(param, etiqueta)
+        self.lookup, self._opciones, self.minimo = lookup, opciones, minimo
+        self.opciones = []
+
+    def preparar(self, vista):
+        preparado = copy.copy(self)  # la declaración es de la clase: no se modifica entre peticiones
+        preparado.opciones = [(str(valor), str(texto)) for valor, texto in self._opciones(vista)]
+        return preparado
+
+    def visible(self):
+        # Por defecto, con una sola opción (por ejemplo, la única delegación del usuario) no aporta.
+        return len(self.opciones) >= self.minimo
+
+    def leer(self, params):
+        valor = params.get(self.param, '')
+        return {self.param: valor} if valor in dict(self.opciones) else {}
+
+    def condicion(self, valores):
+        return Q(**{self.lookup: valores[self.param]})
+
+    def describir(self, valores):
+        return f'{self.etiqueta.lower()} {dict(self.opciones)[valores[self.param]]}'  # «período jun–nov 2026»
+
+
+class FiltroFijo(FiltroOpciones):
+    """Opciones fijas escritas en el código (no nombres de registros): siempre visibles."""
+
+    def visible(self):
+        return True
+
+    def describir(self, valores):
+        return f'{self.etiqueta.lower()}: {dict(self.opciones)[valores[self.param]].lower()}'
+
+
+class FiltroCondiciones(FiltroFijo):
+    """Lista desplegable donde cada opción es una condición fija: [(valor, texto, Q)]."""
+
+    def __init__(self, param, etiqueta, condiciones):
+        super().__init__(param, etiqueta, None, lambda vista: [(valor, texto) for valor, texto, _ in condiciones])
+        self.condiciones = {valor: q for valor, _, q in condiciones}
+
+    def condicion(self, valores):
+        return self.condiciones[valores[self.param]]
+
+
+class FiltroReciente(FiltroFijo):
+    """Antigüedad de una fecha y hora (por ejemplo, la última modificación, `updated_at`)."""
+
+    PERIODOS = [('hoy', 'Hoy'), ('7', 'Últimos 7 días'), ('30', 'Últimos 30 días'), ('mas_30', 'Hace más de 30 días')]
+
+    def __init__(self, param, etiqueta, campo):
+        super().__init__(param, etiqueta, campo, lambda vista: self.PERIODOS)
+
+    def condicion(self, valores):
+        valor, ahora = valores[self.param], timezone.now()
+        if valor == 'hoy':
+            inicio = timezone.localtime(ahora).replace(hour=0, minute=0, second=0, microsecond=0)
+            return Q(**{f'{self.lookup}__gte': inicio})
+        if valor == 'mas_30':
+            return Q(**{f'{self.lookup}__lt': ahora - datetime.timedelta(days=30)})
+        return Q(**{f'{self.lookup}__gte': ahora - datetime.timedelta(days=int(valor))})
+
+
+class FiltroRangoFechas(Filtro):
+    """Rango «desde / hasta» (ambos opcionales, inclusive) sobre una fecha o una fecha y hora."""
+
+    tipo = 'rango'
+
+    def __init__(self, param, etiqueta, campo, con_hora=False):
+        super().__init__(param, etiqueta)
+        self.campo = f'{campo}__date' if con_hora else campo
+
+    def parametros(self):
+        return [f'{self.param}_desde', f'{self.param}_hasta']
+
+    def leer(self, params):
+        valores = {}
+        for nombre in self.parametros():
+            try:
+                valores[nombre] = datetime.date.fromisoformat(params.get(nombre, '')).isoformat()
+            except ValueError:
+                continue
+        return valores
+
+    def condicion(self, valores):
+        condicion = Q()
+        desde, hasta = valores.get(f'{self.param}_desde'), valores.get(f'{self.param}_hasta')
+        if desde:
+            condicion &= Q(**{f'{self.campo}__gte': desde})
+        if hasta:
+            condicion &= Q(**{f'{self.campo}__lte': hasta})
+        return condicion
+
+    def describir(self, valores):
+        def fecha(texto):
+            return datetime.date.fromisoformat(texto).strftime('%d-%m-%Y')
+        partes = []
+        if f'{self.param}_desde' in valores:
+            partes.append(f'desde {fecha(valores[f"{self.param}_desde"])}')
+        if f'{self.param}_hasta' in valores:
+            partes.append(f'hasta {fecha(valores[f"{self.param}_hasta"])}')
+        return f'{self.etiqueta.lower()} {" ".join(partes)}'
+
+
+def delegaciones_visibles(vista):
+    """Delegaciones del alcance del usuario (el filtro se oculta si es una sola)."""
+    from core.models import Delegation
+    return [(d.pk, d.name) for d in filtrar_por_delegacion(Delegation.objects.order_by('name'), vista.request.user, 'pk')]
+
+
+def periodos(vista):
+    from core.models import Period
+    return [(p.pk, p.name) for p in Period.objects.order_by('-start_date')]
+
+
+def tipos_de_actividad(vista):
+    from core.models import ActivityType
+    return [(t.pk, str(t)) for t in ActivityType.objects.order_by('code')]
+
+
+def funcionarios_visibles(vista):
+    """Funcionarios de la delegación del usuario (todos, si no tiene restricción)."""
+    Employee = apps.get_model('funcionarios', 'Employee')
+    return [(e.pk, e.name) for e in filtrar_por_delegacion(Employee.objects.order_by('name'), vista.request.user)]
+
+
 class CrudConfig:
     """Datos que declara cada CRUD."""
 
@@ -95,6 +264,8 @@ class CrudConfig:
     tabs = []
     # Tarjetas de resumen: (clave de pestaña, tono). El número es el conteo de esa pestaña.
     kpis = []
+    # Panel «Filtros» propio de cada módulo (FiltroOpciones, FiltroReciente, FiltroRangoFechas).
+    panel = []
 
     @property
     def fin(self):
@@ -121,6 +292,8 @@ class CrudConfig:
             qs = qs.filter(**{lookup: valor})
         for _, metodo in self._banderas_activas(params).values():
             qs = getattr(self, metodo)(qs)
+        for filtro, valores in self._panel_activo(params):
+            qs = qs.filter(filtro.condicion(valores))
         busqueda = self._busqueda(params)
         if busqueda:
             condicion = Q()
@@ -128,6 +301,21 @@ class CrudConfig:
                 condicion |= Q(**{f'{campo}__icontains': busqueda})
             qs = qs.filter(condicion)
         return qs
+
+    def filtros_del_panel(self):
+        """Filtros del panel con las opciones del alcance de este usuario (se calculan una vez)."""
+        if not hasattr(self, '_panel_preparado'):
+            self._panel_preparado = [filtro.preparar(self) for filtro in self.panel]
+        return self._panel_preparado
+
+    def _panel_activo(self, params=None):
+        params = self.request.GET if params is None else params
+        activos = []
+        for filtro in self.filtros_del_panel():
+            valores = filtro.leer(params)
+            if valores:
+                activos.append((filtro, valores))
+        return activos
 
     def _busqueda(self, params):
         return (params.get('q') or '').strip()[:100] if self.search_fields else ''
@@ -153,21 +341,23 @@ class CrudConfig:
         return qs.filter(**{f'{campo}__user' if campo else 'user': self.request.user})
 
     def descripcion_filtros(self):
-        """Textos de los filtros aplicados, para que la lista diga qué está mostrando."""
+        """Filtros aplicados como [(texto, parámetros que lo quitan)], para que la lista diga qué
+        está mostrando y cada filtro se pueda quitar por separado."""
         textos = []
         for parametro, (lookup, valor) in self._filtros_validos().items():
-            if parametro == 'period':
-                from core.models import Period
-                textos.append(f'período {Period.objects.filter(pk=valor).first() or valor}')
-            elif parametro in self.choice_filters:
+            if parametro in self.choice_filters:
                 campo = self.model._meta.get_field(lookup)
-                textos.append(str(dict(campo.choices or {}).get(valor, f'{campo.verbose_name} {valor}')).lower())
+                texto = str(dict(campo.choices or {}).get(valor, f'{campo.verbose_name} {valor}')).lower()
             elif parametro == 'activity':
-                textos.append(f'actividad {self.model._meta.get_field("activity").related_model.all_objects.filter(pk=valor).first() or valor}')
-        textos += [texto for texto, _ in self._banderas_activas().values()]
+                texto = f'actividad {self.model._meta.get_field("activity").related_model.all_objects.filter(pk=valor).first() or valor}'
+            else:
+                texto = f'{parametro} {valor}'
+            textos.append((texto, [parametro]))
+        textos += [(texto, [parametro]) for parametro, (texto, _) in self._banderas_activas().items()]
+        textos += [(filtro.describir(valores), list(valores)) for filtro, valores in self._panel_activo()]
         busqueda = self._busqueda(self.request.GET)
         if busqueda:
-            textos.append(f'búsqueda «{busqueda}»')
+            textos.append((f'búsqueda «{busqueda}»', ['q']))
         return textos
 
     def _filtros_validos(self, params=None):
@@ -195,6 +385,8 @@ class CrudConfig:
     def active_filters(self):
         activos = {parametro: valor for parametro, (_, valor) in self._filtros_validos().items()}
         activos.update({parametro: '1' for parametro in self._banderas_activas()})
+        for _, valores in self._panel_activo():
+            activos.update(valores)
         busqueda = self._busqueda(self.request.GET)
         if busqueda:
             activos['q'] = busqueda
@@ -215,6 +407,21 @@ class CrudConfig:
                 'url': self.url('list') + (f'?{urlencode(consulta)}' if consulta else ''),
             })
         return resultado
+
+    def panel_para_plantilla(self, filtros):
+        """Campos del panel con su valor actual y los parámetros que el panel no maneja (pestaña,
+        búsqueda, orden), que viajan ocultos para no perderlos al aplicar."""
+        visibles = [f for f in self.filtros_del_panel() if f.visible()]
+        propios = {p for f in visibles for p in f.parametros()}
+        orden = self.orden_activo()
+        conservar = {k: v for k, v in filtros.items() if k not in propios}
+        return {
+            'campos': [{'filtro': f, 'valor': filtros.get(f.param, ''),
+                        'desde': filtros.get(f'{f.param}_desde', ''), 'hasta': filtros.get(f'{f.param}_hasta', '')}
+                       for f in visibles],
+            'ocultos': {**conservar, **({'orden': orden} if orden else {})},
+            'limpiar_url': self.url('list') + (f'?{urlencode(conservar)}' if conservar else ''),
+        }
 
     def tarjetas(self, pestanas):
         por_clave = {p['clave']: p for p in pestanas}
@@ -271,6 +478,7 @@ class CrudConfig:
         orden = self.orden_activo()
         estado = {**filtros, **({'orden': orden} if orden else {})}
         pestanas = self.pestanas(filtros) if self.tabs else []
+        descripcion = self.descripcion_filtros()
         return {
             'title': self.title,
             'singular': self.singular,
@@ -289,7 +497,14 @@ class CrudConfig:
             'page_size': page_size_from_session(self.request),
             'page_sizes': PAGE_SIZES,
             'filters': filtros,
-            'filters_desc': self.descripcion_filtros(),
+            'filters_desc': [texto for texto, _ in descripcion],
+            # Cada filtro aplicado como «chip» con el enlace que lo quita y conserva el resto.
+            'chips': [
+                {'texto': texto, 'url': self.url('list') + '?' + urlencode({k: v for k, v in estado.items() if k not in quitar})}
+                for texto, quitar in descripcion
+            ],
+            'panel': self.panel_para_plantilla(filtros),
+            'panel_activos': sum(1 for _ in self._panel_activo()),
             # Estado de la lista (filtros, búsqueda y orden) para paginación, modal y Excel.
             'filters_query': urlencode(estado),
             'list_url': self.url('list'),

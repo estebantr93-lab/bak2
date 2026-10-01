@@ -6,6 +6,13 @@ from core.crud import (
     CrudExportView,
     CrudListView,
     CrudUpdateView,
+    FiltroOpciones,
+    FiltroRangoFechas,
+    FiltroReciente,
+    delegaciones_visibles,
+    funcionarios_visibles,
+    periodos,
+    tipos_de_actividad,
 )
 
 from .forms import ActividadWebForm, SocialCaseForm
@@ -41,7 +48,14 @@ class ActivityCrud(CrudConfig):
     kpis = [('todas', 'neutro'), ('pendientes', 'alerta'), ('aprobadas', 'bueno'), ('rechazadas', 'critico')]
     row_links = [('Evidencias', 'evidencia_list', 'activity', 'evidencias.view_evidence')]
     # Enlazados desde el dashboard: ?period=, ?status=, ?mias=1 y ?sin_evidencia=1.
-    filters = {'period': 'period_id'}
+    panel = [
+        FiltroOpciones('period', 'Período', 'period_id', periodos),
+        FiltroOpciones('delegacion', 'Delegación', 'delegation_id', delegaciones_visibles),
+        FiltroOpciones('tipo', 'Tipo de actividad', 'activity_type_id', tipos_de_actividad),
+        FiltroOpciones('funcionario', 'Funcionario', 'employee_id', funcionarios_visibles),
+        FiltroReciente('modificada', 'Última modificación', 'updated_at'),
+        FiltroRangoFechas('fecha', 'Fecha', 'date'),
+    ]
     choice_filters = {'status': ('validation_status', {clave for clave, _ in Activity.STATUS_CHOICES})}
     flag_filters = {'sin_evidencia': ('sin evidencia', '_filtrar_sin_evidencia')}
 
@@ -59,6 +73,13 @@ class SocialCaseCrud(CrudConfig):
     url_prefix = 'atencion'
     filters = {'activity': 'activity_id'}
     choice_filters = {'step': ('step_number', {'1', '2', '3'})}
+    panel = [
+        FiltroOpciones('period', 'Período', 'activity__period_id', periodos),
+        FiltroOpciones('delegacion', 'Delegación', 'activity__delegation_id', delegaciones_visibles),
+        FiltroOpciones('funcionario', 'Funcionario', 'activity__employee_id', funcionarios_visibles),
+        FiltroReciente('modificada', 'Última modificación', 'updated_at'),
+        FiltroRangoFechas('fecha', 'Fecha de la gestión', 'date'),
+    ]
     columns = [
         Column('Actividad', 'activity.number', sort='activity__number'),
         Column('Delegación', 'activity.delegation.name', sort='activity__delegation__name'),

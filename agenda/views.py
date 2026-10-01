@@ -6,6 +6,11 @@ from core.crud import (
     CrudExportView,
     CrudListView,
     CrudUpdateView,
+    FiltroOpciones,
+    FiltroRangoFechas,
+    FiltroReciente,
+    delegaciones_visibles,
+    funcionarios_visibles,
 )
 
 from django.utils import timezone
@@ -44,7 +49,12 @@ class CommitmentCrud(CrudConfig):
         ('realizados', 'Realizados', {'status': 'done'}),
     ]
     kpis = [('todos', 'neutro'), ('en_proceso', 'info'), ('vencidos', 'critico'), ('realizados', 'bueno')]
-
+    panel = [
+        FiltroOpciones('delegacion', 'Delegación', 'delegation_id', delegaciones_visibles),
+        FiltroOpciones('responsable', 'Responsable', 'responsible_id', funcionarios_visibles),
+        FiltroReciente('modificado', 'Última modificación', 'updated_at'),
+        FiltroRangoFechas('vence', 'Vencimiento', 'due_date'),
+    ]
 
     def _filtrar_vencidos(self, qs):
         return compromisos_vencidos(qs, timezone.localdate())

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from core.admin_utils import ScopedModelAdmin, ve_eliminados
+from core.admin_utils import FILTRO_MODIFICACION, ScopedModelAdmin, ve_eliminados
 from evidencias.forms import EvidenciaAdminForm
 from evidencias.models import Evidence
 
@@ -32,7 +32,7 @@ class ActividadAdmin(ScopedModelAdmin, admin.ModelAdmin):
     form = ActividadForm
     list_display = ('number', 'employee', 'delegation', 'date', 'activity_type', 'validation_status')
     search_fields = ('number', 'employee__name', 'contact', 'evidence_code', 'description')
-    list_filter = ('delegation', 'validation_status', ('period', PeriodoFilter), 'date')
+    list_filter = ('delegation', 'validation_status', ('period', PeriodoFilter), 'activity_type', 'date', FILTRO_MODIFICACION)
     ordering = ('-date',)
     list_select_related = ('employee', 'delegation', 'activity_type', 'period')
     autocomplete_fields = ('employee', 'activity_type')
@@ -53,6 +53,6 @@ class AtencionSocialAdmin(ScopedModelAdmin, admin.ModelAdmin):
     scope_by = 'activity__delegation'
     list_display = ('activity', 'step_number', 'description')
     search_fields = ('activity__number', 'description')
-    list_filter = ('step_number',)
+    list_filter = ('activity__delegation', 'step_number', 'date', FILTRO_MODIFICACION)
     ordering = ('activity', 'step_number')
     list_select_related = ('activity',)
