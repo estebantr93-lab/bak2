@@ -59,6 +59,43 @@
         {% endif %}
 
         <div class="lista-herramientas-derecha">
+            {% if panel.campos %}
+            <div class="dropdown">
+                <button class="btn btn-lista btn-sm{% if panel_activos %} activo{% endif %}" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                    <svg class="ico" aria-hidden="true"><use href="#i-filtro"/></svg> Filtros
+                    {% if panel_activos %}<span class="lista-filtros-cuenta">{{ panel_activos }}<span class="visually-hidden"> activos</span></span>{% endif %}
+                </button>
+                <form method="get" class="dropdown-menu dropdown-menu-end lista-panel" aria-label="Filtros de {{ title|lower }}">
+                    {% for clave, valor in panel.ocultos.items %}<input type="hidden" name="{{ clave }}" value="{{ valor }}">{% endfor %}
+                    <p class="lista-panel-titulo">Filtrar {{ title|lower }}</p>
+                    <div class="lista-panel-campos">
+                    {% for campo in panel.campos %}
+                        {% with f=campo.filtro %}
+                        {% if f.tipo == 'rango' %}
+                            <fieldset class="lista-panel-campo lista-panel-rango">
+                                <legend>{{ f.etiqueta }}</legend>
+                                <label><span>Desde</span><input type="date" class="form-control form-control-sm" name="{{ f.param }}_desde" value="{{ campo.desde }}"></label>
+                                <label><span>Hasta</span><input type="date" class="form-control form-control-sm" name="{{ f.param }}_hasta" value="{{ campo.hasta }}"></label>
+                            </fieldset>
+                        {% else %}
+                            <label class="lista-panel-campo">
+                                <span>{{ f.etiqueta }}</span>
+                                <select name="{{ f.param }}" class="form-select form-select-sm">
+                                    <option value="">Todos</option>
+                                    {% for valor, texto in f.opciones %}<option value="{{ valor }}"{% if valor == campo.valor %} selected{% endif %}>{{ texto }}</option>{% endfor %}
+                                </select>
+                            </label>
+                        {% endif %}
+                        {% endwith %}
+                    {% endfor %}
+                    </div>
+                    <div class="lista-panel-botones">
+                        <a href="{{ panel.limpiar_url }}" class="btn btn-lista btn-sm">Limpiar</a>
+                        <button type="submit" class="btn btn-lista btn-lista-principal btn-sm">Aplicar filtros</button>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
             <div class="dropdown">
                 <button class="btn btn-lista btn-sm" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
                     <svg class="ico" aria-hidden="true"><use href="#i-columnas"/></svg> Columnas
@@ -84,11 +121,18 @@
         </div>
     </div>
 
-    {% if filters_desc %}
-        <p class="lista-filtrado">
-            <strong>Filtrado:</strong> {{ filters_desc|join:" · " }} ({{ page_obj.paginator.count }}).
+    {% if chips %}
+        <div class="lista-filtrado">
+            <strong>Filtrado ({{ page_obj.paginator.count }}):</strong>
+            <ul class="lista-chips">
+                {% for chip in chips %}
+                    <li class="lista-chip">{{ chip.texto }}
+                        <a href="{{ chip.url }}" aria-label="Quitar filtro {{ chip.texto }}"><svg class="ico" aria-hidden="true"><use href="#i-cerrar"/></svg></a>
+                    </li>
+                {% endfor %}
+            </ul>
             <a href="{{ list_url }}">Quitar filtros</a>
-        </p>
+        </div>
     {% endif %}
 
     <div class="table-responsive lista-tabla-caja">

@@ -306,3 +306,118 @@ class AdminEtiquetasDeEstadoTests(BaseCrud):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<span class="estado estado-pending">Pendiente</span>', html=True)
         self.assertContains(response, 'Estado de validación')
+
+
+class PanelDeFiltrosTests(BaseCrud):
+    """Filtros propios de cada módulo: validados por lista blanca y siempre dentro del alcance."""
+
+    def _pks(self, response):
+        return {f['obj'].pk for f in response.context['rows']}
+
+    def _todas(self, nombre, params):
+        return self.client.get(reverse(nombre), {**params, 'page_size': 30})
+
+    def test_evidencias_por_ultima_modificacion(self):
+        self.ingresar('admin_sgr')
+        antigua, reciente = Evidence.objects.all()[:2]
+        Evidence.all_objects.exclude(pk=reciente.pk).update(updated_at=timezone.now() - datetime.timedelta(days=45))
+        response = self._todas('evidencia_list', {'modificada': '7'})
+        self.assertEqual(self._pks(response), {reciente.pk})
+        self.assertIn('última modificación: últimos 7 días', response.context['filters_desc'])
+        response = self._todas('evidencia_list', {'modificada': 'mas_30'})
+        self.assertIn(antigua.pk, self._pks(response))
+        self.assertNotIn(reciente.pk, self._pks(response))
+
+    def test_ultima_modificacion_existe_en_todos_los_modulos(self):
+        self.ingresar('admin_sgr')
+        for prefijo, param in (('actividad', 'modificada'), ('atencion', 'modificada'),
+                               ('evidencia', 'modificada'), ('compromiso', 'modificado')):
+            campos = self.client.get(reverse(f'{prefijo}_list')).context['panel']['campos']
+            self.assertIn(param, [c['filtro'].param for c in campos], prefijo)
+
+    def test_valores_no_permitidos_se_ignoran(self):
+        self.ingresar('admin_sgr')
+        total = self.client.get(reverse('evidencia_list')).context['page_obj'].paginator.count
+        for params in ({'modificada': '99'}, {'delegacion': '999999'}, {'registrada_desde': '2026-13-45'},
+                       {'archivo': 'quizas'}, {'tipo': 'x'}):
+            response = self.client.get(reverse('evidencia_list'), params)
+            self.assertEqual(response.status_code, 200, params)
+            self.assertEqual(response.context['page_obj'].paginator.count, total, params)
+            self.assertEqual(response.context['chips'], [], params)
+
+    def test_opciones_del_panel_respetan_el_alcance(self):
+        self.ingresar('admin_centro')
+        response = self.client.get(reverse('actividad_list'))
+        campos = {c['filtro'].param: c['filtro'] for c in response.context['panel']['campos']}
+        self.assertNotIn('delegacion', campos)  # una sola delegación: el filtro no aporta
+        nombres = {texto for _, texto in campos['funcionario'].opciones}
+        self.assertEqual(nombres, set(Employee.objects.filter(delegation__name='Delegación Centro').values_list('name', flat=True)))
+        # Pedir otra delegación por URL no abre sus datos.
+        norte = Activity.objects.filter(delegation__name='Delegación Norte').first().delegation_id
+        response = self.client.get(reverse('actividad_list'), {'delegacion': norte, 'page_size': 30})
+        self.assertTrue(all(f['obj'].delegation.name == 'Delegación Centro' for f in response.context['rows']))
+
+    def test_superadmin_filtra_por_delegacion_y_tipo(self):
+        self.ingresar('admin_sgr')
+        actividad = Activity.objects.filter(delegation__name='Delegación Norte').first()
+        response = self._todas('actividad_list', {'delegacion': actividad.delegation_id, 'tipo': actividad.activity_type_id})
+        esperadas = Activity.objects.filter(delegation=actividad.delegation, activity_type=actividad.activity_type)
+        self.assertEqual(response.context['page_obj'].paginator.count, esperadas.count())
+
+    def test_rango_de_vencimiento_en_compromisos(self):
+        self.ingresar('admin_sgr')
+        desde = timezone.localdate()
+        hasta = desde + datetime.timedelta(days=30)
+        response = self._todas('compromiso_list', {'vence_desde': desde.isoformat(), 'vence_hasta': hasta.isoformat()})
+        esperados = Commitment.objects.filter(due_date__range=(desde, hasta))
+        self.assertEqual(response.context['page_obj'].paginator.count, esperados.count())
+        self.assertTrue(response.context['chips'][0]['texto'].startswith('vencimiento desde'))
+
+    def test_revisores_solo_del_alcance(self):
+        self.ingresar('admin_centro')
+        campos = {c['filtro'].param: c['filtro'] for c in self.client.get(reverse('evidencia_list')).context['panel']['campos']}
+        revisores = set(Evidence.objects.filter(activity__delegation__name='Delegación Centro', reviewed_by__isnull=False)
+                        .values_list('reviewed_by__username', flat=True))
+        self.assertEqual({texto for _, texto in campos['revisor'].opciones}, revisores)
+
+    def test_filtro_de_archivo(self):
+        self.ingresar('admin_sgr')
+        con = self._todas('evidencia_list', {'archivo': 'con'}).context['page_obj'].paginator.count
+        sin = self._todas('evidencia_list', {'archivo': 'sin'}).context['page_obj'].paginator.count
+        self.assertEqual(con + sin, Evidence.objects.count())
+        self.assertEqual(sin, Evidence.objects.filter(file='').count() + Evidence.objects.filter(file__isnull=True).count())
+
+    def test_chip_quita_solo_su_filtro_y_pestanas_lo_conservan(self):
+        self.ingresar('admin_sgr')
+        response = self.client.get(reverse('evidencia_list'), {'modificada': '7', 'status': 'pending', 'q': 'EVI'})
+        chips = {c['texto']: c['url'] for c in response.context['chips']}
+        url = chips['última modificación: últimos 7 días']
+        self.assertNotIn('modificada=', url)
+        self.assertIn('status=pending', url)
+        self.assertIn('q=EVI', url)
+        self.assertTrue(all('modificada=7' in p['url'] for p in response.context['pestanas']))
+
+    def test_excel_aplica_los_filtros_del_panel(self):
+        self.ingresar('admin_sgr')
+        reciente = Evidence.objects.first()
+        Evidence.all_objects.exclude(pk=reciente.pk).update(updated_at=timezone.now() - datetime.timedelta(days=45))
+        response = self.client.get(reverse('evidencia_export'), {'modificada': 'hoy'})
+        hoja = load_workbook(io.BytesIO(response.content)).active
+        self.assertEqual([fila[0] for fila in hoja.iter_rows(min_row=2, values_only=True)], [reciente.unique_code])
+
+    def test_enlace_del_dashboard_por_periodo_sigue_funcionando(self):
+        self.ingresar('admin_sgr')
+        actividad = Activity.objects.first()
+        response = self._todas('evidencia_list', {'period': actividad.period_id})
+        esperadas = Evidence.objects.filter(activity__period_id=actividad.period_id)
+        self.assertEqual(response.context['page_obj'].paginator.count, esperadas.count())
+
+    def test_admin_filtra_por_ultima_modificacion(self):
+        self.ingresar('admin_sgr')
+        response = self.client.get(reverse('admin:evidencias_evidence_changelist'))
+        self.assertContains(response, 'última modificación')
+        filtro = next(f for f in response.context['cl'].filter_specs if f.title == 'última modificación')
+        hoy = next(c for c in filtro.choices(response.context['cl']) if c['display'] == 'Hoy')
+        response = self.client.get(reverse('admin:evidencias_evidence_changelist') + hoy['query_string'])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['cl'].result_count, Evidence.objects.count())  # los datos de prueba son de hoy

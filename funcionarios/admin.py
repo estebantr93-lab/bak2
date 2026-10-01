@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.core.exceptions import PermissionDenied
 
-from core.admin_utils import ScopedModelAdmin, es_usuario_sin_restriccion
+from core.admin_utils import FILTRO_MODIFICACION, ScopedModelAdmin, es_usuario_sin_restriccion
 
 from .models import PasswordResetCode, Employee
 
@@ -11,7 +11,7 @@ class FuncionarioAdmin(ScopedModelAdmin, admin.ModelAdmin):
     scope_by = 'delegation'
     list_display = ('name', 'user', 'delegation', 'position', 'is_active')
     search_fields = ('name', 'user__username')
-    list_filter = ('delegation', 'position', 'is_active')
+    list_filter = ('delegation', 'position', 'is_active', FILTRO_MODIFICACION)
     ordering = ('name',)
     list_select_related = ('user', 'delegation', 'position')
     autocomplete_fields = ('user', 'delegation', 'position')

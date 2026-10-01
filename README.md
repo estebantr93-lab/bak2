@@ -284,6 +284,17 @@ Los cuatro listados comparten una sola plantilla (`templates/crud/list.html`) y 
 - **Búsqueda** (`?q=`, máx. 100 caracteres) sobre los campos declarados. Se mantiene al cambiar de pestaña, página u orden.
 - **Orden por columna** (`?orden=campo` / `?orden=-campo`). Solo se aceptan las columnas declaradas (lista blanca). Cualquier otro valor se ignora, para que no se pueda ordenar por campos internos.
 - **Selección de filas:** al marcar filas aparece una barra flotante con "Exportar a Excel", que descarga solo las filas seleccionadas (`?ids=`). El servidor vuelve a filtrar esos ids dentro del alcance del usuario; un id de otra delegación no se exporta. No hay eliminación masiva: cada eliminación sigue siendo individual y con confirmación.
+- **Panel "Filtros" de cada módulo** (`CrudConfig.panel`, clases `FiltroOpciones`, `FiltroReciente`, `FiltroCondiciones` y `FiltroRangoFechas` en `core/crud.py`). Todos los módulos filtran por **última modificación** (`updated_at` de `BaseModel`: hoy, últimos 7 días, últimos 30 días o hace más de 30 días). Además, cada uno tiene sus filtros propios:
+
+  | Módulo | Filtros del panel |
+  | --- | --- |
+  | Actividades | última modificación, período, delegación, tipo de actividad, funcionario, rango de fechas |
+  | Atenciones sociales | última modificación, período, delegación, funcionario, rango de fechas de la gestión |
+  | Evidencias | **última modificación** (más la columna ordenable "Modificada"), período, delegación, tipo de actividad, revisada por, con o sin archivo, rango de fechas de registro |
+  | Compromisos | última modificación, delegación, responsable, rango de vencimiento |
+
+  Cada valor se valida contra una lista blanca: opciones conocidas o fechas ISO válidas. Un valor inválido se ignora. Las opciones salen del alcance del usuario: un administrador de delegación solo ve los funcionarios y revisores de su delegación, y no ve el filtro de delegación porque tiene una sola. Los filtros aplicados aparecen como **chips**; cada chip se quita por separado y los demás filtros se conservan. Las pestañas, los conteos, la paginación y el Excel respetan los mismos filtros.
+- **Admin:** las listas de actividades, atenciones, evidencias, compromisos y funcionarios suman el filtro "Por última modificación" (`UltimaModificacionFilter`), junto con los filtros por fecha (registro, vencimiento o gestión) y por tipo de actividad.
 - **Columnas visibles:** el botón "Columnas" oculta o muestra columnas. La preferencia se guarda en el navegador (`localStorage`); si el navegador no la permite, se ven todas.
 - **Etiquetas de estado, iniciales y acciones con íconos:** el estado se muestra con color y texto, nunca solo con color. La columna de acciones queda fija a la derecha cuando la tabla se desplaza, y en celular cada fila pasa a ser una tarjeta.
 - El JavaScript (`static/js/listado.js`) no usa atributos `on…`. Todo lo que hace es de interfaz; los permisos se vuelven a verificar en el servidor.

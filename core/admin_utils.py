@@ -285,6 +285,17 @@ class AuditarCambiosAdmin:
         super().delete_queryset(request, queryset)
 
 
+class UltimaModificacionFilter(admin.DateFieldListFilter):
+    """Filtro del Admin sobre updated_at (Hoy, Últimos 7 días, Este mes, Este año) con un título claro."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.title = 'última modificación'
+
+
+FILTRO_MODIFICACION = ('updated_at', UltimaModificacionFilter)
+
+
 # Campos de estado que el listado del Admin muestra como etiqueta de color (misma clase que en las vistas).
 CAMPOS_DE_ESTADO = ('status', 'validation_status', 'new_status')
 
