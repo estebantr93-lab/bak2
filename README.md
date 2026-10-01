@@ -242,7 +242,11 @@ python manage.py revisar_archivos --reparar --borrar-huerfanos # regenera los de
 - Seguridad por capas: `login_required` / `LoginRequiredMixin` (autenticación), `permission_required` / `PermissionRequiredMixin` (autorización) y `filtrar_por_delegacion` en cada QuerySet (scoping). Una cuenta sin rol o sin perfil de delegación recibe **403**.
 - `request.session` guarda solo preferencias: el período elegido en el dashboard y la cantidad de filas por página (5/15/30), que aplica a todos los listados.
 - Mensajes (`django.contrib.messages`) al ingresar, al cerrar sesión y en cada operación del CRUD.
-- El login (`LoginView` con `funcionarios.forms.LoginForm`) rechaza las cuentas sin rol, o sin perfil de delegación, con el mensaje «Su cuenta no tiene un rol asignado». La misma regla (`tiene_acceso_al_sistema`) protege el dashboard. Si la contraseña es incorrecta, el mensaje es genérico: «Usuario o contraseña incorrectos.».
+- El login (`LoginView` con `funcionarios.forms.LoginForm`) rechaza:
+  - las cuentas **sin rol** (no están en `Administradores`, `Funcionarios` ni `Verificadores`, con ese nombre exacto) con «Su cuenta no tiene un rol asignado»;
+  - las cuentas que **tienen el rol pero no tienen perfil de funcionario con delegación** (lo exigen administradores de delegación y funcionarios) con «Su cuenta tiene el rol …, pero no tiene un perfil de funcionario con delegación».
+
+  Para saber qué le falta a una cuenta: `python manage.py diagnosticar_acceso <usuario o correo>`. Muestra los grupos, el rol, el perfil y qué corregir, y detecta un grupo mal escrito (por ejemplo «Funcionario» en vez de «Funcionarios»), un perfil vinculado a otra cuenta y un usuario escrito distinto al de la cuenta. Solo lee: no cambia nada. La misma regla (`tiene_acceso_al_sistema`) protege el dashboard. Si la contraseña es incorrecta, el mensaje es genérico: «Usuario o contraseña incorrectos.».
 - `MESSAGE_TAGS` asigna la clase `danger` de Bootstrap a `messages.error()`, y `templates/403.html` muestra «Acceso denegado» con el estilo del sitio.
 - Cookies: `SESSION_COOKIE_AGE` de 2 horas, `HTTPONLY`, `SAMESITE='Lax'` y `SESSION/CSRF_COOKIE_SECURE` desde `COOKIE_SECURE` en `.env`.
 
@@ -419,6 +423,8 @@ sudo systemctl restart gunicorn-sgr
 **Learner Lab:** la sesión se apaga a las 4 horas y, al reiniciarse, la EC2 puede cambiar de IP pública. Actualice `ALLOWED_HOSTS` y `CSRF_TRUSTED_ORIGINS` en `.env` y reinicie gunicorn, o asocie una Elastic IP. Antes de la revisión, inicie el lab y verifique la URL.
 
 **Si usa RDS:** en el *parameter group*, `character_set_server = utf8mb4` y `collation_server = utf8mb4_unicode_ci`. Para conexión cifrada, descargue `global-bundle.pem` de AWS y apunte `DB_SSL_CA` a esa ruta. Con HTTPS, active `COOKIE_SECURE=True` y `BEHIND_HTTPS_PROXY=True`.
+
+**Una cuenta no puede entrar («no tiene un rol asignado»):** `cd /srv/sgr && .venv/bin/python manage.py diagnosticar_acceso <usuario o correo>`.
 
 **Diagnóstico:** `sudo systemctl status gunicorn-sgr`, `sudo journalctl -u gunicorn-sgr -n 50`, `sudo nginx -t` y `sudo tail /var/log/nginx/error.log`. Para ver la configuración que nginx está usando realmente: `sudo nginx -T | grep -A3 "location /media/"` (debe mostrar `return 404`).
 - **413 Request Entity Too Large** al subir una evidencia: el archivo supera 3 MB y nginx lo cortó antes de llegar a Django (el límite de la aplicación es 2 MB).
