@@ -1,6 +1,11 @@
-from django.db.models import Q
+import os
 
-from core.admin_utils import filtrar_por_delegacion
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
+from django.db.models import Q
+from django.http import FileResponse, Http404
+
+from core.admin_utils import filtrar_por_delegacion, ve_eliminados
 from core.crud import (
     Column,
     CrudConfig,
@@ -18,6 +23,7 @@ from core.crud import (
     tipos_de_actividad,
 )
 
+from .archivos import TIPO_POR_EXTENSION
 from .forms import EvidenciaForm
 from .models import Evidence
 
@@ -92,3 +98,27 @@ class EvidenciaDeleteView(EvidenceCrud, CrudDeleteView):
 
 class EvidenciaExportView(EvidenceCrud, CrudExportView):
     pass
+
+
+@login_required
+def archivo_evidencia(request, nombre):
+    """Entrega el archivo de una evidencia solo a quien puede ver esa evidencia.
+
+    Los archivos no se publican en una carpeta abierta (/media/): conocer o compartir el enlace no
+    basta. Se exige sesión, el permiso de ver evidencias y que la evidencia sea de su alcance
+    (delegación); fuera de él la respuesta es 404, igual que en el CRUD. `nombre` solo se busca en la
+    base de datos, nunca se usa para abrir una ruta del disco."""
+    if not request.user.has_perm('evidencias.view_evidence'):
+        raise PermissionDenied
+    evidencias = Evidence.all_objects if ve_eliminados(request.user) else Evidence.objects
+    evidencia = filtrar_por_delegacion(evidencias.filter(file=nombre), request.user, 'activity__delegation').first()
+    extension = os.path.splitext(nombre)[1].lower()
+    if evidencia is None or extension not in TIPO_POR_EXTENSION or not evidencia.archivo_disponible:
+        raise Http404('Archivo no encontrado.')
+    respuesta = FileResponse(
+        evidencia.file.open('rb'), content_type=TIPO_POR_EXTENSION[extension],  # tipo según la extensión validada
+        filename=f'{evidencia.unique_code}{extension}',
+    )
+    respuesta['X-Content-Type-Options'] = 'nosniff'
+    respuesta['Cache-Control'] = 'private, no-store'  # datos personales: no quedan en cachés compartidas
+    return respuesta
