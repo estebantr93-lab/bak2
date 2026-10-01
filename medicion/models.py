@@ -1,11 +1,11 @@
 from django.core.exceptions import ValidationError
 from django.db import models
 
-from core.models import Position, Delegation, Period, ActivityType
+from core.models import ActivityType, Delegation, Period, Position, TimeStampedModel
 from funcionarios.models import Employee
 
 
-class Goal(models.Model):
+class Goal(TimeStampedModel):
     position = models.ForeignKey(Position, verbose_name='cargo', on_delete=models.CASCADE, related_name='goals')
     period = models.ForeignKey(Period, verbose_name='período', on_delete=models.CASCADE, related_name='goals')
     activity_type = models.ForeignKey(ActivityType, verbose_name='tipo de actividad', on_delete=models.CASCADE, related_name='goals')
@@ -39,7 +39,7 @@ class Goal(models.Model):
             raise ValidationError(errores)
 
 
-class Weighting(models.Model):
+class Weighting(TimeStampedModel):
     position = models.ForeignKey(Position, verbose_name='cargo', on_delete=models.CASCADE, related_name='weightings')
     period = models.ForeignKey(Period, verbose_name='período', on_delete=models.CASCADE, related_name='weightings')
     detail = models.JSONField('detalle')
@@ -55,7 +55,7 @@ class Weighting(models.Model):
         return f'{self.position} - {self.period} ({self.generated_at:%Y-%m-%d})'
 
 
-class Indicator(models.Model):
+class Indicator(TimeStampedModel):
     TRAFFIC_LIGHT_CHOICES = [
         ('green', 'Verde'),
         ('amber', 'Ámbar'),

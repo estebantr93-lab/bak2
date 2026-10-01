@@ -13,6 +13,7 @@ import random
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 
 from core.volume_data import COLORES, PREFIJO, pdf_de_acta
 from evidencias.archivos import png_de_texto, problema_del_archivo
@@ -88,7 +89,7 @@ class Command(BaseCommand):
             guardado = storage.save(nombre, ContentFile(contenido))
             if guardado != nombre:
                 # El almacenamiento eligió otro nombre: se actualiza sin pasar por save()/señales.
-                Evidence.all_objects.filter(pk=evidencia.pk).update(file=guardado)
+                Evidence.all_objects.filter(pk=evidencia.pk).update(file=guardado, updated_at=timezone.now())
             reparados += 1
         self.stdout.write(self.style.SUCCESS(f'Archivos de ejemplo regenerados: {reparados}'))
         if de_usuarios:

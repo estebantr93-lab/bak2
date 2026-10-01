@@ -1,10 +1,10 @@
 from django.contrib.auth.models import User
 from django.db import models
 
-from core.models import Position, Delegation
+from core.models import Delegation, Position, TimeStampedModel
 
 
-class Employee(models.Model):
+class Employee(TimeStampedModel):
     user = models.OneToOneField(User, verbose_name='usuario', on_delete=models.CASCADE, related_name='employee')
     delegation = models.ForeignKey(Delegation, verbose_name='delegación', on_delete=models.PROTECT, related_name='employees')
     position = models.ForeignKey(Position, verbose_name='cargo', on_delete=models.PROTECT, related_name='employees')

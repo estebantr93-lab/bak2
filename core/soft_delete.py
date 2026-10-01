@@ -1,13 +1,11 @@
-"""Borrado lógico (deleted_at) para las entidades de negocio.
+"""QuerySet y managers del borrado lógico (deleted_at). El modelo base está en core/models.py (BaseModel).
 
 - `objects` devuelve solo registros activos: es el que usan vistas, listados y exportaciones.
 - `all_objects` (manager por defecto) ve todo. Django lo usa para validar campos únicos,
   así un valor ocupado por un registro eliminado no provoca un IntegrityError.
 - `delete()` marca `deleted_at` en vez de borrar la fila; `hard_delete()` borra de verdad.
 """
-from django.core.exceptions import ValidationError
 from django.db import models
-from django.utils import timezone
 
 
 class SoftDeleteQuerySet(models.QuerySet):
@@ -26,78 +24,3 @@ class SoftDeleteQuerySet(models.QuerySet):
 class ActivosManager(models.Manager.from_queryset(SoftDeleteQuerySet)):
     def get_queryset(self):
         return super().get_queryset().filter(deleted_at__isnull=True)
-
-
-class SoftDeleteModel(models.Model):
-    deleted_at = models.DateTimeField('eliminado el', null=True, blank=True, editable=False, db_index=True)
-
-    # El primer manager declarado es el manager por defecto.
-    all_objects = models.Manager.from_queryset(SoftDeleteQuerySet)()
-    objects = ActivosManager()
-
-    # related_name de los hijos que se eliminan lógicamente junto con este registro.
-    soft_delete_cascade = ()
-
-    class Meta:
-        abstract = True
-
-    def clean(self):
-        # Ningún registro nuevo puede colgar de algo bloqueado (p. ej. una evidencia en un período cerrado).
-        from .admin_utils import motivo_no_modificable
-
-        motivo = motivo_no_modificable(self)
-        if motivo:
-            bloqueo = type(self).bloqueo_modificacion
-            campo = next(iter(bloqueo[0])).split('__')[0]
-            raise ValidationError({campo: motivo})
-
-    def soft_delete(self, momento=None):
-        if self.deleted_at is not None:
-            return
-        # Toda la cascada usa el mismo instante: así restore() sabe qué hijos cayeron con el padre.
-        self.deleted_at = momento or timezone.now()
-        self.save(update_fields=['deleted_at'])
-        for relacion in self.soft_delete_cascade:
-            for hijo in getattr(self, relacion).filter(deleted_at__isnull=True):
-                hijo.soft_delete(self.deleted_at)
-
-    def padre_eliminado(self):
-        """El registro del que cuelga este y que sigue eliminado (p. ej. la actividad de una evidencia), o None."""
-        for campo in self._meta.concrete_fields:
-            padre = campo.related_model if campo.many_to_one else None
-            valor = getattr(self, campo.attname) if padre else None
-            if valor is not None and issubclass(padre, SoftDeleteModel):
-                eliminado = padre.all_objects.filter(pk=valor, deleted_at__isnull=False).first()
-                if eliminado is not None:
-                    return eliminado
-        return None
-
-    def restore(self):
-        """Recupera el registro y los hijos que se eliminaron junto con él (no los que ya estaban eliminados).
-
-        Si el padre sigue eliminado no se restaura: el registro quedaría activo colgando de algo que nadie ve.
-        """
-        padre = self.padre_eliminado()
-        if padre is not None:
-            raise ValidationError(
-                f'Restaure primero el registro de {padre._meta.verbose_name.lower()} «{padre}», que sigue eliminado.'
-            )
-        momento = self.deleted_at
-        self.deleted_at = None
-        self.save(update_fields=['deleted_at'])
-        if momento is None:
-            return
-        for relacion in self.soft_delete_cascade:
-            for hijo in getattr(self, relacion).filter(deleted_at=momento):
-                hijo.restore()
-
-    def delete(self, using=None, keep_parents=False):
-        self.soft_delete()
-        return 1, {self._meta.label: 1}
-
-    def hard_delete(self, using=None, keep_parents=False):
-        return super().delete(using=using, keep_parents=keep_parents)
-
-
-def es_soft_delete(model):
-    return issubclass(model, SoftDeleteModel)

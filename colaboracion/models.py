@@ -44,6 +44,8 @@ class AuditLog(models.Model):
     entity_type = models.CharField('tipo de entidad', max_length=100)
     entity_id = models.PositiveIntegerField('id de entidad', null=True, blank=True)
     detail = models.TextField('detalle', blank=True)
+    # Campos modificados: {campo: [valor anterior, valor nuevo]} (RNF-008 y CA-09 de la guía).
+    changes = models.JSONField('cambios', default=dict, blank=True)
     date = models.DateTimeField('fecha', auto_now_add=True)
     ip = models.GenericIPAddressField('IP', null=True, blank=True)
 
