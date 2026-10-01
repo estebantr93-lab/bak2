@@ -105,7 +105,8 @@ class AccesoPorRolEnLoginTests(TestCase):
         user = User.objects.create_user(username='sin_perfil', password='Clave#Segura2026')
         user.groups.add(Group.objects.get(name='Funcionarios'))
         response = self._ingresar('sin_perfil', 'Clave#Segura2026')
-        self.assertContains(response, 'no tiene un rol asignado')
+        # Tiene rol: el mensaje dice qué le falta (el perfil con delegación), no que no tenga rol.
+        self.assertContains(response, 'tiene el rol funcionario, pero no tiene un perfil de funcionario con delegación')
         self.assertNotIn('_auth_user_id', self.client.session)
 
     def test_verificador_sin_perfil_si_puede_iniciar_sesion(self):
