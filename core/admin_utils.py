@@ -3,6 +3,7 @@ from django.apps import apps
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from django.utils.html import format_html
 
 from .models import es_soft_delete
 
@@ -284,6 +285,23 @@ class AuditarCambiosAdmin:
         super().delete_queryset(request, queryset)
 
 
+# Campos de estado que el listado del Admin muestra como etiqueta de color (misma clase que en las vistas).
+CAMPOS_DE_ESTADO = ('status', 'validation_status', 'new_status')
+
+
+def etiqueta_de_estado(clase, texto):
+    return format_html('<span class="estado estado-{}">{}</span>', clase, texto)
+
+
+def columna_de_estado(modelo, campo):
+    """Columna del changelist que muestra el estado como etiqueta y sigue ordenando por el campo."""
+    @admin.display(description=modelo._meta.get_field(campo).verbose_name, ordering=campo)
+    def columna(obj):
+        return etiqueta_de_estado(getattr(obj, campo), getattr(obj, f'get_{campo}_display')())
+    columna.__name__ = f'{campo}_etiqueta'
+    return columna
+
+
 class ScopedModelAdmin:
     scope_by = 'delegation'
 
@@ -306,14 +324,17 @@ class ScopedModelAdmin:
         return filtrar_por_delegacion(qs, request.user, self.scope_by)
 
     def get_list_display(self, request):
-        columnas = super().get_list_display(request)
+        columnas = [
+            columna_de_estado(self.model, c) if c in CAMPOS_DE_ESTADO and self.model._meta.get_field(c).choices else c
+            for c in super().get_list_display(request)
+        ]
         return [*columnas, 'estado_registro'] if self._muestra_eliminados(request) else columnas
 
     @admin.display(description='Registro')
     def estado_registro(self, obj):
         if obj.deleted_at is None:
-            return 'Activo'
-        return f'Eliminado el {timezone.localtime(obj.deleted_at):%d-%m-%Y %H:%M}'
+            return etiqueta_de_estado('activo', 'Activo')
+        return etiqueta_de_estado('eliminado', f'Eliminado el {timezone.localtime(obj.deleted_at):%d-%m-%Y %H:%M}')
 
     def get_actions(self, request):
         acciones = super().get_actions(request)

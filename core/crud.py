@@ -17,7 +17,10 @@ from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMix
 from django.core.exceptions import PermissionDenied
 from django.contrib.messages.views import SuccessMessageMixin
 from django.core.paginator import Paginator
+from django.db.models import Q
 from django.urls import reverse
+from django.utils.http import urlencode
+from django.utils.text import slugify
 from django.utils import timezone
 from django.views import View
 from django.views.generic import CreateView, DeleteView, ListView, UpdateView
@@ -47,10 +50,13 @@ def page_size_from_session(request):
 
 class Column:
     """Columna del listado y del Excel. `value` es una ruta de atributos ('employee.name')
-    o una función que recibe el objeto. `badge` devuelve una clase CSS opcional."""
+    o una función que recibe el objeto. `badge` devuelve una clase CSS opcional.
+    `sort` es la ruta del ORM para ordenar por esa columna (None = no ordenable).
+    `kind`: 'text', 'badge', 'file' o 'person' (nombre con iniciales)."""
 
-    def __init__(self, header, value, badge=None, kind='text'):
-        self.header, self.value, self.badge, self.kind = header, value, badge, kind
+    def __init__(self, header, value, badge=None, kind='text', sort=None):
+        self.header, self.value, self.badge, self.kind, self.sort = header, value, badge, kind, sort
+        self.key = slugify(header) or 'col'
 
     def resolve(self, obj):
         if callable(self.value):
@@ -83,6 +89,12 @@ class CrudConfig:
     # Todo CRUD con dueño (Model.owner_field) acepta además ?mias=1 («solo los míos»).
     flag_filters = {}
     row_links = []                   # [(texto, nombre_url, parametro_get, permiso)] enlaces extra por fila
+    search_fields = ()               # rutas del ORM donde busca ?q= (icontains)
+    # Pestañas del listado: (clave, etiqueta, parámetros). La primera es «todas» ({}). Usan los
+    # mismos filtros permitidos (choice_filters / flag_filters), así que no abren datos nuevos.
+    tabs = []
+    # Tarjetas de resumen: (clave de pestaña, tono). El número es el conteo de esa pestaña.
+    kpis = []
 
     @property
     def fin(self):
@@ -96,13 +108,35 @@ class CrudConfig:
         return reverse(f'{self.url_prefix}_{accion}', args=args)
 
     def get_queryset(self):
+        qs = self.queryset_para(self.request.GET)
+        orden = self.orden_activo()
+        return qs.order_by(orden, 'pk') if orden else qs
+
+    def queryset_para(self, params):
+        """Mismo alcance (delegación y solo activos) con los filtros de `params`. Lo usan el listado,
+        el Excel y el conteo de cada pestaña."""
         qs = self.model.objects.select_related(*self.select_related)  # objects = solo activos
         qs = filtrar_por_delegacion(qs, self.request.user, self.scope_field)
-        for lookup, valor in self._filtros_validos().values():
+        for lookup, valor in self._filtros_validos(params).values():
             qs = qs.filter(**{lookup: valor})
-        for _, metodo in self._banderas_activas().values():
+        for _, metodo in self._banderas_activas(params).values():
             qs = getattr(self, metodo)(qs)
+        busqueda = self._busqueda(params)
+        if busqueda:
+            condicion = Q()
+            for campo in self.search_fields:
+                condicion |= Q(**{f'{campo}__icontains': busqueda})
+            qs = qs.filter(condicion)
         return qs
+
+    def _busqueda(self, params):
+        return (params.get('q') or '').strip()[:100] if self.search_fields else ''
+
+    def orden_activo(self):
+        """?orden=<ruta> o ?orden=-<ruta>, solo entre las columnas ordenables (lista blanca)."""
+        orden = self.request.GET.get('orden', '')
+        permitidos = {c.sort for c in self.columns if c.sort}
+        return orden if orden.lstrip('-') in permitidos else ''
 
     def _banderas(self):
         banderas = dict(self.flag_filters)
@@ -110,8 +144,9 @@ class CrudConfig:
             banderas['mias'] = ('solo los míos' if not self.femenino else 'solo las mías', '_filtrar_mias')
         return banderas
 
-    def _banderas_activas(self):
-        return {p: v for p, v in self._banderas().items() if self.request.GET.get(p) == '1'}
+    def _banderas_activas(self, params=None):
+        params = self.request.GET if params is None else params
+        return {p: v for p, v in self._banderas().items() if params.get(p) == '1'}
 
     def _filtrar_mias(self, qs):
         campo = self.model.owner_field
@@ -126,21 +161,25 @@ class CrudConfig:
                 textos.append(f'período {Period.objects.filter(pk=valor).first() or valor}')
             elif parametro in self.choice_filters:
                 campo = self.model._meta.get_field(lookup)
-                textos.append(dict(campo.choices).get(valor, valor).lower())
+                textos.append(str(dict(campo.choices or {}).get(valor, f'{campo.verbose_name} {valor}')).lower())
             elif parametro == 'activity':
                 textos.append(f'actividad {self.model._meta.get_field("activity").related_model.all_objects.filter(pk=valor).first() or valor}')
         textos += [texto for texto, _ in self._banderas_activas().values()]
+        busqueda = self._busqueda(self.request.GET)
+        if busqueda:
+            textos.append(f'búsqueda «{busqueda}»')
         return textos
 
-    def _filtros_validos(self):
+    def _filtros_validos(self, params=None):
         """{parámetro: (lookup, valor)} de los filtros GET válidos; los demás se ignoran."""
+        params = self.request.GET if params is None else params
         validos = {}
         for parametro, lookup in self.filters.items():
-            valor = self.request.GET.get(parametro, '')
+            valor = params.get(parametro, '')
             if valor.isdigit():
                 validos[parametro] = (lookup, valor)
         for parametro, (lookup, permitidos) in self.choice_filters.items():
-            valor = self.request.GET.get(parametro, '')
+            valor = params.get(parametro, '')
             if valor in permitidos:
                 validos[parametro] = (lookup, valor)
         return validos
@@ -156,7 +195,47 @@ class CrudConfig:
     def active_filters(self):
         activos = {parametro: valor for parametro, (_, valor) in self._filtros_validos().items()}
         activos.update({parametro: '1' for parametro in self._banderas_activas()})
+        busqueda = self._busqueda(self.request.GET)
+        if busqueda:
+            activos['q'] = busqueda
         return activos
+
+    def pestanas(self, filtros):
+        """Pestañas con su conteo y su URL; conservan los demás filtros (período, búsqueda, «mías»)."""
+        claves = {clave for _, _, params in self.tabs for clave in params}
+        base = {k: v for k, v in filtros.items() if k not in claves}
+        actuales = {k: v for k, v in filtros.items() if k in claves}
+        orden = self.orden_activo()
+        resultado = []
+        for clave, etiqueta, params in self.tabs:
+            consulta = {**base, **params, **({'orden': orden} if orden else {})}
+            resultado.append({
+                'clave': clave, 'etiqueta': etiqueta, 'activa': params == actuales,
+                'total': self.queryset_para({**base, **params}).count(),
+                'url': self.url('list') + (f'?{urlencode(consulta)}' if consulta else ''),
+            })
+        return resultado
+
+    def tarjetas(self, pestanas):
+        por_clave = {p['clave']: p for p in pestanas}
+        return [{**por_clave[clave], 'tono': tono} for clave, tono in self.kpis if clave in por_clave]
+
+    def encabezados(self, filtros):
+        """Encabezados con su enlace de orden (ascendente → descendente)."""
+        orden = self.orden_activo()
+        resultado = []
+        for col in self.columns:
+            item = {'texto': col.header, 'clave': col.key, 'url': '', 'dir': ''}
+            if col.sort:
+                if orden == col.sort:
+                    siguiente, item['dir'] = f'-{col.sort}', 'asc'
+                elif orden == f'-{col.sort}':
+                    siguiente, item['dir'] = col.sort, 'desc'
+                else:
+                    siguiente = col.sort
+                item['url'] = self.url('list') + '?' + urlencode({**filtros, 'orden': siguiente})
+            resultado.append(item)
+        return resultado
 
     def form_kwargs_extra(self):
         return {'user': self.request.user}
@@ -171,9 +250,10 @@ class CrudConfig:
                 valor = col.resolve(obj)
                 texto = as_text(valor)
                 celdas.append({
-                    'header': col.header, 'text': texto, 'raw': valor, 'kind': col.kind,
-                    # Códigos, fechas y cifras (cortos y sin espacios) no se parten en dos líneas.
-                    'nowrap': ' ' not in texto and len(texto) <= 16,
+                    'header': col.header, 'key': col.key, 'text': texto, 'raw': valor, 'kind': col.kind,
+                    'iniciales': ''.join(p[0] for p in texto.replace('(', '').split()[:2]).upper() if col.kind == 'person' else '',
+                    # Una línea por fila (como una tabla de datos); solo los textos largos se parten.
+                    'nowrap': len(texto) <= 30,
                     'badge': col.badge(obj) if col.badge else '',
                 })
             enlaces = [
@@ -188,17 +268,30 @@ class CrudConfig:
     def crud_context(self, page_obj):
         user = self.request.user
         filtros = self.active_filters()
+        orden = self.orden_activo()
+        estado = {**filtros, **({'orden': orden} if orden else {})}
+        pestanas = self.pestanas(filtros) if self.tabs else []
         return {
             'title': self.title,
             'singular': self.singular,
+            'fin': self.fin,
             'headers': [c.header for c in self.columns],
+            'columnas': self.encabezados(filtros),
+            'pestanas': pestanas,
+            'tarjetas': self.tarjetas(pestanas),
+            'busqueda': filtros.get('q', ''),
+            'buscable': bool(self.search_fields),
+            'orden': orden,
+            'page_range': page_obj.paginator.get_elided_page_range(page_obj.number, on_each_side=1, on_ends=1),
+            'tabla_id': self.url_prefix,
             'rows': self.build_rows(page_obj.object_list),
             'page_obj': page_obj,
             'page_size': page_size_from_session(self.request),
             'page_sizes': PAGE_SIZES,
             'filters': filtros,
             'filters_desc': self.descripcion_filtros(),
-            'filters_query': '&'.join(f'{k}={v}' for k, v in filtros.items()),
+            # Estado de la lista (filtros, búsqueda y orden) para paginación, modal y Excel.
+            'filters_query': urlencode(estado),
             'list_url': self.url('list'),
             'create_url': self.url('create'),
             'export_url': self.url('export'),
@@ -330,9 +423,14 @@ class CrudExportView(ScopedCrudMixin, CrudConfig, View):
         return (self.perm('view'),)
 
     def get(self, request, *args, **kwargs):
+        qs = self.get_queryset()  # mismo QuerySet del listado
+        # ?ids=1,2,3: solo los seleccionados, siempre dentro del alcance del usuario.
+        if 'ids' in request.GET:  # con ?ids= sin ningún id válido no se exporta nada, nunca todo
+            ids = [i for i in request.GET['ids'].split(',') if i.isdigit()][:1000]
+            qs = qs.filter(pk__in=ids)
         filas = (
             [valor_excel(col.resolve(obj)) for col in self.columns]
-            for obj in self.get_queryset().iterator()  # mismo QuerySet del listado
+            for obj in qs.iterator()
         )
         nombre = f'{self.url_prefix}_{timezone.localdate():%Y%m%d}.xlsx'
         return respuesta_xlsx(self.title, [c.header for c in self.columns], filas, nombre)

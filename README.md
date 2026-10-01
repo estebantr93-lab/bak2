@@ -276,6 +276,19 @@ Hay cuatro CRUD completos (crear, listar, editar y eliminar lógicamente) constr
 - **Paginación:** 5, 15 o 30 registros por página. La elección se guarda en `request.session['page_size']` y aplica a todos los listados. Los valores no permitidos se ignoran.
 - **Exportar a Excel:** el botón "Exportar Excel" descarga un `.xlsx` generado con **openpyxl** (`CrudExportView`), con encabezados y los datos del **mismo QuerySet del listado**. Por eso respeta permisos, scoping por delegación y borrado lógico. El archivo se arma en memoria: `Workbook()` → `hoja.append(fila)` → `libro.save(response)`.
 
+#### Diseño de los listados (pestañas, búsqueda, orden y selección)
+
+Los cuatro listados comparten una sola plantilla (`templates/crud/list.html`) y la lógica de `core/crud.py`. Cada CRUD solo declara sus `tabs`, `kpis`, `search_fields` y qué columnas se pueden ordenar (`Column(..., sort=...)`):
+
+- **Tarjetas de resumen y pestañas con conteo:** por ejemplo Todas / Pendientes / Aprobadas / Rechazadas / Sin evidencia en actividades, o Vencidos y "Vencen en 7 días" en compromisos. Los conteos salen del **mismo QuerySet acotado** del listado, así que cada rol ve solo los números de su alcance.
+- **Búsqueda** (`?q=`, máx. 100 caracteres) sobre los campos declarados. Se mantiene al cambiar de pestaña, página u orden.
+- **Orden por columna** (`?orden=campo` / `?orden=-campo`). Solo se aceptan las columnas declaradas (lista blanca). Cualquier otro valor se ignora, para que no se pueda ordenar por campos internos.
+- **Selección de filas:** al marcar filas aparece una barra flotante con "Exportar a Excel", que descarga solo las filas seleccionadas (`?ids=`). El servidor vuelve a filtrar esos ids dentro del alcance del usuario; un id de otra delegación no se exporta. No hay eliminación masiva: cada eliminación sigue siendo individual y con confirmación.
+- **Columnas visibles:** el botón "Columnas" oculta o muestra columnas. La preferencia se guarda en el navegador (`localStorage`); si el navegador no la permite, se ven todas.
+- **Etiquetas de estado, iniciales y acciones con íconos:** el estado se muestra con color y texto, nunca solo con color. La columna de acciones queda fija a la derecha cuando la tabla se desplaza, y en celular cada fila pasa a ser una tarjeta.
+- El JavaScript (`static/js/listado.js`) no usa atributos `on…`. Todo lo que hace es de interfaz; los permisos se vuelven a verificar en el servidor.
+- **Django Admin:** el listado del Admin usa el mismo lenguaje visual: etiquetas de estado (`ScopedModelAdmin.get_list_display` reemplaza `status`, `validation_status` y `new_status` por una etiqueta que sigue ordenando por el campo), encabezados sin mayúsculas, fila marcada en color, barra de acciones fija y paginación en casillas (`core/static/admin/css/custom_admin.css`).
+
 ### Revisión de evidencias y estado de la actividad
 
 - Aprobar o rechazar una evidencia pasa **siempre** por `registrar_revision()` (`evidencias/services.py`): formulario web del verificador, acción masiva, formulario de cambio y alta de `Validation` en el Admin. Esa función guarda el estado, asigna el revisor, crea la `Validation` y deja una traza en `AuditLog`. Una `Validation` ya registrada no se edita.

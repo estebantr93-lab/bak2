@@ -218,3 +218,91 @@ class EvidenciaRevisionTests(BaseCrud):
         response = self.client.get(reverse('evidencia_list'))
         self.assertNotIn('status', response.context['form'].fields)
         self.assertEqual(User.objects.get(username='funcionario_centro').has_perm('evidencias.change_evidence'), False)
+
+
+class ListadoInteractivoTests(BaseCrud):
+    """Pestañas con conteo, búsqueda, orden por columna y exportación de las filas seleccionadas."""
+
+    def test_pestanas_y_tarjetas_cuentan_solo_el_alcance_del_usuario(self):
+        self.ingresar('admin_centro')
+        response = self.client.get(reverse('actividad_list'))
+        pestanas = {p['clave']: p for p in response.context['pestanas']}
+        centro = Activity.objects.filter(delegation__name='Delegación Centro')
+        self.assertEqual(pestanas['todas']['total'], centro.count())
+        self.assertTrue(pestanas['todas']['activa'])
+        for clave, estado in (('pendientes', 'pending'), ('aprobadas', 'approved'), ('rechazadas', 'rejected')):
+            self.assertEqual(pestanas[clave]['total'], centro.filter(validation_status=estado).count(), clave)
+        self.assertEqual([t['clave'] for t in response.context['tarjetas']],
+                         ['todas', 'pendientes', 'aprobadas', 'rechazadas'])
+
+    def test_pestana_activa_filtra_el_listado(self):
+        self.ingresar('admin_centro')
+        response = self.client.get(reverse('actividad_list'), {'status': 'rejected', 'page_size': 100})
+        activa = [p['clave'] for p in response.context['pestanas'] if p['activa']]
+        self.assertEqual(activa, ['rechazadas'])
+        self.assertTrue(all(f['obj'].validation_status == 'rejected' for f in response.context['rows']))
+
+    def test_todos_los_listados_tienen_pestanas_y_responden_para_cada_rol(self):
+        for usuario in ('admin_sgr', 'admin_centro', 'verificador_leia', 'funcionario_centro'):
+            self.ingresar(usuario)
+            for prefijo in CRUDS:
+                response = self.client.get(reverse(f'{prefijo}_list'))
+                if response.status_code == 403:
+                    continue  # el rol no tiene ese módulo (lo cubre test_verificador_sin_permiso...)
+                self.assertEqual(response.status_code, 200, (usuario, prefijo))
+                self.assertTrue(response.context['pestanas'], (usuario, prefijo))
+
+    def test_busqueda_por_numero_y_nombre_dentro_del_alcance(self):
+        self.ingresar('admin_centro')
+        actividad = Activity.objects.filter(delegation__name='Delegación Centro').first()
+        response = self.client.get(reverse('actividad_list'), {'q': actividad.number})
+        self.assertEqual([f['obj'].pk for f in response.context['rows']], [actividad.pk])
+        ajena = Activity.objects.filter(delegation__name='Delegación Norte').first()
+        response = self.client.get(reverse('actividad_list'), {'q': ajena.number})
+        self.assertEqual(response.context['rows'], [])
+
+    def test_busqueda_se_mantiene_en_pestanas_y_paginacion(self):
+        self.ingresar('admin_centro')
+        response = self.client.get(reverse('actividad_list'), {'q': 'Ana'})
+        self.assertIn('q=Ana', response.context['filters_query'])
+        self.assertTrue(all('q=Ana' in p['url'] for p in response.context['pestanas']))
+
+    def test_orden_por_columna_permitida(self):
+        self.ingresar('admin_sgr')
+        response = self.client.get(reverse('compromiso_list'), {'orden': '-due_date', 'page_size': 100})
+        fechas = [f['obj'].due_date for f in response.context['rows']]
+        self.assertEqual(fechas, sorted(fechas, reverse=True))
+
+    def test_orden_fuera_de_la_lista_blanca_se_ignora(self):
+        self.ingresar('admin_sgr')
+        for orden in ('delegation__employees__user__password', 'pk; DROP', '-description'):
+            response = self.client.get(reverse('actividad_list'), {'orden': orden})
+            self.assertEqual(response.status_code, 200, orden)
+            self.assertEqual(response.context['orden'], '', orden)
+
+    def test_exportar_seleccion_solo_incluye_ids_del_alcance(self):
+        self.ingresar('admin_centro')
+        propias = list(Activity.objects.filter(delegation__name='Delegación Centro')[:2])
+        ajena = Activity.objects.filter(delegation__name='Delegación Norte').first()
+        ids = ','.join(str(a.pk) for a in [*propias, ajena])
+        response = self.client.get(reverse('actividad_export'), {'ids': ids})
+        self.assertEqual(response.status_code, 200)
+        hoja = load_workbook(io.BytesIO(response.content)).active
+        numeros = {fila[0] for fila in hoja.iter_rows(min_row=2, values_only=True)}
+        self.assertEqual(numeros, {a.number for a in propias})
+
+    def test_ids_invalidos_no_rompen_la_exportacion(self):
+        self.ingresar('admin_centro')
+        response = self.client.get(reverse('actividad_export'), {'ids': 'abc,-3,'})
+        self.assertEqual(response.status_code, 200)
+        hoja = load_workbook(io.BytesIO(response.content)).active
+        self.assertEqual(hoja.max_row, 1)  # solo encabezados: una selección inválida no exporta todo
+
+
+class AdminEtiquetasDeEstadoTests(BaseCrud):
+    def test_changelist_muestra_el_estado_como_etiqueta_y_ordena_por_el_campo(self):
+        self.ingresar('admin_sgr')
+        response = self.client.get(reverse('admin:actividades_activity_changelist'), {'o': '6'})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '<span class="estado estado-pending">Pendiente</span>', html=True)
+        self.assertContains(response, 'Estado de validación')
