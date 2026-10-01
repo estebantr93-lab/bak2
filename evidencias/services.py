@@ -7,6 +7,7 @@ Evidence en el Admin y el alta de Validation en el Admin. Así ninguna vía pued
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Count, Q
+from django.utils import timezone
 
 from colaboracion.models import AuditLog
 from core.admin_utils import motivo_no_modificable
@@ -47,7 +48,9 @@ def sincronizar_estado_actividades(actividades):
         por_estado.setdefault(estado_segun_evidencias(aprobadas, rechazadas, pendientes), []).append(pk)
     modelo = actividades.model
     for estado, pks in por_estado.items():
-        modelo.all_objects.filter(pk__in=pks).exclude(validation_status=estado).update(validation_status=estado)
+        modelo.all_objects.filter(pk__in=pks).exclude(validation_status=estado).update(
+            validation_status=estado, updated_at=timezone.now()  # update() no toca auto_now
+        )
 
 
 def sincronizar_estado_actividad(actividad):

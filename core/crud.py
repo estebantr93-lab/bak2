@@ -24,7 +24,7 @@ from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
 from reportes.services import as_text, respuesta_xlsx, valor_excel
 
-from .admin_utils import filtrar_por_delegacion, registrar_en_auditoria, modificables, motivo_no_modificable, motivo_para_usuario, puede_modificar
+from .admin_utils import cambios_del_formulario, filtrar_por_delegacion, registrar_en_auditoria, modificables, motivo_no_modificable, motivo_para_usuario, puede_modificar
 
 PAGE_SIZES = [5, 15, 30]
 PAGE_SIZE_DEFAULT = 15
@@ -244,6 +244,15 @@ class CrudFormView(ScopedCrudMixin, CrudConfig, SuccessMessageMixin):
     def get_success_url(self):
         return self.url('list')
 
+    def form_valid(self, form):
+        # Traza: quién creó o modificó el registro y qué valores cambió (las fechas las pone BaseModel).
+        es_nuevo = form.instance._state.adding
+        cambios = cambios_del_formulario(form)
+        respuesta = super().form_valid(form)
+        if es_nuevo or cambios:
+            registrar_en_auditoria(self.request.user, 'crear' if es_nuevo else 'modificar', self.object, cambios=cambios)
+        return respuesta
+
     def get_context_data(self, **kwargs):
         contexto = super().get_context_data(**kwargs)
         pagina = Paginator(self.get_queryset(), page_size_from_session(self.request))
@@ -308,7 +317,7 @@ class CrudDeleteView(ScopedCrudMixin, CrudConfig, DeleteView):
 
     def form_valid(self, form):
         nombre = str(self.object)
-        respuesta = super().form_valid(form)  # llama a object.delete(): borrado lógico (SoftDeleteModel)
+        respuesta = super().form_valid(form)  # llama a object.delete(): borrado lógico (BaseModel)
         registrar_en_auditoria(self.request.user, 'eliminar', self.object)  # el superadmin ve quién lo eliminó
         messages.success(self.request, f'{self.singular.capitalize()} «{nombre}» eliminad{self.fin}.')
         return respuesta

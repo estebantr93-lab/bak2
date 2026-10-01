@@ -291,9 +291,25 @@ Hay cuatro CRUD completos (crear, listar, editar y eliminar lógicamente) constr
 - **Metas de un período cerrado:** no se modifican, porque cambiarían el cumplimiento histórico.
 - **Traza de auditoría:** en el Admin es de solo lectura (no se crea, edita ni borra a mano).
 
+### Fechas de auditoría y traza de cambios (`BaseModel`)
+
+Como pide la Clase 2 de la Unidad 2, los campos de auditoría están centralizados en modelos abstractos de `core/models.py` (no crean tabla propia):
+
+| Modelo base | Campos | Lo heredan |
+| --- | --- | --- |
+| `TimeStampedModel` | `created_at` (`auto_now_add`), `updated_at` (`auto_now`) | Tablas maestras: `Delegation`, `Position`, `ActivityType`, `Period`, `Parameter`, `Employee`, `Goal`, `Weighting`, `Indicator` |
+| `BaseModel` (hereda de `TimeStampedModel`) | + `deleted_at` y el borrado lógico | Entidades operacionales: `Activity`, `SocialCase`, `Evidence`, `Validation`, `Commitment`, `CommitmentFollowUp` |
+
+Las tablas maestras no tienen borrado lógico: se desactivan con `is_active` y están protegidas con `on_delete=PROTECT` (un borrado lógico se saltaría esa protección).
+
+- **Las fechas dicen cuándo; la traza dice quién y qué.** `updated_at` no sabe quién editó, por eso cada creación y modificación también queda en `AuditLog` con el usuario y los valores anteriores y nuevos (`changes = {campo: [antes, después]}`), registrados en los dos lugares por donde se escribe: el CRUD web (`CrudFormView.form_valid`, `core/crud.py`) y el Admin (`ScopedModelAdmin.save_model` / `save_formset` y `AuditarCambiosAdmin`, `core/admin_utils.py`). El único punto de entrada es `registrar_en_auditoria()`.
+- `save(update_fields=[...])` agrega `updated_at` automáticamente (lo hace `TimeStampedModel.save`). `QuerySet.update()` no aplica `auto_now`, por eso las tres actualizaciones masivas del proyecto fijan `updated_at` a mano.
+- En el Admin, `created_at` y `updated_at` se ven en la ficha de cada registro en solo lectura.
+- Las migraciones `00xx_fechas_de_auditoria` asignan a los registros existentes la fecha de la migración.
+
 ### Borrado lógico (`deleted_at`)
 
-`Activity`, `SocialCase`, `Evidence`, `Validation`, `Commitment` y `CommitmentFollowUp` heredan de `core.soft_delete.SoftDeleteModel`:
+`Activity`, `SocialCase`, `Evidence`, `Validation`, `Commitment` y `CommitmentFollowUp` heredan de `core.models.BaseModel` (los managers están en `core/soft_delete.py`):
 
 - `delete()` (desde las vistas, el Admin o un QuerySet) **no borra la fila**: marca `deleted_at` y propaga la marca a los hijos (por ejemplo, una actividad a sus evidencias y atenciones).
 - `Modelo.objects` devuelve solo registros activos y es el que usan listados, dashboard, Admin y exportaciones. `Modelo.all_objects` ve también los eliminados. Es el manager por defecto para que Django siga detectando valores únicos ocupados por registros eliminados, en vez de fallar con un error 500.
@@ -413,7 +429,7 @@ python manage.py runserver                  # servidor de desarrollo
 
 Las pruebas de cada regla están en `core/tests_reglas_negocio.py` (`ReglasDeLaGuiaTests`).
 
-**Superadministrador y registros eliminados.** Lo que borra un administrador de delegación (actividad, evidencia, etc.) desaparece para él, pero el superadministrador lo sigue viendo en el Admin (columna «Estado», filtro «Eliminados», solo lectura) y puede restaurarlo con la acción «Restaurar». Ambas acciones quedan en la auditoría. Un registro cuyo padre sigue eliminado (una evidencia, gestión o seguimiento de una actividad o compromiso eliminado) no se restaura: el Admin avisa «Restaure primero…», porque quedaría activo colgando de algo que nadie ve (`SoftDeleteModel.padre_eliminado` en `core/soft_delete.py`).
+**Superadministrador y registros eliminados.** Lo que borra un administrador de delegación (actividad, evidencia, etc.) desaparece para él, pero el superadministrador lo sigue viendo en el Admin (columna «Estado», filtro «Eliminados», solo lectura) y puede restaurarlo con la acción «Restaurar». Ambas acciones quedan en la auditoría. Un registro cuyo padre sigue eliminado (una evidencia, gestión o seguimiento de una actividad o compromiso eliminado) no se restaura: el Admin avisa «Restaure primero…», porque quedaría activo colgando de algo que nadie ve (`BaseModel.padre_eliminado` en `core/models.py`).
 
 ## Dónde está cada requisito en el código
 
@@ -421,7 +437,8 @@ Las pruebas de cada regla están en `core/tests_reglas_negocio.py` (`ReglasDeLaG
 | --- | --- |
 | Conexión a BD por variables de entorno | `config/settings.py` (`DATABASES`), `.env.example` |
 | Modelos (inglés, `db_table`) y Admin | `*/models.py`, `*/admin.py`, `core/admin_utils.py` (`ScopedModelAdmin`) |
-| Borrado lógico | `core/soft_delete.py` (`SoftDeleteModel`, managers `objects` / `all_objects`) |
+| Fechas de auditoría y borrado lógico | `core/models.py` (`TimeStampedModel`, `BaseModel`), `core/soft_delete.py` (managers `objects` / `all_objects`) |
+| Traza con valores anteriores y nuevos | `core/admin_utils.py` (`registrar_en_auditoria`, `cambios_del_formulario`), `core/crud.py` (`CrudFormView.form_valid`), `colaboracion/models.py` (`AuditLog.changes`) |
 | Login, logout y rechazo de cuentas sin rol | `config/urls.py`, `funcionarios/forms.py` (`LoginForm`), `templates/registration/login.html` |
 | Recuperación con código de 6 dígitos | `funcionarios/recuperacion.py`, `funcionarios/views.py`, modelo `PasswordResetCode` |
 | Política de contraseñas | `config/settings.py` (`AUTH_PASSWORD_VALIDATORS`), `core/validators.py` |
