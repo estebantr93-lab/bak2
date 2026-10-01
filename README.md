@@ -375,11 +375,36 @@ Arquitectura: **nginx** (puerto 80) sirve `/static/` y reenvía el resto (inclui
 3. **Contraseñas de demo:** páselas al script como variable de entorno: `DEMO_PASSWORD='<clave nueva>' bash setup_ec2.sh ...`. El script la guarda en `/srv/sgr/.env`. Si no la pasa, `seed_data` genera contraseñas aleatorias y las muestra **una sola vez** en la salida: anótelas. No reutilice contraseñas antiguas del historial de Git.
 4. **Correo de recuperación:** con el backend de consola, el código aparece en `sudo journalctl -u gunicorn-sgr -f`. Para recibirlo por correo, configure SMTP (por ejemplo Mailtrap) con `EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend` y `EMAIL_HOST`/`EMAIL_PORT`/`EMAIL_HOST_USER`/`EMAIL_HOST_PASSWORD`, y luego `sudo systemctl restart gunicorn-sgr`.
 
+**Configuración de nginx (`deploy/nginx-sgr.conf`):** `setup_ec2.sh` la copia en `/etc/nginx/conf.d/sgr.conf` en Amazon Linux y en `/etc/nginx/sites-available/sgr` (enlazada en `sites-enabled`) en Ubuntu. Esto hace:
+
+| Bloque | Qué hace |
+| --- | --- |
+| `client_max_body_size 3M` | Rechaza (413) cualquier petición de más de 3 MB antes de que llegue a Django: evidencias de hasta 2 MB más el resto del formulario. |
+| `location /static/` | Sirve los archivos de `collectstatic` desde `/srv/sgr/staticfiles/`, con caché de 7 días. |
+| `location /media/` → `return 404` | **La carpeta de archivos subidos no se publica.** Las evidencias se descargan por `/archivos/…`, que pasa a Django y exige sesión, permiso y delegación (ver «Archivos y confirmaciones»). |
+| `location /` | Reenvía todo lo demás, incluido `/archivos/`, a gunicorn por el socket `/run/sgr/gunicorn.sock`, con las cabeceras `Host`, `X-Forwarded-For` y `X-Forwarded-Proto`. |
+
 **Actualizar tras un nuevo push:**
 ```bash
 cd /srv/sgr && git pull && .venv/bin/pip install -r requirements.txt
 .venv/bin/python manage.py migrate && .venv/bin/python manage.py collectstatic --noinput
 sudo systemctl restart gunicorn-sgr
+```
+
+**Si el push cambió `deploy/nginx-sgr.conf`**, `git pull` no la aplica: hay que copiarla y recargar nginx. Eso pasa, por ejemplo, con el cambio que dejó de publicar `/media/`; mientras no se copie, los archivos siguen accesibles sin sesión para quien tenga el enlace.
+```bash
+cd /srv/sgr
+# Amazon Linux 2023
+sudo cp deploy/nginx-sgr.conf /etc/nginx/conf.d/sgr.conf
+# Ubuntu 24.04 (en vez de la línea anterior)
+sudo cp deploy/nginx-sgr.conf /etc/nginx/sites-available/sgr
+sudo nginx -t && sudo systemctl reload nginx   # reload no corta las conexiones abiertas
+```
+
+Para comprobarlo desde su computador (debe responder `404` y `302`):
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' http://<IP-publica>/media/evidencias/cualquiera.pdf     # 404: carpeta no publicada
+curl -s -o /dev/null -w '%{http_code}\n' http://<IP-publica>/archivos/evidencias/cualquiera.pdf  # 302: pide iniciar sesión
 ```
 
 **Antes de la revisión, volver a cargar los datos con la fecha del día** (una base cargada antes conserva sus períodos y metas, ver «Fechas relativas al día de la carga»):
@@ -395,7 +420,9 @@ sudo systemctl restart gunicorn-sgr
 
 **Si usa RDS:** en el *parameter group*, `character_set_server = utf8mb4` y `collation_server = utf8mb4_unicode_ci`. Para conexión cifrada, descargue `global-bundle.pem` de AWS y apunte `DB_SSL_CA` a esa ruta. Con HTTPS, active `COOKIE_SECURE=True` y `BEHIND_HTTPS_PROXY=True`.
 
-**Diagnóstico:** `sudo systemctl status gunicorn-sgr`, `sudo journalctl -u gunicorn-sgr -n 50`, `sudo nginx -t` y `sudo tail /var/log/nginx/error.log`.
+**Diagnóstico:** `sudo systemctl status gunicorn-sgr`, `sudo journalctl -u gunicorn-sgr -n 50`, `sudo nginx -t` y `sudo tail /var/log/nginx/error.log`. Para ver la configuración que nginx está usando realmente: `sudo nginx -T | grep -A3 "location /media/"` (debe mostrar `return 404`).
+- **413 Request Entity Too Large** al subir una evidencia: el archivo supera 3 MB y nginx lo cortó antes de llegar a Django (el límite de la aplicación es 2 MB).
+- **502 Bad Gateway:** gunicorn no está corriendo o nginx no puede usar el socket: revise `sudo systemctl status gunicorn-sgr`.
 
 ## Cuentas de prueba
 
