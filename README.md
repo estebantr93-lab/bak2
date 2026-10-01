@@ -342,13 +342,24 @@ Las tablas maestras no tienen borrado lógico: se desactivan con `is_active` y e
 
 ### Archivos y confirmaciones (Clase 8)
 
-La carga (`enctype="multipart/form-data"`) valida el tamaño (máximo 2 MB), la extensión (JPG, PNG o PDF) y el **contenido real**: `Image.open().verify()` de Pillow para imágenes y la firma `%PDF-` para PDF. El nombre enviado se descarta y se guarda con un nombre UUID en `media/evidencias/AAAA/MM/`.
+Solo **evidencias** recibe archivos. Actividades, atenciones, compromisos y validaciones no tienen campo de archivo: su respaldo es una evidencia. Las reglas están en un solo lugar, `validar_archivo_subido()` en `evidencias/archivos.py`, y las aplican el formulario web y el Admin (incluida la evidencia en línea dentro de una actividad):
+
+| Control | Qué se revisa |
+| --- | --- |
+| Tamaño | Máximo 2 MB y no vacío. nginx corta antes con `client_max_body_size 3M`, y Django acepta como máximo 5 archivos por petición. |
+| Extensión | Solo `.jpg`, `.jpeg`, `.png` y `.pdf`. No se considera el tipo que declara el navegador. |
+| Contenido real de imágenes | Pillow la abre y verifica, y el formato debe **coincidir con la extensión** (un `.png` con contenido JPEG se rechaza). Se rechazan las imágenes de más de 50 megapíxeles (bombas de descompresión). |
+| Imagen re-codificada | Se vuelve a guardar con Pillow: se eliminan los **metadatos EXIF (ubicación GPS)** y cualquier contenido escondido al final del archivo (archivos «políglotas»). La orientación de la foto se conserva. |
+| Contenido real de PDF | Estructura completa: cabecera `%PDF-`, al menos una página, `xref` y `%%EOF`. Se rechazan los PDF **cifrados** y los que contienen `/JavaScript`, `/JS`, `/Launch`, archivos incrustados, `/RichMedia` o XFA, también cuando están escritos con `#xx` u ocultos en flujos comprimidos (`/ObjStm`). Se descomprime como máximo 20 MB. |
+| Nombre | El nombre enviado se descarta y se guarda con un nombre UUID en `media/evidencias/AAAA/MM/`. |
+
+**Entrega protegida:** los archivos no se publican como carpeta. `MEDIA_URL` es `/archivos/`, una vista (`evidencias.views.archivo_evidencia`) que exige sesión, el permiso `view_evidence` y que la evidencia sea de la delegación del usuario (si no, responde 404, como el CRUD). Una evidencia eliminada solo la ve el administrador general. La vista responde con el tipo según la extensión ya validada, `X-Content-Type-Options: nosniff` y `Cache-Control: private, no-store`. Por eso conocer o compartir el enlace no basta para descargar el respaldo de otra delegación. nginx ya no expone `/media/`.
 Al reemplazar el archivo de una evidencia, el anterior se borra (`evidencias/signals.py`). Al eliminarla, el borrado es lógico y el archivo se conserva; solo `hard_delete()` lo borra del disco.
 SweetAlert2 (`static/js/confirmar.js`) pide confirmación antes de eliminar. La librería (v11.26.25, licencia MIT) se sirve desde `static/vendor/sweetalert2/`, así que la demo no depende de un CDN; si aun así no cargara, se usa la confirmación nativa del navegador y nunca se elimina sin preguntar. Es solo una ayuda visual: Django sigue exigiendo POST, CSRF, login y permisos.
 
 ## Despliegue en AWS Academy (EC2 + nginx + gunicorn)
 
-Arquitectura: **nginx** (puerto 80) sirve `/static/` y `/media/` y reenvía el resto a **gunicorn** por un socket Unix. **systemd** mantiene gunicorn en ejecución. La base de datos es **RDS** (MySQL 8.4 / MariaDB 10.11 o superior) o **MariaDB 10.11 en la misma EC2**. Los archivos están en `deploy/`.
+Arquitectura: **nginx** (puerto 80) sirve `/static/` y reenvía el resto (incluidos los archivos subidos, que pasan por la vista protegida `/archivos/`) a **gunicorn** por un socket Unix. **systemd** mantiene gunicorn en ejecución. La base de datos es **RDS** (MySQL 8.4 / MariaDB 10.11 o superior) o **MariaDB 10.11 en la misma EC2**. Los archivos están en `deploy/`.
 
 > ⚠️ Django 6.1 exige **Python 3.12+** y **MySQL 8.4+ / MariaDB 10.11+**. El script sirve para **Amazon Linux 2023** (instala `python3.12` y `mariadb1011-server`, porque su `python3` es la 3.9) y para **Ubuntu Server 24.04** (trae Python 3.12 y MariaDB 10.11). Detecta el sistema solo (`dnf` o `apt`) y usa el usuario de la instancia (`ec2-user` o `ubuntu`) y el grupo de nginx (`nginx` o `www-data`). Si el Learner Lab no ofrece esas versiones en RDS, use la opción `--db-local`.
 
