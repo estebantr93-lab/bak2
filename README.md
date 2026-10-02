@@ -45,7 +45,7 @@ Proyecto_Integrado_SGR/
 ├── funcionarios/    # Employee (perfil), PasswordResetCode, grupos/permisos (security.py), login y recuperación
 ├── actividades/     # Activity, SocialCase + CRUD web protegido (ListView/CreateView/UpdateView/DeleteView + modal)
 ├── evidencias/      # Evidence, Validation + acción "Aprobar evidencias seleccionadas" + carga de archivos validada
-├── agenda/          # Commitment, CommitmentFollowUp
+├── agenda/          # Commitment, CommitmentFollowUp + API REST de compromisos (serializers.py, api_views.py, api_urls.py)
 ├── medicion/        # Goal, Weighting, Indicator + fórmulas de cálculo (services.py)
 ├── monitoreo/       # DashboardPanel
 ├── dashboard/       # Dashboard de resumen por funcionario y rol (services.py)
@@ -364,6 +364,43 @@ Solo **evidencias** recibe archivos. Actividades, atenciones, compromisos y vali
 **Entrega protegida:** los archivos no se publican como carpeta. `MEDIA_URL` es `/archivos/`, una vista (`evidencias.views.archivo_evidencia`) que exige sesión, el permiso `view_evidence` y que la evidencia sea de la delegación del usuario (si no, responde 404, como el CRUD). Una evidencia eliminada solo la ve el administrador general. La vista responde con el tipo según la extensión ya validada, `X-Content-Type-Options: nosniff` y `Cache-Control: private, no-store`. Por eso conocer o compartir el enlace no basta para descargar el respaldo de otra delegación. nginx ya no expone `/media/`.
 Al reemplazar el archivo de una evidencia, el anterior se borra (`evidencias/signals.py`). Al eliminarla, el borrado es lógico y el archivo se conserva; solo `hard_delete()` lo borra del disco.
 SweetAlert2 (`static/js/confirmar.js`) pide confirmación antes de eliminar. La librería (v11.26.25, licencia MIT) se sirve desde `static/vendor/sweetalert2/`, así que la demo no depende de un CDN; si aun así no cargara, se usa la confirmación nativa del navegador y nunca se elimina sin preguntar. Es solo una ayuda visual: Django sigue exigiendo POST, CSRF, login y permisos.
+
+## API REST de compromisos (Unidad 3 · Clase 1)
+
+El mismo modelo y la misma base de datos se publican también como API JSON con **Django REST Framework** (`djangorestframework==3.18.1`, compatible con Django 6.1). Las páginas web siguen igual. El recurso elegido es **Compromisos** (`agenda.Commitment`).
+
+| Pieza de la clase | En el proyecto |
+| --- | --- |
+| Modelo | `agenda.models.Commitment` (sin cambios) |
+| Serializer | `agenda/serializers.py` · `CommitmentSerializer`, con campos explícitos: `id`, `title`, `description`, `delegation`, `responsible`, `due_date`, `status`, `status_display`, `notes`, `created_at` y `updated_at`. Los de solo lectura son `id`, `status_display` y las fechas. |
+| ViewSet | `agenda/api_views.py` · `CommitmentViewSet(ModelViewSet)` |
+| Router | `agenda/api_urls.py` · `DefaultRouter`, con `router.register('compromisos', …)` |
+| Ruta | `config/urls.py` · `path('api/', include('agenda.api_urls'))` |
+
+| Método y URL | Respuesta |
+| --- | --- |
+| `GET /api/compromisos/` | 200 · lista JSON (solo los de su delegación) |
+| `POST /api/compromisos/` | 201 · compromiso creado; 400 si los datos no cumplen las reglas |
+| `GET /api/compromisos/<id>/` | 200 · detalle; 404 si no existe, está eliminado o es de otra delegación |
+| `PATCH /api/compromisos/<id>/` | 200 · edición parcial; 400 si rompe una regla |
+| `DELETE /api/compromisos/<id>/` | 204 · borrado lógico (`deleted_at`); después, `GET` da 404 |
+
+**Las reglas del proyecto se conservan** (diapositiva 8):
+- Validaciones iguales a la web: título de al menos 5 caracteres, vencimiento no pasado al crear, responsable de la misma delegación, y «realizado» exige observaciones. En un `PATCH`, la regla se revisa sobre el registro completo.
+- La API **no queda abierta**. La pregunta final de la clase advierte justamente ese riesgo. Hasta agregar JWT (Clase 2), usa la **misma sesión del sitio**:
+  - sin sesión → 403;
+  - permisos del modelo por rol: el funcionario solo consulta (`GET` 200; crear o editar, 403), y el verificador no tiene acceso a compromisos (403);
+  - alcance por delegación: lo de otra delegación responde 404, igual que el CRUD web.
+- Cada creación, edición y eliminación queda en la traza de auditoría, con usuario y campos cambiados (detalle «API REST»).
+
+**Cómo probarla:**
+- **En el navegador:** iniciar sesión en el sitio y abrir `/api/compromisos/`. La API navegable de DRF permite `GET`, `POST`, `PATCH` y `DELETE` desde la página.
+- **Secuencia de la clase** (diapositiva 14), con el servidor levantado:
+  ```bash
+  SGR_URL=http://127.0.0.1:8000 SGR_USUARIO=admin_centro SGR_CLAVE='<clave>' python scripts/probar_api.py
+  ```
+  Ejecuta en orden: GET lista (200), POST válido (201), GET detalle (200), PATCH (200), POST inválido (400), DELETE (204) y GET del eliminado (404). Imprime método, URL, cuerpo, estado y un extracto del JSON, listo para la captura.
+- **Pruebas automáticas:** `python manage.py test agenda.tests_api` (14 pruebas).
 
 ## Despliegue en AWS Academy (EC2 + nginx + gunicorn)
 
