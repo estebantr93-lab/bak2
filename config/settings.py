@@ -211,7 +211,9 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 # En producción: python manage.py collectstatic reúne aquí los archivos y nginx los sirve.
 STATIC_ROOT = BASE_DIR / os.getenv('STATIC_ROOT_DIR', 'staticfiles')
 
-MEDIA_URL = '/media/'
+# Los archivos subidos no se publican como carpeta: /archivos/<nombre> es una vista que exige sesión,
+# permiso y delegación (evidencias.views.archivo_evidencia). nginx no expone MEDIA_ROOT.
+MEDIA_URL = '/archivos/'
 MEDIA_ROOT = BASE_DIR / os.getenv('MEDIA_ROOT_DIR', 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -283,3 +285,5 @@ RECUPERACION_MAX_SOLICITUDES_HORA = 5  # códigos que un mismo usuario puede ped
 
 # Archivos de evidencia
 EVIDENCIA_TAMANO_MAXIMO_MB = 2
+# Un formulario de evidencia sube un solo archivo; Django rechaza peticiones con más de estos.
+DATA_UPLOAD_MAX_NUMBER_FILES = 5

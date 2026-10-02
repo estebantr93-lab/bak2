@@ -8,6 +8,7 @@ from django.urls import reverse
 from PIL import Image
 
 from core.models import Period, ActivityType
+from evidencias.archivos import pdf_de_texto
 from evidencias.models import Evidence
 from funcionarios.models import Employee
 from core.testing import CLAVE_TEST, sembrar_datos_demo
@@ -190,7 +191,7 @@ class EvidenciaArchivoTests(BaseWeb):
 
     def test_acepta_pdf_valido(self):
         self.ingresar('funcionario_centro', CLAVE_TEST)
-        response = self.subir(SimpleUploadedFile('acta.pdf', b'%PDF-1.4\n%%EOF'))
+        response = self.subir(SimpleUploadedFile('acta.pdf', pdf_de_texto(['Acta de respaldo'])))
         self.assertEqual(response.status_code, 302)
 
     def test_no_puede_subir_a_actividad_de_otra_delegacion(self):

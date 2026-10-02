@@ -1,9 +1,11 @@
+from django import forms
 from django.apps import apps
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from django.utils.html import format_html
 
-from .soft_delete import es_soft_delete
+from .models import es_soft_delete
 
 
 def get_usuario_delegacion(user):
@@ -170,13 +172,55 @@ def filtrar_por_delegacion(queryset, user, campo='delegation'):
     return queryset.filter(**{campo: delegacion.pk})
 
 
-def registrar_en_auditoria(user, accion, obj, detalle=''):
-    """Deja constancia de quién eliminó o restauró un registro (lo consulta el superadmin)."""
+def registrar_en_auditoria(user, accion, obj, detalle='', cambios=None):
+    """Único punto de entrada a la traza de auditoría: quién, qué acción, sobre qué registro y, si
+    corresponde, qué campos cambió ({campo: [valor anterior, valor nuevo]}). La consulta el superadmin.
+
+    Las fechas (created_at, updated_at, deleted_at) viven en cada registro; esta traza agrega quién."""
     AuditLog = apps.get_model('colaboracion', 'AuditLog')
     AuditLog.objects.create(
         user=user if user and user.is_authenticated else None, action=accion,
         entity_type=type(obj).__name__, entity_id=obj.pk, detail=detalle or str(obj),
+        changes=cambios or {},
     )
+
+
+def _valor_legible(campo, valor):
+    """Texto de un valor de formulario tal como lo reconoce una persona (nombre en vez de id, Sí/No…)."""
+    if isinstance(campo, forms.FileField):
+        return getattr(valor, 'name', '') or ''
+    if valor is None or valor == '':
+        return ''
+    if isinstance(campo, forms.ModelMultipleChoiceField):
+        return ', '.join(_valor_legible(forms.ModelChoiceField(campo.queryset), v) for v in valor)
+    if isinstance(campo, forms.ModelChoiceField):
+        if hasattr(valor, 'pk'):
+            return str(valor)
+        # Valor inicial = id: se busca con el manager por defecto (incluye eliminados lógicamente).
+        obj = campo.queryset.model._default_manager.filter(pk=valor).first()
+        return str(obj) if obj is not None else str(valor)
+    if isinstance(valor, bool):
+        return 'Sí' if valor else 'No'
+    if isinstance(campo, forms.ChoiceField):
+        etiquetas = {str(k): str(v) for k, v in campo.choices if not isinstance(v, (list, tuple))}
+        return etiquetas.get(str(valor), str(valor))
+    return str(valor)
+
+
+def cambios_del_formulario(form):
+    """Campos que el formulario modificó, con su valor anterior y el nuevo. Usa form.changed_data,
+    que Django ya calcula comparando lo enviado con form.initial."""
+    cambios = {}
+    for nombre in form.changed_data:
+        campo = form.fields[nombre]
+        if 'password' in nombre:
+            cambios[nombre] = ['***', '***']  # nunca se guarda una contraseña, ni siquiera cifrada
+            continue
+        antes = _valor_legible(campo, form.initial.get(nombre, campo.initial))
+        despues = _valor_legible(campo, form.cleaned_data.get(nombre))
+        if antes != despues:
+            cambios[nombre] = [antes, despues]
+    return cambios
 
 
 def ve_eliminados(user):
@@ -201,12 +245,27 @@ class EstadoRegistroFilter(admin.SimpleListFilter):
         return queryset
 
 
+FECHAS_DE_AUDITORIA = ('created_at', 'updated_at')
+
+
+def con_fechas_de_auditoria(model, obj, campos):
+    """Las fechas de auditoría se ven en la ficha de un registro existente, pero no se editan."""
+    if obj is None:
+        return campos
+    propios = {campo.name for campo in model._meta.fields}
+    return [*campos, *(c for c in FECHAS_DE_AUDITORIA if c in propios and c not in campos)]
+
+
 class AuditarCambiosAdmin:
     """Traza de los cambios de configuración hechos en el Admin (RF-036): quién creó, modificó o
     eliminó un período, una meta, un parámetro o un catálogo, y qué campos cambió. Cerrar o reabrir
     un período queda con su propia acción (RN-013: la reapertura debe quedar auditada)."""
 
+    def get_readonly_fields(self, request, obj=None):
+        return con_fechas_de_auditoria(self.model, obj, list(super().get_readonly_fields(request, obj)))
+
     def save_model(self, request, obj, form, change):
+        cambios = cambios_del_formulario(form)
         super().save_model(request, obj, form, change)
         campos = [campo for campo in form.changed_data]
         if change and 'is_closed' in campos:
@@ -214,7 +273,7 @@ class AuditarCambiosAdmin:
         else:
             accion = 'modificar_configuracion' if change else 'crear_configuracion'
         detalle = f'{obj}' + (f' · campos: {", ".join(campos)}' if campos else '')
-        registrar_en_auditoria(request.user, accion, obj, detalle)
+        registrar_en_auditoria(request.user, accion, obj, detalle, cambios=cambios)
 
     def delete_model(self, request, obj):
         registrar_en_auditoria(request.user, 'eliminar_configuracion', obj)
@@ -224,6 +283,34 @@ class AuditarCambiosAdmin:
         for obj in queryset:
             registrar_en_auditoria(request.user, 'eliminar_configuracion', obj)
         super().delete_queryset(request, queryset)
+
+
+class UltimaModificacionFilter(admin.DateFieldListFilter):
+    """Filtro del Admin sobre updated_at (Hoy, Últimos 7 días, Este mes, Este año) con un título claro."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.title = 'última modificación'
+
+
+FILTRO_MODIFICACION = ('updated_at', UltimaModificacionFilter)
+
+
+# Campos de estado que el listado del Admin muestra como etiqueta de color (misma clase que en las vistas).
+CAMPOS_DE_ESTADO = ('status', 'validation_status', 'new_status')
+
+
+def etiqueta_de_estado(clase, texto):
+    return format_html('<span class="estado estado-{}">{}</span>', clase, texto)
+
+
+def columna_de_estado(modelo, campo):
+    """Columna del changelist que muestra el estado como etiqueta y sigue ordenando por el campo."""
+    @admin.display(description=modelo._meta.get_field(campo).verbose_name, ordering=campo)
+    def columna(obj):
+        return etiqueta_de_estado(getattr(obj, campo), getattr(obj, f'get_{campo}_display')())
+    columna.__name__ = f'{campo}_etiqueta'
+    return columna
 
 
 class ScopedModelAdmin:
@@ -248,14 +335,17 @@ class ScopedModelAdmin:
         return filtrar_por_delegacion(qs, request.user, self.scope_by)
 
     def get_list_display(self, request):
-        columnas = super().get_list_display(request)
+        columnas = [
+            columna_de_estado(self.model, c) if c in CAMPOS_DE_ESTADO and self.model._meta.get_field(c).choices else c
+            for c in super().get_list_display(request)
+        ]
         return [*columnas, 'estado_registro'] if self._muestra_eliminados(request) else columnas
 
     @admin.display(description='Registro')
     def estado_registro(self, obj):
         if obj.deleted_at is None:
-            return 'Activo'
-        return f'Eliminado el {timezone.localtime(obj.deleted_at):%d-%m-%Y %H:%M}'
+            return etiqueta_de_estado('activo', 'Activo')
+        return etiqueta_de_estado('eliminado', f'Eliminado el {timezone.localtime(obj.deleted_at):%d-%m-%Y %H:%M}')
 
     def get_actions(self, request):
         acciones = super().get_actions(request)
@@ -288,6 +378,29 @@ class ScopedModelAdmin:
         objetos = list(queryset.filter(deleted_at__isnull=True)) if es_soft_delete(self.model) else []
         super().delete_queryset(request, queryset)
         for obj in objetos:
+            registrar_en_auditoria(request.user, 'eliminar', obj)
+
+    def get_readonly_fields(self, request, obj=None):
+        return con_fechas_de_auditoria(self.model, obj, list(super().get_readonly_fields(request, obj)))
+
+    def save_model(self, request, obj, form, change):
+        cambios = cambios_del_formulario(form)
+        super().save_model(request, obj, form, change)
+        if cambios or not change:
+            registrar_en_auditoria(request.user, 'modificar' if change else 'crear', obj, cambios=cambios)
+
+    def save_formset(self, request, form, formset, change):
+        # Inlines (p. ej. evidencias dentro de una actividad): cada fila creada o modificada queda en la traza.
+        filas = [
+            (fila, fila.instance._state.adding, cambios_del_formulario(fila))
+            for fila in formset.forms
+            if fila.has_changed() and not (formset.can_delete and formset._should_delete_form(fila))
+        ]
+        super().save_formset(request, form, formset, change)
+        for fila, es_nueva, cambios in filas:
+            if fila.instance.pk is not None:
+                registrar_en_auditoria(request.user, 'crear' if es_nueva else 'modificar', fila.instance, cambios=cambios)
+        for obj in formset.deleted_objects:
             registrar_en_auditoria(request.user, 'eliminar', obj)
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):

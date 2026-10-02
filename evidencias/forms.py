@@ -1,18 +1,14 @@
-import os
-
 from django import forms
-from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import UploadedFile
-from PIL import Image, UnidentifiedImageError
 
 from actividades.models import Activity
 from core.admin_utils import ROL_VERIFICADOR, filtrar_por_delegacion, get_rol, modificables
 
-from .models import EXTENSIONES_IMAGEN, Evidence
+from .archivos import validar_archivo_subido
+from .models import Evidence
 from .services import ESTADOS_REVISION, registrar_revision
 
-EXTENSIONES_PERMITIDAS = EXTENSIONES_IMAGEN | {'.pdf'}
 # Lo único que cambia el verificador al revisar: no reasigna la evidencia ni reemplaza el archivo.
 CAMPOS_REVISION = ('status', 'result')
 
@@ -30,29 +26,7 @@ class ReglasEvidenciaMixin:
             return archivo
         if not isinstance(archivo, UploadedFile):
             return archivo  # es el archivo ya guardado (no se reemplazó): no hay nada nuevo que validar
-
-        maximo = settings.EVIDENCIA_TAMANO_MAXIMO_MB * 1024 * 1024
-        if archivo.size > maximo:
-            raise ValidationError(f'El archivo supera el máximo de {settings.EVIDENCIA_TAMANO_MAXIMO_MB} MB.')
-
-        extension = os.path.splitext(archivo.name)[1].lower()
-        if extension not in EXTENSIONES_PERMITIDAS:
-            raise ValidationError('Tipo de archivo no permitido. Use JPG, PNG o PDF.')
-
-        # El contenido real debe coincidir con la extensión: no se confía en el nombre.
-        if extension in EXTENSIONES_IMAGEN:
-            try:
-                imagen = Image.open(archivo)
-                imagen.verify()
-            except (UnidentifiedImageError, OSError, SyntaxError, Image.DecompressionBombError):
-                # DecompressionBombError: pocos KB que declaran millones de píxeles (agotaría la memoria).
-                raise ValidationError('El archivo no es una imagen válida.')
-            if imagen.format not in ('JPEG', 'PNG'):
-                raise ValidationError('La imagen debe ser JPG o PNG.')
-        elif archivo.read(5) != b'%PDF-':
-            raise ValidationError('El archivo no es un PDF válido.')
-        archivo.seek(0)
-        return archivo
+        return validar_archivo_subido(archivo)  # tamaño, extensión y contenido real (evidencias/archivos.py)
 
     def clean(self):
         cleaned_data = super().clean()
@@ -75,7 +49,7 @@ class EvidenciaForm(ReglasEvidenciaMixin, forms.ModelForm):
         }
         labels = {'activity': 'Actividad', 'description': 'Descripción', 'file': 'Archivo',
                   'status': 'Estado', 'result': 'Resultado de la revisión'}
-        help_texts = {'file': 'JPG, PNG o PDF, máximo 2 MB.'}
+        help_texts = {'file': 'JPG, PNG o PDF, máximo 2 MB. Las fotos se guardan sin metadatos (ubicación GPS).'}
 
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)

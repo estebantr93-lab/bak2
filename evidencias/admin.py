@@ -1,6 +1,6 @@
 from django.contrib import admin, messages
 
-from core.admin_utils import ROL_VERIFICADOR, ScopedModelAdmin, excluir_bloqueados, get_rol
+from core.admin_utils import FILTRO_MODIFICACION, ROL_VERIFICADOR, ScopedModelAdmin, excluir_bloqueados, get_rol
 
 from .forms import CAMPOS_REVISION, EvidenciaAdminForm
 from .models import Evidence, Validation
@@ -13,7 +13,7 @@ class EvidenciaAdmin(ScopedModelAdmin, admin.ModelAdmin):
     form = EvidenciaAdminForm  # mismas validaciones de archivo y de rechazo que la web
     list_display = ('unique_code', 'activity', 'status', 'registered_at', 'reviewed_by')
     search_fields = ('unique_code', 'activity__number')
-    list_filter = ('status', 'activity__delegation')
+    list_filter = ('status', 'activity__delegation', 'registered_at', FILTRO_MODIFICACION)
     ordering = ('-registered_at',)
     list_select_related = ('activity', 'activity__delegation', 'reviewed_by')
     autocomplete_fields = ('activity',)
@@ -65,7 +65,7 @@ class ValidacionAdmin(ScopedModelAdmin, admin.ModelAdmin):
     scope_by = 'evidence__activity__delegation'
     list_display = ('evidence', 'reviewer', 'status', 'date')
     search_fields = ('evidence__unique_code',)
-    list_filter = ('status',)
+    list_filter = ('status', 'date')
     ordering = ('-date',)
     list_select_related = ('evidence', 'reviewer')
     readonly_fields = ('reviewer',)

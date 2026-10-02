@@ -2,7 +2,7 @@ from django import forms
 from django.conf import settings
 from django.contrib.auth.forms import AuthenticationForm
 
-from core.admin_utils import es_usuario_sin_restriccion, perfil_desactivado, tiene_acceso_al_sistema
+from core.admin_utils import ROLES_ETIQUETAS, es_usuario_sin_restriccion, get_rol, perfil_desactivado, tiene_acceso_al_sistema
 
 from .accesos import LOGIN_BLOQUEADO, esta_bloqueado, normalizar, registrar_acceso
 
@@ -13,6 +13,9 @@ class LoginForm(AuthenticationForm):
         # Genérico: no revela cuál de las dos credenciales falló.
         'invalid_login': 'Usuario o contraseña incorrectos.',
         'sin_rol': 'Su cuenta no tiene un rol asignado. Contacte al administrador del sistema.',
+        # Tiene grupo, pero administradores y funcionarios trabajan acotados a la delegación de su perfil.
+        'sin_perfil': 'Su cuenta tiene el rol %(rol)s, pero no tiene un perfil de funcionario con delegación. '
+                      'Contacte al administrador del sistema.',
         'desactivado': 'Su perfil de funcionario está desactivado. Contacte al administrador de su delegación.',
         'bloqueado': 'Demasiados intentos fallidos. Espere %(minutos)s minutos antes de volver a intentarlo.',
     }
@@ -35,7 +38,11 @@ class LoginForm(AuthenticationForm):
         if not es_usuario_sin_restriccion(user) and perfil_desactivado(user):
             raise forms.ValidationError(self.error_messages['desactivado'], code='desactivado')
         if not tiene_acceso_al_sistema(user):
-            raise forms.ValidationError(self.error_messages['sin_rol'], code='sin_rol')
+            rol = get_rol(user)
+            if rol is None:
+                raise forms.ValidationError(self.error_messages['sin_rol'], code='sin_rol')
+            raise forms.ValidationError(self.error_messages['sin_perfil'], code='sin_perfil',
+                                        params={'rol': ROLES_ETIQUETAS[rol].lower()})
 
 
 class SolicitarCodigoForm(forms.Form):

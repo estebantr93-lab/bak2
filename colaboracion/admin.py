@@ -23,11 +23,16 @@ class AlertaAdmin(admin.ModelAdmin):
 
 @admin.register(AuditLog)
 class TrazaAuditoriaAdmin(admin.ModelAdmin):
-    list_display = ('date', 'user', 'action', 'entity_type', 'entity_id', 'detail', 'ip')
+    list_display = ('date', 'user', 'action', 'entity_type', 'entity_id', 'resumen_de_cambios', 'ip')
     search_fields = ('action', 'entity_type', 'user__username', 'detail', 'ip')
     list_filter = ('action', 'entity_type', 'date')
     ordering = ('-date',)
     list_select_related = ('user',)
+
+    @admin.display(description='cambios (antes → después)')
+    def resumen_de_cambios(self, obj):
+        partes = [f'{campo}: {antes or "—"} → {despues or "—"}' for campo, (antes, despues) in (obj.changes or {}).items()]
+        return '; '.join(partes) or '—'
 
     # Es una traza de auditoría: se consulta, no se crea, edita ni borra a mano.
     def has_add_permission(self, request):

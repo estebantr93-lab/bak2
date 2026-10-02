@@ -2,9 +2,9 @@ import datetime
 
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
-from core.models import Delegation
-from core.soft_delete import SoftDeleteModel
+from core.models import BaseModel, Delegation
 from funcionarios.models import Employee
 
 
@@ -20,7 +20,7 @@ def compromisos_por_vencer(qs, hoy):
     return qs.exclude(status='done').filter(due_date__gte=hoy, due_date__lte=hoy + datetime.timedelta(days=DIAS_POR_VENCER))
 
 
-class Commitment(SoftDeleteModel):
+class Commitment(BaseModel):
     STATUS_CHOICES = [
         ('registered', 'Ingresado'),
         ('pending', 'Pendiente'),
@@ -57,7 +57,7 @@ class Commitment(SoftDeleteModel):
             raise ValidationError({'notes': 'Para marcar el compromiso como realizado debe registrar observaciones.'})
 
 
-class CommitmentFollowUp(SoftDeleteModel):
+class CommitmentFollowUp(BaseModel):
     commitment = models.ForeignKey(
         Commitment, verbose_name='compromiso', on_delete=models.CASCADE, related_name='follow_ups', limit_choices_to={'deleted_at__isnull': True},
     )
@@ -85,7 +85,8 @@ class CommitmentFollowUp(SoftDeleteModel):
         if nuevo and self.deleted_at is None:
             # Un seguimiento registra el avance: el compromiso pasa al estado indicado. Si queda
             # realizado sin observaciones, la descripción del seguimiento sirve como tales.
-            cambios = {'status': self.new_status}
+            # update() no pasa por save(): updated_at se fija a mano.
+            cambios = {'status': self.new_status, 'updated_at': timezone.now()}
             if self.new_status == 'done' and not self.commitment.notes.strip():
                 cambios['notes'] = self.description
             Commitment.all_objects.filter(pk=self.commitment_id).update(**cambios)

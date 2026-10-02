@@ -1,8 +1,113 @@
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
+
+from .soft_delete import ActivosManager, SoftDeleteQuerySet
 
 
-class Delegation(models.Model):
+class TimeStampedModel(models.Model):
+    """Fechas de auditoría: cuándo se creó y cuándo se modificó por última vez el registro.
+
+    Quién hizo cada cambio y qué valores cambió queda en la traza de auditoría (colaboracion.AuditLog).
+    """
+    created_at = models.DateTimeField('creado el', auto_now_add=True)
+    updated_at = models.DateTimeField('modificado el', auto_now=True)
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        # save(update_fields=[...]) escribe solo esos campos: sin agregarlo, updated_at no cambiaría.
+        campos = kwargs.get('update_fields')
+        if campos is not None:
+            kwargs['update_fields'] = {*campos, 'updated_at'}
+        super().save(*args, **kwargs)
+
+
+class BaseModel(TimeStampedModel):
+    """Base de las entidades de negocio (U2 · Clase 2): created_at, updated_at y deleted_at.
+
+    deleted_at implementa el borrado lógico:
+    - `objects` devuelve solo registros activos: es el que usan vistas, listados y exportaciones.
+    - `all_objects` (manager por defecto) ve todo. Django lo usa para validar campos únicos,
+      así un valor ocupado por un registro eliminado no provoca un IntegrityError.
+    - `delete()` marca `deleted_at` en vez de borrar la fila; `hard_delete()` borra de verdad.
+    """
+    deleted_at = models.DateTimeField('eliminado el', null=True, blank=True, editable=False, db_index=True)
+
+    # El primer manager declarado es el manager por defecto.
+    all_objects = models.Manager.from_queryset(SoftDeleteQuerySet)()
+    objects = ActivosManager()
+
+    # related_name de los hijos que se eliminan lógicamente junto con este registro.
+    soft_delete_cascade = ()
+
+    class Meta:
+        abstract = True
+
+    def clean(self):
+        # Ningún registro nuevo puede colgar de algo bloqueado (p. ej. una evidencia en un período cerrado).
+        from .admin_utils import motivo_no_modificable
+
+        motivo = motivo_no_modificable(self)
+        if motivo:
+            bloqueo = type(self).bloqueo_modificacion
+            campo = next(iter(bloqueo[0])).split('__')[0]
+            raise ValidationError({campo: motivo})
+
+    def soft_delete(self, momento=None):
+        if self.deleted_at is not None:
+            return
+        # Toda la cascada usa el mismo instante: así restore() sabe qué hijos cayeron con el padre.
+        self.deleted_at = momento or timezone.now()
+        self.save(update_fields=['deleted_at'])
+        for relacion in self.soft_delete_cascade:
+            for hijo in getattr(self, relacion).filter(deleted_at__isnull=True):
+                hijo.soft_delete(self.deleted_at)
+
+    def padre_eliminado(self):
+        """El registro del que cuelga este y que sigue eliminado (p. ej. la actividad de una evidencia), o None."""
+        for campo in self._meta.concrete_fields:
+            padre = campo.related_model if campo.many_to_one else None
+            valor = getattr(self, campo.attname) if padre else None
+            if valor is not None and issubclass(padre, BaseModel):
+                eliminado = padre.all_objects.filter(pk=valor, deleted_at__isnull=False).first()
+                if eliminado is not None:
+                    return eliminado
+        return None
+
+    def restore(self):
+        """Recupera el registro y los hijos que se eliminaron junto con él (no los que ya estaban eliminados).
+
+        Si el padre sigue eliminado no se restaura: el registro quedaría activo colgando de algo que nadie ve.
+        """
+        padre = self.padre_eliminado()
+        if padre is not None:
+            raise ValidationError(
+                f'Restaure primero el registro de {padre._meta.verbose_name.lower()} «{padre}», que sigue eliminado.'
+            )
+        momento = self.deleted_at
+        self.deleted_at = None
+        self.save(update_fields=['deleted_at'])
+        if momento is None:
+            return
+        for relacion in self.soft_delete_cascade:
+            for hijo in getattr(self, relacion).filter(deleted_at=momento):
+                hijo.restore()
+
+    def delete(self, using=None, keep_parents=False):
+        self.soft_delete()
+        return 1, {self._meta.label: 1}
+
+    def hard_delete(self, using=None, keep_parents=False):
+        return super().delete(using=using, keep_parents=keep_parents)
+
+
+def es_soft_delete(model):
+    return issubclass(model, BaseModel)
+
+
+class Delegation(TimeStampedModel):
     name = models.CharField('nombre', max_length=120, unique=True)
     address = models.CharField('dirección', max_length=200)
     phone = models.CharField('teléfono', max_length=30, blank=True)
@@ -18,7 +123,7 @@ class Delegation(models.Model):
         return self.name
 
 
-class Position(models.Model):
+class Position(TimeStampedModel):
     name = models.CharField('nombre', max_length=120, unique=True)
     area = models.CharField('área', max_length=120, blank=True)
     description = models.TextField('descripción', blank=True)
@@ -33,7 +138,7 @@ class Position(models.Model):
         return self.name
 
 
-class ActivityType(models.Model):
+class ActivityType(TimeStampedModel):
     CATEGORY_CHOICES = [
         ('service', 'Atención'),
         ('paperwork', 'Tramitación'),
@@ -57,7 +162,7 @@ class ActivityType(models.Model):
         return f'{self.code} - {self.name}'
 
 
-class Period(models.Model):
+class Period(TimeStampedModel):
     name = models.CharField('nombre', max_length=120, unique=True)
     start_date = models.DateField('fecha de inicio')
     end_date = models.DateField('fecha de término')
@@ -87,7 +192,7 @@ class Period(models.Model):
                 raise ValidationError('El período se solapa con otro período ya existente.')
 
 
-class Parameter(models.Model):
+class Parameter(TimeStampedModel):
     key = models.CharField('clave', max_length=60, unique=True)
     value = models.CharField('valor', max_length=120)
     description = models.TextField('descripción', blank=True)

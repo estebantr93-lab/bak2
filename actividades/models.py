@@ -5,8 +5,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
-from core.models import Delegation, Period, ActivityType
-from core.soft_delete import SoftDeleteModel
+from core.models import ActivityType, BaseModel, Delegation, Period
 from funcionarios.models import Employee
 
 
@@ -23,7 +22,7 @@ def sin_evidencia(qs):
     return qs.filter(~models.Exists(activas))
 
 
-class Activity(SoftDeleteModel):
+class Activity(BaseModel):
     STATUS_CHOICES = [
         ('pending', 'Pendiente'),
         ('approved', 'Aprobada'),
@@ -92,7 +91,7 @@ class Activity(SoftDeleteModel):
             raise ValidationError('La delegación debe coincidir con la delegación del funcionario.')
 
 
-class SocialCase(SoftDeleteModel):
+class SocialCase(BaseModel):
     activity = models.ForeignKey(
         Activity, verbose_name='actividad', on_delete=models.CASCADE, related_name='social_cases', limit_choices_to={'deleted_at__isnull': True},
     )

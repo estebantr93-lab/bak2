@@ -14,13 +14,12 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path, reverse_lazy
 from django.views.generic import RedirectView
 
+from evidencias.views import archivo_evidencia
 from funcionarios.forms import LoginForm
 
 from .views import inicio
@@ -47,11 +46,10 @@ urlpatterns = [
     path('actividades/', include('actividades.urls')),
     path('evidencias/', include('evidencias.urls')),
     path('compromisos/', include('agenda.urls')),
+    # Archivos subidos (MEDIA_URL): siempre pasan por la verificación de acceso, también en producción.
+    path('archivos/<path:nombre>', archivo_evidencia, name='archivo_evidencia'),
     path('', include('dashboard.urls')),
 ]
-
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 # OWASP A09: los accesos denegados (403) quedan en la traza de auditoría.
 handler403 = 'funcionarios.accesos.acceso_denegado'

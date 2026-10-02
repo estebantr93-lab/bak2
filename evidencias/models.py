@@ -6,7 +6,7 @@ from django.db import models
 from django.utils import timezone
 
 from actividades.models import Activity
-from core.soft_delete import SoftDeleteModel
+from core.models import BaseModel
 
 EXTENSIONES_IMAGEN = {'.jpg', '.jpeg', '.png'}
 
@@ -17,7 +17,7 @@ def ruta_evidencia(instance, filename):
     return f'evidencias/{timezone.now():%Y/%m}/{uuid.uuid4().hex}{extension}'
 
 
-class Evidence(SoftDeleteModel):
+class Evidence(BaseModel):
     STATUS_CHOICES = [
         ('pending', 'Pendiente'),
         ('approved', 'Aprobada'),
@@ -72,7 +72,7 @@ class Evidence(SoftDeleteModel):
         super().save(*args, **kwargs)
 
 
-class Validation(SoftDeleteModel):
+class Validation(BaseModel):
     STATUS_CHOICES = [
         ('approved', 'Aprobada'),
         ('rejected', 'Rechazada'),
