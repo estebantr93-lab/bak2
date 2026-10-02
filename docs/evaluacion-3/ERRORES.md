@@ -7,7 +7,7 @@ anterior (**antes**) y la solución en la versión actual (**después**). El res
 
 | ID | Error | Tipo | Estado |
 | --- | --- | --- | --- |
-| [D-01](#d-01-intentos-de-ingreso-ilimitados) | Intentos de ingreso ilimitados | OWASP A07 | ✅ Corregido · capturas listas |
+| [D-01](#d-01-intentos-de-ingreso-ilimitados) | Intentos de ingreso ilimitados | OWASP A07 | ✅ Corregido · **repetir la captura del después** (D-18 cambió el mensaje) |
 | [D-02](#d-02-accesos-sin-registrar) | Accesos y 403 sin registrar | OWASP A09 | ✅ Corregido · capturas listas |
 | [D-03](#d-03-sin-política-de-seguridad-de-contenido-csp) | Sin política de seguridad de contenido | OWASP A05 | ✅ Corregido · capturas listas |
 | [D-04](#d-04-la-csp-bloqueaba-los-selectores) | La CSP bloqueaba los selectores | Regresión | ✅ Corregido · capturas listas |
@@ -24,6 +24,8 @@ anterior (**antes**) y la solución en la versión actual (**después**). El res
 | [D-15](#d-15-mensaje-de-ingreso-ambiguo) | Mensaje de ingreso ambiguo | Usabilidad / soporte | ✅ Corregido · **falta capturar** |
 | [D-16](#d-16-doble-envío-al-elegir-el-tamaño-de-página) | Doble envío al elegir el tamaño de página | Integración | ✅ Corregido · **falta capturar** |
 | [D-17](#d-17-la-prueba-en-navegador-daba-ok-sin-revisar) | La prueba en navegador daba OK sin revisar | Calidad de pruebas | ✅ Corregido · **falta capturar** |
+| [D-18](#d-18-el-login-revelaba-el-estado-de-la-cuenta) | El login revelaba el estado de la cuenta | OWASP A07 | ✅ Corregido · **falta capturar** |
+| [D-19](#d-19-atrás-después-de-ingresar-mantenía-la-sesión) | «Atrás» después de ingresar mantenía la sesión | OWASP A07 (sesiones) | ✅ Corregido · **falta capturar** |
 
 Los archivos de prueba para D-11 a D-14 se generan con:
 
@@ -65,6 +67,7 @@ La versión actual se levanta como siempre (`python manage.py runserver`, puerto
 - **Qué fallaba:** tras 6 claves incorrectas, la correcta entraba igual. Se podía probar claves sin límite (fuerza bruta).
 - **Solución:** bloqueo temporal de 5 fallos por usuario o 20 por IP en 15 minutos. El bloqueo se revisa antes de comprobar la clave (`funcionarios/accesos.py`, `funcionarios/forms.py`).
 - **Antes / después:** ya capturados en [`capturas/a07-*`](capturas/).
+- **Hay que repetir la captura del después:** las capturas `a07-despues-*` muestran «Demasiados intentos fallidos…». Desde D-18 el bloqueo responde «Usuario o contraseña incorrectos.» y el bloqueo se ve en la traza (`login_bloqueado`). Para capturarlo: 5 claves incorrectas con un usuario, luego la correcta (sigue sin entrar), y Admin → Trazas de auditoría con los `login_fallido` y el `login_bloqueado`.
 - **Prueba:** `python manage.py test funcionarios.tests_seguridad_owasp.A07LimiteDeIntentosTests`.
 
 ## D-02 Accesos sin registrar
@@ -185,15 +188,14 @@ La versión actual se levanta como siempre (`python manage.py runserver`, puerto
 
 ## D-15 Mensaje de ingreso ambiguo
 
-- **Qué fallaba:** **caso real del equipo.** Una cuenta creada en el Admin con grupo pero sin perfil de funcionario veía «Su cuenta no tiene un rol asignado», aunque sí tenía rol. El mismo mensaje cubría dos problemas distintos, así que no se sabía qué corregir.
-- **Solución** (commit `e090b7c`):
-  - el mensaje distingue «sin rol» de «tiene el rol, pero no tiene un perfil de funcionario con delegación»;
-  - nuevo comando `python manage.py diagnosticar_acceso <usuario o correo>`, que dice qué le falta a una cuenta (grupo mal escrito, perfil en otra cuenta, etc.).
+- **Qué fallaba:** **caso real del equipo.** Una cuenta creada en el Admin con grupo pero sin perfil de funcionario no podía entrar, y no había forma de saber por qué. El mensaje decía «no tiene un rol asignado» aunque sí tenía rol.
+- **Solución** (commit `e090b7c`, ajustada en D-18):
+  - comando `python manage.py diagnosticar_acceso <usuario o correo>`, que dice qué le falta a una cuenta (grupo, grupo mal escrito, perfil, perfil en otra cuenta) y muestra los últimos rechazos con su motivo;
+  - el primer arreglo agregó un mensaje más específico en el login, que D-18 retiró por seguridad: el usuario ve siempre el mensaje genérico, y el detalle lo ve el administrador.
 - **Dónde capturar:**
   1. En el Admin, crear un usuario, agregarlo al grupo **Funcionarios** y **no** crearle perfil.
-  2. **Antes** (versión `6000f68`): al ingresar, «Su cuenta no tiene un rol asignado».
-  3. **Después:** «Su cuenta tiene el rol funcionario, pero no tiene un perfil de funcionario con delegación».
-  4. Capturar también la salida de `python manage.py diagnosticar_acceso <usuario>`.
+  2. Intentar ingresar con esa cuenta: «Usuario o contraseña incorrectos.».
+  3. Ejecutar `python manage.py diagnosticar_acceso <usuario>` y capturar la salida: dice «NO puede iniciar sesión», qué falta y «Ingreso rechazado el …: rol funcionario sin perfil de funcionario con delegación».
 - **Prueba:** `python manage.py test funcionarios.tests_diagnostico`.
 
 ## D-16 Doble envío al elegir el tamaño de página
@@ -219,13 +221,46 @@ La versión actual se levanta como siempre (`python manage.py runserver`, puerto
   - **Antes:** `git show f870c88:scripts/pruebas_navegador.js > /tmp/pruebas_antes.js` y ejecutarlo con una clave **incorrecta**: `SGR_URL=http://127.0.0.1:8000 SGR_CLAVE=incorrecta node /tmp/pruebas_antes.js`. Muestra «OK … sin desplazamiento lateral» en los cinco listados de PC sin haber entrado, y recién después se cae esperando el selector «Por página», con un error que no dice que el problema fue el ingreso.
   - **Después:** con la misma clave incorrecta, `node scripts/pruebas_navegador.js` se detiene con «FALLA … no se pudo iniciar sesión». Con la clave correcta: 28/28.
 
+## D-18 El login revelaba el estado de la cuenta
+
+- **Qué fallaba:** **hallazgo del equipo al probar el login.** Con la clave correcta, el mensaje cambiaba según el estado de la cuenta: «Su cuenta no tiene un rol asignado», «Su cuenta tiene el rol …, pero no tiene un perfil…» o «Su perfil de funcionario está desactivado». Y el bloqueo decía «Demasiados intentos fallidos». Quien probaba claves sabía así que **había acertado la clave** y que **la cuenta existía**.
+- **Solución** (commit `ee8a895`):
+  - todo rechazo responde lo mismo que una clave incorrecta, «Usuario o contraseña incorrectos.», como en el ejemplo de la clase 6;
+  - el motivo real queda en la traza de auditoría (`login_rechazado`, con el motivo, y `login_bloqueado`) y lo muestra `diagnosticar_acceso`;
+  - los rechazos con la clave correcta también cuentan para el bloqueo: si no contaran, el bloqueo dejaría ver cuándo se acertó.
+- **Dónde capturar:**
+  - Crear en el Admin una cuenta **sin grupo**, con una clave conocida, e ingresar con la **clave correcta**.
+    - **Antes** (versión `0c0cff9`): «Su cuenta no tiene un rol asignado. Contacte al administrador del sistema.».
+    - **Después:** «Usuario o contraseña incorrectos.», idéntico a escribir una clave cualquiera.
+  - Bloqueo: 5 claves incorrectas y luego la correcta.
+    - **Antes:** «Demasiados intentos fallidos…».
+    - **Después:** «Usuario o contraseña incorrectos.».
+  - **Después, para el administrador:** Admin → Trazas de auditoría filtrando por acción `login_rechazado`; la columna de cambios muestra el motivo.
+- **Pruebas:** `python manage.py test funcionarios.tests_seguridad_owasp.A07LimiteDeIntentosTests funcionarios.tests_diagnostico config.tests_login`.
+
+## D-19 «Atrás» después de ingresar mantenía la sesión
+
+- **Qué fallaba:** **hallazgo del equipo.** Al ingresar, recargar y presionar **atrás**, se veía el formulario de login, pero la sesión seguía abierta; con **adelante** se volvía al dashboard sin escribir la clave. Además, las páginas con sesión no traían `Cache-Control`, así que el navegador podía guardar copias de páginas con datos y mostrarlas con atrás después de cerrar sesión.
+- **Solución** (commit `01004d3`):
+  - abrir el login con una sesión iniciada **la cierra**: queda en la traza y se muestra «Por seguridad, se cerró su sesión. Ingrese nuevamente.» (`funcionarios.views.IngresoView`);
+  - las páginas con sesión se envían con `Cache-Control: no-store, private` (`core/middleware.py`);
+  - `static/js/sesion.js` recarga la página si el navegador la restaura de su memoria de atrás/adelante.
+- **Dónde capturar:**
+  1. Ingresar, recargar el dashboard (F5) y presionar **atrás**.
+     - **Antes** (versión `ee8a895`): aparece el login sin ningún aviso, y con **adelante** se vuelve al dashboard con la sesión abierta. Capturar el dashboard después de «adelante».
+     - **Después:** aparece «Por seguridad, se cerró su sesión», y con **adelante** se pide ingresar de nuevo (URL `/accounts/login/?next=/dashboard/`).
+  2. Cabeceras: Herramientas de desarrollo → Red → `dashboard/` → Cabeceras de respuesta.
+     - **Antes:** sin `Cache-Control`.
+     - **Después:** `Cache-Control: max-age=0, no-cache, no-store, must-revalidate, private`.
+- **Prueba:** `python manage.py test config.tests_login.SesionAlVolverAtrasTests`.
+
 ---
 
 ## Capturas de cierre (después de todo)
 
 ```bash
 python manage.py test                                     # batería completa
-python manage.py test funcionarios.tests_seguridad_owasp evidencias.tests_validacion_subida funcionarios.tests_diagnostico
+python manage.py test funcionarios.tests_seguridad_owasp evidencias.tests_validacion_subida funcionarios.tests_diagnostico config.tests_login
 python manage.py shell < scripts/verificacion_e2e.py      # verificaciones de punta a punta
 SGR_URL=http://127.0.0.1:8000 SGR_CLAVE='<clave>' node scripts/pruebas_navegador.js
 pip-audit -r requirements.txt

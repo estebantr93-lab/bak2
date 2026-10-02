@@ -16,7 +16,7 @@ Todas las capturas están en [`capturas/`](capturas/), con el nombre del hallazg
 ## Cómo repetir las pruebas
 
 ```bash
-python manage.py test                                   # 362 pruebas (unitarias, integración y seguridad)
+python manage.py test                                   # 367 pruebas (unitarias, integración y seguridad)
 python manage.py test funcionarios.tests_seguridad_owasp  # solo las de OWASP (19)
 python manage.py test evidencias.tests_validacion_subida  # carga y entrega de archivos (16)
 python manage.py shell < scripts/archivos_de_prueba.py  # archivos para capturar D-11 a D-14
@@ -48,9 +48,11 @@ Cada deficiencia sigue el mismo ciclo: **prueba que la demuestra (falla) → cor
 | D-12 | A04 / A03 | Se aceptaban PDF con JavaScript, `/Launch` o archivos incrustados | Se rechazan, también disfrazados (`/J#61vaScript`) o dentro de flujos comprimidos; también los PDF cifrados | `test_pdf_con_codigo_o_archivos_incrustados_se_rechaza`, `test_pdf_cifrado_se_rechaza` | ✅ Corregida |
 | D-13 | A04 | Un JPEG con extensión `.png` se aceptaba, y una imagen con código agregado al final se guardaba con el código | El formato real debe coincidir con la extensión, y la imagen se vuelve a guardar con Pillow (se descarta lo agregado); tope de 50 megapíxeles | `test_el_contenido_debe_coincidir_con_la_extension`, `test_la_foto_se_guarda_sin_metadatos_ni_contenido_agregado` | ✅ Corregida |
 | D-14 | Ley 19.628 (datos personales) | Las fotos se guardaban con su ubicación GPS (metadatos EXIF) | Al volver a guardarlas se descartan los metadatos; la orientación se conserva | `test_la_foto_se_guarda_sin_metadatos_ni_contenido_agregado` | ✅ Corregida |
-| D-15 | Usabilidad / soporte | **Caso real del equipo:** una cuenta con grupo pero sin perfil de funcionario veía «no tiene un rol asignado», y no se sabía qué corregir | Mensaje distinto para «tiene el rol, pero no tiene perfil» y comando `diagnosticar_acceso <usuario>` | `funcionarios/tests_diagnostico.py` (5 pruebas) | ✅ Corregida |
+| D-15 | Usabilidad / soporte | **Caso real del equipo:** una cuenta con grupo pero sin perfil de funcionario no podía entrar y no se sabía por qué | Comando `diagnosticar_acceso <usuario>` que dice qué le falta (grupo, perfil, grupo mal escrito, perfil en otra cuenta) y muestra los últimos rechazos con su motivo. El motivo ya no se muestra en el login (ver D-18) | `funcionarios/tests_diagnostico.py` (5 pruebas) | ✅ Corregida |
 | D-16 | Integración | **Hallazgo al integrar** el rediseño de listados: el selector «Por página» quedaba con dos manejadores (`autoenvio.js` y `listado.js`) y el formulario se enviaba dos veces | Queda solo `autoenvio.js` | `scripts/pruebas_navegador.js` y Herramientas de desarrollo → Red | ✅ Corregida |
 | D-17 | Calidad de las pruebas | **Hallazgo al aplicar las pruebas:** `pruebas_navegador.js` marcaba OK sin revisar si el ingreso fallaba; no encontraba los botones del diseño nuevo (`.btn-icono`), y exigía que ninguna tabla se desplazara, aunque el diseño nuevo desplaza las tablas anchas con la columna de acciones fija (7 falsas fallas) | Se detiene si no logra ingresar, busca los botones reales y exige que la página no se desplace y que los botones estén a la vista | `scripts/pruebas_navegador.js` (28/28) | ✅ Corregida |
+| D-18 | A07 Identificación y autenticación | **Hallazgo del equipo al probar el login:** con la clave correcta, el mensaje revelaba el estado de la cuenta («no tiene un rol asignado», «tiene el rol…, pero no tiene un perfil», «perfil desactivado») y el bloqueo decía «Demasiados intentos fallidos». Así se confirmaba que la clave era correcta y que la cuenta existía | Todo rechazo responde «Usuario o contraseña incorrectos.» (clase 6). El motivo real queda en la traza (`login_rechazado`) y en `diagnosticar_acceso`. Los rechazos con clave correcta también cuentan para el bloqueo | `A07LimiteDeIntentosTests`, `test_usuario_sin_rol_no_puede_iniciar_sesion`, `DiagnosticoDeAccesoTests` | ✅ Corregida |
+| D-19 | A07 Gestión de sesiones | **Hallazgo del equipo:** después de ingresar, «atrás» mostraba el login con la sesión abierta y «adelante» volvía al dashboard sin pedir la clave. Las páginas con sesión no traían `Cache-Control`, así que el navegador podía mostrar copias guardadas | Abrir el login con sesión la cierra (queda en la traza) y avisa «Por seguridad, se cerró su sesión». Las páginas con sesión se envían con `no-store, private`, y `sesion.js` recarga las páginas que el navegador restaura de memoria | `SesionAlVolverAtrasTests` (5 pruebas) | ✅ Corregida |
 
 ### Evidencia (capturas)
 
@@ -64,7 +66,7 @@ Cada deficiencia sigue el mismo ciclo: **prueba que la demuestra (falla) → cor
 | D-05 Usabilidad en tablet | [Medición](capturas/u01-antes-medicion-tablet.png) · [tablet vertical](capturas/usabilidad/usabilidad-antes-tablet-actividades.png) · [tablet horizontal](capturas/usabilidad/usabilidad-antes-tablet-horizontal-actividades.png) | [Medición](capturas/u01-despues-medicion-tablet.png) · [tablet vertical](capturas/usabilidad/usabilidad-despues-tablet-actividades.png) · [tablet horizontal](capturas/usabilidad/usabilidad-despues-tablet-horizontal-actividades.png) |
 | D-06 Dependencias | – | [pip-audit sin vulnerabilidades](capturas/a06-pip-audit-dependencias.png) |
 | D-09 Verificación reproducible | [91/93 por intentos previos](capturas/d09-verificacion-reproducible.png) | (misma captura: 96/96) |
-| D-07, D-10 a D-17 | Ver **[ERRORES.md](ERRORES.md)**: dónde capturar cada uno en la versión anterior | Ver [ERRORES.md](ERRORES.md) |
+| D-07, D-10 a D-19 (y nueva captura de D-01) | Ver **[ERRORES.md](ERRORES.md)**: dónde capturar cada uno en la versión anterior | Ver [ERRORES.md](ERRORES.md) |
 | Regresión general | – | [Batería completa](capturas/03-bateria-completa-despues.png) · [pruebas en navegador 28/28](capturas/04-pruebas-navegador.png) |
 
 La carpeta [`capturas/usabilidad/`](capturas/usabilidad/) tiene además las vistas de PC, tablet y celular
@@ -77,9 +79,9 @@ del dashboard y de Actividades, y el [menú en tablet](capturas/usabilidad/usabi
 | Usabilidad y tendencias (UI/UX, accesibilidad, dispositivos) | 10 % | Bootstrap 5.3 adaptable; tablas en tarjetas en celular y tablet (D-05); listados con pestañas, búsqueda, orden, filtros por módulo y columna de acciones fija; tema claro, oscuro o del sistema; estados con icono y texto; menú hamburguesa. Pendiente para el informe: texto sobre SaaS, IaaS y cloud (AWS EC2 = IaaS) |
 | Normativa de delitos informáticos (Ley 21.459, Ley 19.628) | 15 % | Autenticación robusta (política de contraseñas, límite de intentos D-01), trazabilidad (D-02: quién entró, desde qué IP, qué se le negó), archivos con datos personales solo para quien corresponde (D-10) y fotos sin ubicación GPS (D-14), alcance por delegación (cada funcionario ve solo los datos que le corresponden), borrado lógico auditado, secretos fuera del repositorio |
 | Buenas prácticas (documentación, versiones, modularidad, código limpio) | 15 % | 10 apps Django, ramas `feature/*` con merge `--no-ff`, README, pruebas junto al código, `pyflakes` sin avisos salvo los tres `import` de `apps.py` que registran receptores de señales a propósito |
-| Plan de pruebas (unitarias, integración, aceptación) | 30 % | [plan-de-pruebas.md](plan-de-pruebas.md): 50 casos CP enlazados a 362 pruebas automáticas, 96 verificaciones funcionales y 28 de navegador |
-| Cumplimiento OWASP Top 10 | 20 % | Casos CP-S01 a CP-S17 y deficiencias D-01 a D-17 |
-| Corrección de deficiencias | 10 % | Registro de deficiencias: 17 en total, 16 corregidas o verificadas y 1 pendiente por el entorno (D-08); [ERRORES.md](ERRORES.md) explica cada una |
+| Plan de pruebas (unitarias, integración, aceptación) | 30 % | [plan-de-pruebas.md](plan-de-pruebas.md): 51 casos CP enlazados a 367 pruebas automáticas, 96 verificaciones funcionales y 28 de navegador |
+| Cumplimiento OWASP Top 10 | 20 % | Casos CP-S01 a CP-S17 y deficiencias D-01 a D-19 |
+| Corrección de deficiencias | 10 % | Registro de deficiencias: 19 en total, 18 corregidas o verificadas y 1 pendiente por el entorno (D-08); [ERRORES.md](ERRORES.md) explica cada una |
 
 ### Equivalencia OWASP Top 10 2021 → 2025
 
@@ -98,7 +100,9 @@ A03 (inyección) pasa a A05, A02 (criptografía) pasa a A04, y A07 y A09 conserv
 - `scripts/pruebas_navegador.js`: pruebas de usabilidad y CSP en navegador (D-17).
 - `templates/includes/form_campos.html`: D-07.
 - `evidencias/archivos.py`, `evidencias/views.py` (`archivo_evidencia`), `config/urls.py`, `deploy/nginx-sgr.conf`: D-10 a D-14.
-- `funcionarios/forms.py`, `funcionarios/management/commands/diagnosticar_acceso.py`: D-15.
+- `funcionarios/management/commands/diagnosticar_acceso.py`: D-15.
+- `funcionarios/forms.py`, `funcionarios/accesos.py`: D-18.
+- `funcionarios/views.py` (`IngresoView`), `core/middleware.py`, `static/js/sesion.js`: D-19.
 - `static/js/listado.js`: D-16.
 - `scripts/archivos_de_prueba.py`: genera los archivos para capturar D-11 a D-14.
 

@@ -7,11 +7,13 @@ Solo lee la base de datos: no cambia nada ni muestra contraseñas.
 from django.contrib.auth.models import Group, User
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q
+from django.utils import timezone
 
 from core.admin_utils import (
     GRUPO_ADMINISTRADORES, GRUPO_FUNCIONARIOS, GRUPO_VERIFICADORES, ROLES_ETIQUETAS, es_usuario_sin_restriccion,
     get_rol, tiene_acceso_al_sistema,
 )
+from colaboracion.models import AuditLog
 from funcionarios.models import Employee
 
 GRUPOS_DE_ROL = (GRUPO_ADMINISTRADORES, GRUPO_FUNCIONARIOS, GRUPO_VERIFICADORES)
@@ -81,6 +83,14 @@ class Command(BaseCommand):
                          + ', '.join(f'«{e.name}» → usuario «{e.user.username}»' for e in otros)) if otros else ''
                 problemas.append('Administradores y funcionarios necesitan un perfil: Funcionarios → Añadir, con '
                                  f'Usuario «{user.username}», delegación y cargo.{pista}')
+
+        rechazos = AuditLog.objects.filter(
+            action__in=('login_rechazado', 'login_bloqueado'), detail=user.username.strip().lower(),
+        ).order_by('-date')[:3]
+        for rechazo in rechazos:
+            motivo = (rechazo.changes or {}).get('motivo', ['', 'demasiados intentos fallidos'])[1]
+            self.stdout.write(f'  Ingreso rechazado el {timezone.localtime(rechazo.date):%d-%m-%Y %H:%M}: {motivo} '
+                              '(la persona vio «Usuario o contraseña incorrectos.»)')
 
         if tiene_acceso_al_sistema(user) and user.is_active and not problemas:
             self.stdout.write(self.style.SUCCESS('  Resultado: puede iniciar sesión.'))

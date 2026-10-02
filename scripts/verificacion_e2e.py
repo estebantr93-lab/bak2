@@ -86,7 +86,8 @@ with override_settings(MEDIA_ROOT=media, MAILERS=correo_locmem, ALLOWED_HOSTS=['
     ok('Login: error genérico con clave incorrecta', 'Usuario o contraseña incorrectos' in r.content.decode())
     sin_rol = User.objects.create_user('verif_sin_rol', password=CLAVE)
     r = Client().post(reverse('login'), {'username': 'verif_sin_rol', 'password': CLAVE})
-    ok('Login: cuenta sin rol rechazada', 'no tiene un rol asignado' in r.content.decode())
+    ok('Login: cuenta sin rol rechazada con el mensaje genérico', 'Usuario o contraseña incorrectos' in r.content.decode()
+       and AuditLog.objects.filter(action='login_rechazado', detail='verif_sin_rol').exists())
     ok('Logout: GET no cierra sesión (solo POST)', c.get(reverse('logout')).status_code == 405)
     r = c.post(reverse('logout'))
     ok('Logout: POST cierra sesión y vuelve al login', r.status_code == 302 and reverse('login') in r.url)
@@ -96,7 +97,8 @@ with override_settings(MEDIA_ROOT=media, MAILERS=correo_locmem, ALLOWED_HOSTS=['
     for _ in range(settings.LOGIN_MAX_INTENTOS):
         Client().post(reverse('login'), {'username': 'admin_norte', 'password': 'mala'}, REMOTE_ADDR='10.20.30.40')
     r = Client().post(reverse('login'), {'username': 'admin_norte', 'password': CLAVE}, REMOTE_ADDR='10.20.30.40')
-    ok('Login: tras 5 fallos se bloquea aunque la clave sea correcta', 'Demasiados intentos fallidos' in r.content.decode())
+    ok('Login: tras 5 fallos se bloquea aunque la clave sea correcta (mensaje genérico)',
+       'Usuario o contraseña incorrectos' in r.content.decode() and '_auth_user_id' not in r.wsgi_request.session)
     ok('Traza: ingresos fallidos y bloqueo con IP', AuditLog.objects.filter(
         action='login_fallido', detail='admin_norte', ip='10.20.30.40').count() == settings.LOGIN_MAX_INTENTOS
         and AuditLog.objects.filter(action='login_bloqueado', detail='admin_norte').exists())

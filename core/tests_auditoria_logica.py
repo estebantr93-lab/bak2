@@ -172,7 +172,9 @@ class AuditoriaLogicaTests(TestCase):
         self.assertEqual(self.client.get(reverse('dashboard')).status_code, 403)
         self.client.logout()
         response = self.client.post(reverse('login'), {'username': 'funcionario_centro', 'password': CLAVE_TEST})
-        self.assertContains(response, 'Su perfil de funcionario está desactivado')
+        # Mismo mensaje que una clave incorrecta; el motivo queda en la traza para el administrador.
+        self.assertContains(response, 'Usuario o contraseña incorrectos.')
+        self.assertNotContains(response, 'desactivado')
 
     def test_recuperacion_limita_los_codigos_por_hora(self):
         correo = User.objects.get(username='funcionario_centro').email

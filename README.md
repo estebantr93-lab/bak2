@@ -242,11 +242,15 @@ python manage.py revisar_archivos --reparar --borrar-huerfanos # regenera los de
 - Seguridad por capas: `login_required` / `LoginRequiredMixin` (autenticación), `permission_required` / `PermissionRequiredMixin` (autorización) y `filtrar_por_delegacion` en cada QuerySet (scoping). Una cuenta sin rol o sin perfil de delegación recibe **403**.
 - `request.session` guarda solo preferencias: el período elegido en el dashboard y la cantidad de filas por página (5/15/30), que aplica a todos los listados.
 - Mensajes (`django.contrib.messages`) al ingresar, al cerrar sesión y en cada operación del CRUD.
-- El login (`LoginView` con `funcionarios.forms.LoginForm`) rechaza:
-  - las cuentas **sin rol** (no están en `Administradores`, `Funcionarios` ni `Verificadores`, con ese nombre exacto) con «Su cuenta no tiene un rol asignado»;
-  - las cuentas que **tienen el rol pero no tienen perfil de funcionario con delegación** (lo exigen administradores de delegación y funcionarios) con «Su cuenta tiene el rol …, pero no tiene un perfil de funcionario con delegación».
-
-  Para saber qué le falta a una cuenta: `python manage.py diagnosticar_acceso <usuario o correo>`. Muestra los grupos, el rol, el perfil y qué corregir, y detecta un grupo mal escrito (por ejemplo «Funcionario» en vez de «Funcionarios»), un perfil vinculado a otra cuenta y un usuario escrito distinto al de la cuenta. Solo lee: no cambia nada. La misma regla (`tiene_acceso_al_sistema`) protege el dashboard. Si la contraseña es incorrecta, el mensaje es genérico: «Usuario o contraseña incorrectos.».
+- El login (`funcionarios.views.IngresoView`, un `LoginView` con `funcionarios.forms.LoginForm`) responde **siempre «Usuario o contraseña incorrectos.»** ante cualquier rechazo: clave incorrecta, usuario inexistente o inactivo, cuenta **sin rol** (no está en `Administradores`, `Funcionarios` ni `Verificadores`, con ese nombre exacto), cuenta con rol pero **sin perfil de funcionario con delegación**, perfil desactivado o **bloqueo por intentos**. Así la respuesta no revela si la cuenta existe, si la clave era correcta ni en qué estado está la cuenta (clase 6: el mensaje no revela cuál credencial falló).
+  - El motivo real queda en la traza de auditoría (`login_rechazado`, con el motivo, o `login_bloqueado`), visible para el administrador general.
+  - Para saber qué le falta a una cuenta: `python manage.py diagnosticar_acceso <usuario o correo>`. Muestra los grupos, el rol, el perfil, los últimos rechazos con su motivo y qué corregir. Detecta un grupo mal escrito (por ejemplo «Funcionario» en vez de «Funcionarios»), un perfil vinculado a otra cuenta y un usuario escrito distinto al de la cuenta. Solo lee: no cambia nada.
+  - Los rechazos con la clave correcta también cuentan para el bloqueo por intentos; si no, el contador dejaría ver cuándo se acertó la clave.
+  - La misma regla (`tiene_acceso_al_sistema`) protege el dashboard.
+- **Botón atrás y caché:**
+  - Abrir el login con una sesión iniciada (por ejemplo, con «atrás» después de ingresar) **cierra la sesión**: queda en la traza y se muestra «Por seguridad, se cerró su sesión». «Adelante» vuelve a pedir la clave.
+  - Las páginas vistas con sesión se envían con `Cache-Control: no-store, private` (`core.middleware.SinCacheConSesionMiddleware`), así que tras cerrar sesión el navegador no muestra copias guardadas.
+  - `static/js/sesion.js` recarga la página si el navegador la restaura desde su memoria de atrás/adelante.
 - `MESSAGE_TAGS` asigna la clase `danger` de Bootstrap a `messages.error()`, y `templates/403.html` muestra «Acceso denegado» con el estilo del sitio.
 - Cookies: `SESSION_COOKIE_AGE` de 2 horas, `HTTPONLY`, `SAMESITE='Lax'` y `SESSION/CSRF_COOKIE_SECURE` desde `COOKIE_SECURE` en `.env`.
 
@@ -424,7 +428,7 @@ sudo systemctl restart gunicorn-sgr
 
 **Si usa RDS:** en el *parameter group*, `character_set_server = utf8mb4` y `collation_server = utf8mb4_unicode_ci`. Para conexión cifrada, descargue `global-bundle.pem` de AWS y apunte `DB_SSL_CA` a esa ruta. Con HTTPS, active `COOKIE_SECURE=True` y `BEHIND_HTTPS_PROXY=True`.
 
-**Una cuenta no puede entrar («no tiene un rol asignado»):** `cd /srv/sgr && .venv/bin/python manage.py diagnosticar_acceso <usuario o correo>`.
+**Una cuenta no puede entrar (siempre ve «Usuario o contraseña incorrectos.»):** `cd /srv/sgr && .venv/bin/python manage.py diagnosticar_acceso <usuario o correo>`.
 
 **Diagnóstico:** `sudo systemctl status gunicorn-sgr`, `sudo journalctl -u gunicorn-sgr -n 50`, `sudo nginx -t` y `sudo tail /var/log/nginx/error.log`. Para ver la configuración que nginx está usando realmente: `sudo nginx -T | grep -A3 "location /media/"` (debe mostrar `return 404`).
 - **413 Request Entity Too Large** al subir una evidencia: el archivo supera 3 MB y nginx lo cortó antes de llegar a Django (el límite de la aplicación es 2 MB).

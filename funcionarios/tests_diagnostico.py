@@ -1,4 +1,5 @@
-"""Login sin rol o sin perfil: mensajes distintos y comando diagnosticar_acceso."""
+"""Login sin rol o sin perfil: el usuario ve el mensaje genérico; el motivo queda en la traza y lo
+explica el comando diagnosticar_acceso."""
 from io import StringIO
 
 from django.contrib.auth.models import Group, User
@@ -6,6 +7,7 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 
+from colaboracion.models import AuditLog
 from core.models import Delegation, Position
 from core.testing import sembrar_datos_demo
 from funcionarios.models import Employee
@@ -34,23 +36,31 @@ class DiagnosticoDeAccesoTests(TestCase):
         Employee.objects.create(user=user or self.user, name='Tamara Berríos', delegation=Delegation.objects.first(),
                                 position=Position.objects.first())
 
+    def motivo(self):
+        return AuditLog.objects.filter(action='login_rechazado', detail=CORREO).latest('date').changes['motivo'][1]
+
     def test_sin_grupo(self):
-        self.assertContains(self.ingresar(), 'no tiene un rol asignado')
+        self.assertContains(self.ingresar(), 'Usuario o contraseña incorrectos.')
+        self.assertEqual(self.motivo(), 'sin rol asignado')
         texto = self.diagnostico()
+        self.assertIn('Ingreso rechazado el', texto)
+        self.assertIn('sin rol asignado', texto)
         self.assertIn('NO puede iniciar sesión', texto)
         self.assertIn('Grupos elegidos', texto)
 
     def test_grupo_con_otro_nombre_no_da_rol(self):
         self.user.groups.add(Group.objects.create(name='Funcionario'))
         self.dar_perfil()
-        self.assertContains(self.ingresar(), 'no tiene un rol asignado')
+        self.assertContains(self.ingresar(), 'Usuario o contraseña incorrectos.')
+        self.assertEqual(self.motivo(), 'sin rol asignado')
         self.assertIn('debe ser exactamente «Funcionarios»', self.diagnostico())
 
-    def test_con_grupo_pero_sin_perfil_el_mensaje_dice_que_falta(self):
+    def test_con_grupo_pero_sin_perfil_el_motivo_queda_en_la_traza(self):
         self.user.groups.add(Group.objects.get(name='Administradores'))
         response = self.ingresar()
-        self.assertContains(response, 'tiene el rol administrador de delegación, pero no tiene un perfil')
-        self.assertNotContains(response, 'no tiene un rol asignado')
+        self.assertContains(response, 'Usuario o contraseña incorrectos.')
+        self.assertNotContains(response, 'perfil')
+        self.assertEqual(self.motivo(), 'rol administrador de delegación sin perfil de funcionario con delegación')
         self.assertIn('Funcionarios → Añadir', self.diagnostico())
 
     def test_perfil_vinculado_a_otra_cuenta(self):
