@@ -46,12 +46,13 @@ script que ejecuta el caso.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | CP-01 | Login | Ingreso con credenciales válidas | `admin_centro`, clave válida | Entra al dashboard de su delegación | Acceso solo a usuarios registrados con rol | `config/tests_login.py::test_login_correcto_redirige_al_dashboard` | ✅ |
 | CP-02 | Login | Ingreso con credenciales inválidas | `admin_centro`, clave incorrecta | «Usuario o contraseña incorrectos.» | No revela cuál dato falló | `test_contrasena_incorrecta_muestra_un_solo_mensaje_generico` | ✅ |
-| CP-03 | Login | Cuenta sin rol asignado | Usuario sin grupo | Ingreso rechazado con mensaje claro | Sin rol no hay acceso | `test_usuario_sin_rol_no_puede_iniciar_sesion` | ✅ |
-| CP-03b | Login | Cuenta con rol, pero sin perfil de funcionario (D-15) | Usuario en el grupo Funcionarios sin perfil | «Su cuenta tiene el rol funcionario, pero no tiene un perfil…»; `diagnosticar_acceso` indica qué falta | El mensaje dice qué corregir | `funcionarios/tests_diagnostico.py` (5 pruebas) | ✅ |
-| CP-04 | Login | Fuerza bruta sobre una cuenta | 5 claves incorrectas y luego la correcta | «Demasiados intentos fallidos…» incluso con la clave correcta | Bloqueo de 15 min; misma respuesta con clave buena o mala | `test_bloquea_la_cuenta_tras_el_maximo_de_intentos_fallidos`, `test_el_bloqueo_no_revela_si_la_clave_era_correcta` | ✅ |
+| CP-03 | Login | Cuenta sin rol asignado (D-18) | Usuario sin grupo, clave correcta | «Usuario o contraseña incorrectos.»; el motivo queda en la traza | Sin rol no hay acceso, y la respuesta no revela que la clave era correcta | `test_usuario_sin_rol_no_puede_iniciar_sesion` | ✅ |
+| CP-03b | Login | Cuenta con rol, pero sin perfil de funcionario (D-15, D-18) | Usuario en el grupo Funcionarios sin perfil | Mensaje genérico; `diagnosticar_acceso` muestra el motivo («sin perfil de funcionario con delegación») | El administrador sabe qué corregir; el usuario no ve el estado de su cuenta | `funcionarios/tests_diagnostico.py` (5 pruebas) | ✅ |
+| CP-04 | Login | Fuerza bruta sobre una cuenta | 5 claves incorrectas y luego la correcta | «Usuario o contraseña incorrectos.» incluso con la clave correcta; queda `login_bloqueado` en la traza | Bloqueo de 15 min; misma respuesta con clave buena o mala | `test_bloquea_la_cuenta_tras_el_maximo_de_intentos_fallidos`, `test_el_bloqueo_no_revela_si_la_clave_era_correcta` | ✅ |
 | CP-05 | Login | Una clave probada contra muchas cuentas | 20 usuarios distintos desde la misma IP | La IP queda bloqueada; otra IP no | Bloqueo por IP sin afectar a otras | `test_bloquea_una_ip_que_prueba_muchas_cuentas` | ✅ |
 | CP-06 | Login | Fin del bloqueo | Fallos con más de 15 min de antigüedad | La clave correcta vuelve a entrar | El bloqueo es temporal | `test_el_bloqueo_termina_al_pasar_la_ventana` | ✅ |
 | CP-07 | Sesión | Cierre de sesión | POST a `/accounts/logout/` | Sesión eliminada; GET no permitido | Logout solo por POST | `test_logout_por_get_no_esta_permitido`, `test_logout_muestra_mensaje_y_limpia_la_sesion` | ✅ |
+| CP-07b | Sesión | Atrás después de ingresar (D-19) | Ingresar, recargar, atrás y adelante | «Atrás» cierra la sesión y avisa; «adelante» pide la clave; páginas con sesión `no-store` | Navegar por el historial no reabre una sesión | `SesionAlVolverAtrasTests` (5 pruebas) | ✅ |
 | CP-08 | Sesión | Fijación de sesión | Identificador de sesión anterior al login | El identificador cambia al ingresar | Un identificador conocido deja de servir | `test_la_sesion_cambia_de_identificador_al_ingresar` | ✅ |
 | CP-09 | Recuperación | Código de 6 dígitos | Correo de un usuario | Llega el código; se guarda solo su hash | Código de un solo uso, vence y admite 5 intentos | `funcionarios/tests_recuperacion.py` (9 pruebas) | ✅ |
 | CP-10 | Contraseña | Política de contraseñas | `debil123`, clave sin símbolo | Rechazadas; se pide dos veces | 10+ caracteres, mayúscula, minúscula, número y símbolo | `test_validadores_rechazan_claves_debiles` | ✅ |
@@ -144,7 +145,7 @@ usuarios reales queda a cargo del grupo.
 
 | Conjunto | Resultado |
 | --- | --- |
-| `python manage.py test` | 362 pruebas, todas correctas |
+| `python manage.py test` | 367 pruebas, todas correctas |
 | `scripts/verificacion_e2e.py` | 96/96 verificaciones correctas |
 | `scripts/pruebas_navegador.js` | 28/28 verificaciones correctas |
 | `pip-audit -r requirements.txt` | Sin vulnerabilidades conocidas |
