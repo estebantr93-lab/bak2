@@ -199,6 +199,26 @@ class A03InyeccionCsrfYSesionTests(SesionTestMixin, TestCase):
         self.assertIn('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;', html)
         self.assertNotIn('<script>alert("xss")</script>', html)
 
+    def test_textos_de_ayuda_se_escapan_salvo_el_html_marcado_como_seguro(self):
+        # D-07: form_campos.html ya no usa |safe. Un help_text con HTML se muestra como texto; la lista
+        # de reglas de contraseña de Django sigue como lista porque Django la marca como HTML seguro.
+        from django import forms
+        from django.contrib.auth.forms import SetPasswordForm
+        from django.contrib.auth.models import User
+        from django.template.loader import render_to_string
+
+        class FormularioConAyudaMaliciosa(forms.Form):
+            campo = forms.CharField(help_text='<img src=x onerror=alert(1)>')
+
+        html = render_to_string('includes/form_campos.html', {'form': FormularioConAyudaMaliciosa()})
+        self.assertIn('&lt;img src=x onerror=alert(1)&gt;', html)
+        self.assertNotIn('<img src=x', html)
+        html = render_to_string('includes/form_campos.html', {'form': SetPasswordForm(User.objects.first())})
+        self.assertIn('<ul><li>', html)
+        plantillas = Path(settings.BASE_DIR, 'templates')
+        for plantilla in plantillas.rglob('*.html'):
+            self.assertNotRegex(plantilla.read_text(encoding='utf-8'), r'help_text\s*\|\s*safe', str(plantilla))
+
     def test_post_sin_token_csrf_es_rechazado(self):
         from django.test import Client
 
