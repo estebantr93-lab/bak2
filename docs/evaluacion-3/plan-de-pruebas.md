@@ -47,6 +47,7 @@ script que ejecuta el caso.
 | CP-01 | Login | Ingreso con credenciales válidas | `admin_centro`, clave válida | Entra al dashboard de su delegación | Acceso solo a usuarios registrados con rol | `config/tests_login.py::test_login_correcto_redirige_al_dashboard` | ✅ |
 | CP-02 | Login | Ingreso con credenciales inválidas | `admin_centro`, clave incorrecta | «Usuario o contraseña incorrectos.» | No revela cuál dato falló | `test_contrasena_incorrecta_muestra_un_solo_mensaje_generico` | ✅ |
 | CP-03 | Login | Cuenta sin rol asignado | Usuario sin grupo | Ingreso rechazado con mensaje claro | Sin rol no hay acceso | `test_usuario_sin_rol_no_puede_iniciar_sesion` | ✅ |
+| CP-03b | Login | Cuenta con rol, pero sin perfil de funcionario (D-15) | Usuario en el grupo Funcionarios sin perfil | «Su cuenta tiene el rol funcionario, pero no tiene un perfil…»; `diagnosticar_acceso` indica qué falta | El mensaje dice qué corregir | `funcionarios/tests_diagnostico.py` (5 pruebas) | ✅ |
 | CP-04 | Login | Fuerza bruta sobre una cuenta | 5 claves incorrectas y luego la correcta | «Demasiados intentos fallidos…» incluso con la clave correcta | Bloqueo de 15 min; misma respuesta con clave buena o mala | `test_bloquea_la_cuenta_tras_el_maximo_de_intentos_fallidos`, `test_el_bloqueo_no_revela_si_la_clave_era_correcta` | ✅ |
 | CP-05 | Login | Una clave probada contra muchas cuentas | 20 usuarios distintos desde la misma IP | La IP queda bloqueada; otra IP no | Bloqueo por IP sin afectar a otras | `test_bloquea_una_ip_que_prueba_muchas_cuentas` | ✅ |
 | CP-06 | Login | Fin del bloqueo | Fallos con más de 15 min de antigüedad | La clave correcta vuelve a entrar | El bloqueo es temporal | `test_el_bloqueo_termina_al_pasar_la_ventana` | ✅ |
@@ -87,6 +88,7 @@ script que ejecuta el caso.
 | CP-S01 | A01 Control de acceso | Acceso a datos ajenos | Ver CP-12 a CP-15 | 403/404 | Permiso y alcance verificados en el servidor | (ver CP-12 a CP-15) | ✅ |
 | CP-S02 | A03 Inyección SQL | Texto SQL en filtros y búsquedas | `1 OR 1=1`, `' OR '1'='1' --` | Respuesta 200, mismo resultado que sin filtro o 0 coincidencias | Sin error ni datos extra | `test_sql_en_filtros_y_busquedas_no_altera_la_consulta` | ✅ |
 | CP-S03 | A03 XSS | Script guardado en una descripción | `<script>alert("xss")</script>` | Se muestra como texto escapado | El script nunca llega sin escapar | `test_xss_guardado_se_muestra_escapado` | ✅ |
+| CP-S03b | A03 XSS | Texto de ayuda de un formulario (D-07) | `help_text` con `<img onerror>` | Se muestra escapado; la lista de reglas de contraseña sigue como lista | Ninguna plantilla usa `help_text\|safe` | `test_textos_de_ayuda_se_escapan_salvo_el_html_marcado_como_seguro` | ✅ |
 | CP-S04 | A01/CSRF | Envío sin token CSRF | POST a eliminar sin token | 403 y el registro sigue | Toda escritura exige CSRF | `test_post_sin_token_csrf_es_rechazado` | ✅ |
 | CP-S05 | A02/A07 Sesión | Cookie de sesión | Respuesta del login | `HttpOnly` y `SameSite=Lax` | JavaScript no lee la sesión | `test_la_cookie_de_sesion_no_es_accesible_desde_javascript`, `test_cookies_de_sesion_seguras` | ✅ |
 | CP-S06 | A07 Autenticación | Límite de intentos | Ver CP-04 a CP-06 | Bloqueo temporal | Fuerza bruta impracticable | (ver CP-04 a CP-06) | ✅ |
@@ -96,16 +98,22 @@ script que ejecuta el caso.
 | CP-S10 | A05 Configuración | Sin violaciones de CSP en el navegador | 5 páginas × 4 equipos | 0 violaciones; los selectores automáticos funcionan | Nada legítimo queda bloqueado | `scripts/pruebas_navegador.js` | ✅ |
 | CP-S11 | A06 Componentes | Dependencias con vulnerabilidades conocidas | `requirements.txt` | «No known vulnerabilities found» | Sin avisos abiertos | `pip-audit -r requirements.txt` | ✅ |
 | CP-S12 | A02/A05 Secretos | Secretos fuera del repositorio | Código fuente | Sin claves de demo ni `SECRET_KEY` | Configuración por `.env` | `test_no_hay_contrasenas_de_demo_en_el_codigo` | ✅ |
+| CP-S13 | A01 Control de acceso | Archivo de una evidencia por su enlace (D-10) | Enlace del archivo sin sesión, desde otra delegación y por `/media/` | Login, 404 y 404 | Solo quien puede ver la evidencia descarga su archivo | `EntregaProtegidaTests` (6 pruebas) | ✅ |
+| CP-S14 | A04 Carga de archivos | PDF falso (D-11) | `%PDF-1.4 %%EOF`, HTML con extensión `.pdf` | «El archivo no es un PDF válido.» | Solo PDF completos | `test_pdf_falso_o_incompleto_se_rechaza` | ✅ |
+| CP-S15 | A04 Carga de archivos | PDF con contenido activo (D-12) | `/JavaScript`, `/Launch`, incrustados, `/J#61vaScript`, flujo comprimido, cifrado | Rechazado con mensaje | Ningún PDF con código llega al servidor | `test_pdf_con_codigo_o_archivos_incrustados_se_rechaza`, `test_pdf_cifrado_se_rechaza` | ✅ |
+| CP-S16 | A04 Carga de archivos | Extensión y contenido (D-13) | JPEG como `.png`, PNG con código agregado, imagen de 400 MP | Rechazo; el código agregado no se guarda | El formato real coincide con la extensión | `test_el_contenido_debe_coincidir_con_la_extension`, `test_la_foto_se_guarda_sin_metadatos_ni_contenido_agregado`, `test_imagen_enorme_se_rechaza_sin_procesarla` | ✅ |
+| CP-S17 | Ley 19.628 Datos personales | Ubicación GPS de las fotos (D-14) | JPEG con EXIF GPS | El archivo guardado y el descargado no tienen GPS | No se guardan datos personales innecesarios | `test_la_foto_se_guarda_sin_metadatos_ni_contenido_agregado`, `test_misma_delegacion_y_verificador_lo_ven` | ✅ |
 
 ### 4.5 Usabilidad
 
 | ID | Módulo | Descripción | Datos de prueba | Resultado esperado | Criterio de aceptación | Prueba | Res. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | CP-U01 | Listados | Tablet vertical (768×1024) | 5 listados como `admin_sgr` | Una tarjeta por registro; Editar/Eliminar visibles | Sin desplazamiento lateral | `scripts/pruebas_navegador.js` | ✅ |
-| CP-U02 | Listados | Tablet horizontal (1024×768) y PC (1366×768) | 5 listados | Tabla completa; las acciones pasan a dos líneas si hace falta | Sin desplazamiento lateral | `scripts/pruebas_navegador.js` | ✅ |
+| CP-U02 | Listados | Tablet horizontal (1024×768) y PC (1366×768) | 5 listados | Tabla; si es más ancha que la pantalla se desplaza dentro de su caja con la columna de acciones fija (D-17) | La página no se desplaza de lado y Editar/Eliminar están a la vista | `scripts/pruebas_navegador.js` | ✅ |
 | CP-U03 | Listados | Celular (390×844) | 5 listados | Una tarjeta por registro | Sin desplazamiento lateral | `scripts/pruebas_navegador.js` | ✅ |
 | CP-U04 | Navegación | Menú en pantalla táctil | Tablet | Menú hamburguesa con navegación, tema y cerrar sesión | Todo alcanzable con el dedo | Captura `capturas/usabilidad/usabilidad-despues-tablet-menu.png` | ✅ |
 | CP-U05 | Accesibilidad | Tema claro, oscuro o del sistema | Selector de tema | Se aplica en la app y en el Admin | Colores de estado con icono y texto (no solo color) | `test_app_y_admin_guardan_el_tema_en_la_misma_clave` | ✅ |
+| CP-U06 | Listados | Selector «Por página» (D-16) | Elegir 30 | Una sola petición `?page_size=30` | Sin envíos duplicados | `scripts/pruebas_navegador.js` y Herramientas de desarrollo → Red | ✅ |
 
 ## 5. Criterios de aceptación del plan
 
@@ -132,11 +140,11 @@ script que ejecuta el caso.
 Las 96 verificaciones de `scripts/verificacion_e2e.py` automatizan estos recorridos. La validación con
 usuarios reales queda a cargo del grupo.
 
-## 8. Resultado de la ejecución (29-09-2026)
+## 8. Resultado de la ejecución (02-10-2026)
 
 | Conjunto | Resultado |
 | --- | --- |
-| `python manage.py test` | 307 pruebas, todas correctas |
+| `python manage.py test` | 362 pruebas, todas correctas |
 | `scripts/verificacion_e2e.py` | 96/96 verificaciones correctas |
 | `scripts/pruebas_navegador.js` | 28/28 verificaciones correctas |
 | `pip-audit -r requirements.txt` | Sin vulnerabilidades conocidas |
