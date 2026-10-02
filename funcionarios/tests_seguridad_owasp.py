@@ -43,7 +43,10 @@ class A07LimiteDeIntentosTests(IntentoMixin, TestCase):
         # Con la clave correcta tampoco entra mientras dure el bloqueo.
         respuesta = self.intentar('admin_centro', CLAVE_TEST)
         self.assertFalse(self.sesion_iniciada())
-        self.assertContains(respuesta, 'Demasiados intentos fallidos')
+        # El bloqueo responde con el mismo mensaje genérico; queda registrado como login_bloqueado.
+        self.assertContains(respuesta, 'Usuario o contraseña incorrectos.')
+        self.assertNotContains(respuesta, 'intentos')
+        self.assertTrue(AuditLog.objects.filter(action='login_bloqueado', detail='admin_centro').exists())
 
     def test_el_bloqueo_no_revela_si_la_clave_era_correcta(self):
         for _ in range(MAX_INTENTOS):
@@ -58,7 +61,8 @@ class A07LimiteDeIntentosTests(IntentoMixin, TestCase):
         # Mismo trato para cualquier nombre: el bloqueo no sirve para averiguar qué cuentas existen.
         for _ in range(MAX_INTENTOS):
             self.intentar('no_existe', CLAVE_MALA)
-        self.assertContains(self.intentar('no_existe', CLAVE_MALA), 'Demasiados intentos fallidos')
+        self.assertContains(self.intentar('no_existe', CLAVE_MALA), 'Usuario o contraseña incorrectos.')
+        self.assertTrue(AuditLog.objects.filter(action='login_bloqueado', detail='no_existe').exists())
 
     def test_el_bloqueo_termina_al_pasar_la_ventana(self):
         for _ in range(MAX_INTENTOS):
@@ -83,7 +87,7 @@ class A07LimiteDeIntentosTests(IntentoMixin, TestCase):
         # Probar una clave común contra muchas cuentas (password spraying) desde la misma IP.
         for n in range(MAX_INTENTOS_IP):
             self.intentar(f'usuario{n}', CLAVE_MALA, ip='10.9.9.9')
-        self.assertContains(self.intentar('admin_norte', CLAVE_TEST, ip='10.9.9.9'), 'Demasiados intentos fallidos')
+        self.assertContains(self.intentar('admin_norte', CLAVE_TEST, ip='10.9.9.9'), 'Usuario o contraseña incorrectos.')
         self.assertFalse(self.sesion_iniciada())
         # Otra IP no queda afectada.
         self.intentar('admin_norte', CLAVE_TEST, ip='10.1.1.1')

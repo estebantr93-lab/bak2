@@ -83,12 +83,14 @@ class ReglasDeNegocioTests(TestCase):
     def test_rn_login_rechaza_cuentas_sin_rol(self):
         User.objects.create_user('sin_rol', password=CLAVE_TEST)
         response = self.client.post(reverse('login'), {'username': 'sin_rol', 'password': CLAVE_TEST})
-        self.assertContains(response, 'no tiene un rol asignado')
+        self.assertContains(response, 'Usuario o contraseña incorrectos.')  # no revela que la clave era correcta
+        self.assertNotIn('_auth_user_id', self.client.session)
 
     def test_rn_login_rechaza_funcionario_desactivado(self):
         Employee.objects.filter(pk=self.ana.pk).update(is_active=False)
         response = self.client.post(reverse('login'), {'username': 'funcionario_centro', 'password': CLAVE_TEST})
-        self.assertContains(response, 'desactivado')
+        self.assertContains(response, 'Usuario o contraseña incorrectos.')
+        self.assertNotIn('_auth_user_id', self.client.session)
 
     def test_rn_superadmin_y_verificador_ven_ambas_delegaciones(self):
         for username in ('admin_sgr', 'verificador_leia'):

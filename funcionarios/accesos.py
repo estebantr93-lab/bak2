@@ -24,6 +24,9 @@ ENTIDAD = 'Acceso'
 LOGIN_EXITOSO = 'login_exitoso'
 LOGIN_FALLIDO = 'login_fallido'
 LOGIN_BLOQUEADO = 'login_bloqueado'
+# Clave correcta, pero la cuenta no puede entrar (sin rol, sin perfil, desactivada). El usuario ve el
+# mismo mensaje que con una clave incorrecta; el motivo queda aquí para el administrador.
+LOGIN_RECHAZADO = 'login_rechazado'
 LOGOUT = 'logout'
 ACCESO_DENEGADO = 'acceso_denegado'
 
@@ -47,14 +50,17 @@ def normalizar(username):
     return (username or '').strip().lower()[:150]
 
 
-def registrar_acceso(request, accion, detalle='', user=None):
+def registrar_acceso(request, accion, detalle='', user=None, motivo=''):
     if user is None and request is not None and getattr(request, 'user', None) and request.user.is_authenticated:
         user = request.user
-    AuditLog.objects.create(user=user, action=accion, entity_type=ENTIDAD, detail=detalle, ip=ip_cliente(request))
+    AuditLog.objects.create(user=user, action=accion, entity_type=ENTIDAD, detail=detalle, ip=ip_cliente(request),
+                            changes={'motivo': ['', motivo]} if motivo else {})
 
 
 def _fallidos(desde, **filtro):
-    return AuditLog.objects.filter(action=LOGIN_FALLIDO, entity_type=ENTIDAD, date__gte=desde, **filtro).count()
+    # Los rechazos con la clave correcta también cuentan: si no, el bloqueo dejaría ver cuándo se acertó.
+    return AuditLog.objects.filter(action__in=(LOGIN_FALLIDO, LOGIN_RECHAZADO), entity_type=ENTIDAD,
+                                   date__gte=desde, **filtro).count()
 
 
 def esta_bloqueado(request, username):
