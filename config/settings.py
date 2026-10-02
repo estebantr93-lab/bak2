@@ -88,6 +88,8 @@ INSTALLED_APPS = [
     'actividades',
     'evidencias',
     'agenda',
+    # Unidad 3: API REST (Django REST Framework) sobre los mismos modelos.
+    'rest_framework',
     'medicion',
     'monitoreo',
     'reportes',
@@ -289,3 +291,15 @@ RECUPERACION_MAX_SOLICITUDES_HORA = 5  # códigos que un mismo usuario puede ped
 EVIDENCIA_TAMANO_MAXIMO_MB = 2
 # Un formulario de evidencia sube un solo archivo; Django rechaza peticiones con más de estos.
 DATA_UPLOAD_MAX_NUMBER_FILES = 5
+
+
+# API REST (Django REST Framework, Unidad 3). Mientras no se agregue JWT (Clase 2), la API usa la misma
+# sesión del sitio y exige iniciar sesión: nunca queda abierta a usuarios anónimos.
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework.authentication.SessionAuthentication'],
+    'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',  # para probar en el navegador con la sesión iniciada
+    ],
+}

@@ -45,6 +45,8 @@ urlpatterns = [
     path('actividades/', include('actividades.urls')),
     path('evidencias/', include('evidencias.urls')),
     path('compromisos/', include('agenda.urls')),
+    # API REST (Unidad 3): CRUD JSON de compromisos sobre el mismo modelo.
+    path('api/', include('agenda.api_urls')),
     # Archivos subidos (MEDIA_URL): siempre pasan por la verificación de acceso, también en producción.
     path('archivos/<path:nombre>', archivo_evidencia, name='archivo_evidencia'),
     path('', include('dashboard.urls')),
