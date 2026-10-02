@@ -289,7 +289,7 @@
 {% block extra_js %}
 <script src="{% static 'js/listado.js' %}"></script>
 {% if modal_abierto %}
-<script>
+<script nonce="{{ csp_nonce }}">
     // Edición o formulario con errores: la página vuelve con el modal abierto.
     document.addEventListener('DOMContentLoaded', function () {
         bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCrud')).show();

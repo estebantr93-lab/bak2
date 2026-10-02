@@ -3,30 +3,47 @@ from django.contrib.auth.forms import AuthenticationForm
 
 from core.admin_utils import ROLES_ETIQUETAS, es_usuario_sin_restriccion, get_rol, perfil_desactivado, tiene_acceso_al_sistema
 
+from .accesos import LOGIN_BLOQUEADO, LOGIN_RECHAZADO, esta_bloqueado, normalizar, registrar_acceso
+
 
 class LoginForm(AuthenticationForm):
+    """Ingreso con un único mensaje de error para todo rechazo (clave incorrecta, cuenta inactiva, sin rol,
+    sin perfil, perfil desactivado o bloqueo por intentos). Así la respuesta no revela si la cuenta
+    existe, si la clave era correcta ni en qué estado está. El motivo real queda en la traza de
+    auditoría (`login_rechazado`) y lo explica `python manage.py diagnosticar_acceso <usuario>`."""
+
     error_messages = {
         **AuthenticationForm.error_messages,
-        # Genérico: no revela cuál de las dos credenciales falló.
         'invalid_login': 'Usuario o contraseña incorrectos.',
-        'sin_rol': 'Su cuenta no tiene un rol asignado. Contacte al administrador del sistema.',
-        # Tiene grupo, pero administradores y funcionarios trabajan acotados a la delegación de su perfil.
-        'sin_perfil': 'Su cuenta tiene el rol %(rol)s, pero no tiene un perfil de funcionario con delegación. '
-                      'Contacte al administrador del sistema.',
-        'desactivado': 'Su perfil de funcionario está desactivado. Contacte al administrador de su delegación.',
+        'inactive': 'Usuario o contraseña incorrectos.',
     }
 
+    def _rechazar(self, motivo, username):
+        registrar_acceso(self.request, LOGIN_RECHAZADO, normalizar(username), motivo=motivo)
+        raise forms.ValidationError(self.error_messages['invalid_login'], code='invalid_login',
+                                    params={'username': self.username_field.verbose_name})
+
+    def clean(self):
+        # OWASP A07: se revisa antes de comprobar la contraseña, así el bloqueo responde lo mismo
+        # con la clave correcta o incorrecta y no sirve para adivinarla.
+        username = self.cleaned_data.get('username')
+        if username and esta_bloqueado(self.request, username):
+            registrar_acceso(self.request, LOGIN_BLOQUEADO, normalizar(username))
+            raise forms.ValidationError(self.error_messages['invalid_login'], code='invalid_login',
+                                        params={'username': self.username_field.verbose_name})
+        return super().clean()
+
     def confirm_login_allowed(self, user):
-        super().confirm_login_allowed(user)  # rechaza cuentas inactivas
-        # Se evalúa con la contraseña ya verificada, así que no revela qué usuarios existen.
+        # La clave ya es correcta: cualquier rechazo desde aquí responde igual que una clave incorrecta.
+        if not user.is_active:
+            self._rechazar('cuenta inactiva', user.get_username())
         if not es_usuario_sin_restriccion(user) and perfil_desactivado(user):
-            raise forms.ValidationError(self.error_messages['desactivado'], code='desactivado')
+            self._rechazar('perfil de funcionario desactivado', user.get_username())
         if not tiene_acceso_al_sistema(user):
             rol = get_rol(user)
             if rol is None:
-                raise forms.ValidationError(self.error_messages['sin_rol'], code='sin_rol')
-            raise forms.ValidationError(self.error_messages['sin_perfil'], code='sin_perfil',
-                                        params={'rol': ROLES_ETIQUETAS[rol].lower()})
+                self._rechazar('sin rol asignado', user.get_username())
+            self._rechazar(f'rol {ROLES_ETIQUETAS[rol].lower()} sin perfil de funcionario con delegación', user.get_username())
 
 
 class SolicitarCodigoForm(forms.Form):

@@ -6,10 +6,7 @@
         return;
     }
 
-    // Tamaño de página: se envía al elegirlo (sin JavaScript en atributos, compatible con CSP).
-    lista.querySelectorAll('select[data-autoenviar]').forEach(function (select) {
-        select.addEventListener('change', function () { select.form.submit(); });
-    });
+    // El tamaño de página (select[data-autoenviar]) lo envía static/js/autoenvio.js, cargado en base.html.
 
     // ----- Selección de filas y exportación de los seleccionados -----
     const todos = lista.querySelector('[data-seleccionar-todo]');

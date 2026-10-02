@@ -96,7 +96,7 @@ class AccesoPorRolEnLoginTests(TestCase):
 
         User.objects.create_user(username='sin_rol', password='Clave#Segura2026')
         response = self._ingresar('sin_rol', 'Clave#Segura2026')
-        self.assertContains(response, 'no tiene un rol asignado')
+        self.assertContains(response, 'Usuario o contraseña incorrectos.')
         self.assertNotIn('_auth_user_id', self.client.session)
 
     def test_funcionario_sin_perfil_no_puede_iniciar_sesion(self):
@@ -105,8 +105,7 @@ class AccesoPorRolEnLoginTests(TestCase):
         user = User.objects.create_user(username='sin_perfil', password='Clave#Segura2026')
         user.groups.add(Group.objects.get(name='Funcionarios'))
         response = self._ingresar('sin_perfil', 'Clave#Segura2026')
-        # Tiene rol: el mensaje dice qué le falta (el perfil con delegación), no que no tenga rol.
-        self.assertContains(response, 'tiene el rol funcionario, pero no tiene un perfil de funcionario con delegación')
+        self.assertContains(response, 'Usuario o contraseña incorrectos.')
         self.assertNotIn('_auth_user_id', self.client.session)
 
     def test_verificador_sin_perfil_si_puede_iniciar_sesion(self):
@@ -138,3 +137,45 @@ class MensajesYPagina403Tests(TestCase):
         self.assertTemplateUsed(response, '403.html')
         self.assertContains(response, 'Acceso denegado', status_code=403)
         self.assertContains(response, reverse('dashboard'), status_code=403)
+
+
+class SesionAlVolverAtrasTests(TestCase):
+    """Volver al login con la sesión abierta (botón atrás tras ingresar) la cierra, y las páginas con
+    sesión no quedan en la caché del navegador."""
+
+    @classmethod
+    def setUpTestData(cls):
+        sembrar_datos_demo()
+
+    def setUp(self):
+        self.assertTrue(self.client.login(username='admin_centro', password=CLAVE_TEST))
+
+    def test_abrir_el_login_con_sesion_la_cierra(self):
+        response = self.client.get(reverse('login'), follow=True)
+        self.assertNotIn('_auth_user_id', self.client.session)
+        self.assertContains(response, 'Por seguridad, se cerró su sesión.')
+        # «Adelante» vuelve a pedir el dashboard: ya no hay sesión, así que pide ingresar.
+        self.assertRedirects(self.client.get(reverse('dashboard')), f"{reverse('login')}?next={reverse('dashboard')}")
+
+    def test_el_cierre_queda_en_la_traza(self):
+        from colaboracion.models import AuditLog
+
+        self.client.get(reverse('login'))
+        self.assertTrue(AuditLog.objects.filter(action='logout', user__username='admin_centro').exists())
+
+    def test_paginas_con_sesion_no_se_guardan_en_cache(self):
+        for url in (reverse('dashboard'), reverse('actividad_list'), reverse('compromiso_list'), '/admin/'):
+            with self.subTest(url=url):
+                cabecera = self.client.get(url)['Cache-Control']
+                self.assertIn('no-store', cabecera)
+                self.assertIn('private', cabecera)
+
+    def test_el_login_tampoco_se_guarda_en_cache(self):
+        self.client.logout()
+        self.assertIn('no-store', self.client.get(reverse('login'))['Cache-Control'])
+
+    def test_todas_las_paginas_recargan_si_el_navegador_las_restaura_de_memoria(self):
+        for url in (reverse('login'), reverse('dashboard'), '/admin/'):
+            self.client.login(username='admin_centro', password=CLAVE_TEST)
+            with self.subTest(url=url):
+                self.assertContains(self.client.get(url, follow=True), 'js/sesion.js')

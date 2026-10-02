@@ -15,12 +15,11 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.contrib.auth import views as auth_views
 from django.urls import include, path, reverse_lazy
 from django.views.generic import RedirectView
 
 from evidencias.views import archivo_evidencia
-from funcionarios.forms import LoginForm
+from funcionarios.views import IngresoView
 
 from .views import inicio
 
@@ -33,9 +32,9 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     # Recuperación con código temporal (antes del include para no chocar con las rutas de Django).
     path('accounts/recuperar/', include('funcionarios.urls')),
-    # Mismo LoginView de Django, con un formulario que rechaza cuentas sin rol.
+    # LoginView de Django: un solo mensaje para todo rechazo y cierra la sesión si se vuelve al login.
     # Va antes del include para reemplazar solo la ruta 'login'.
-    path('accounts/login/', auth_views.LoginView.as_view(authentication_form=LoginForm), name='login'),
+    path('accounts/login/', IngresoView.as_view(), name='login'),
     # La recuperación exigida es por código de 6 dígitos: el flujo por enlace de Django redirige a ella.
     path('accounts/password_reset/', a_recuperacion),
     path('accounts/password_reset/done/', a_recuperacion),
@@ -50,3 +49,6 @@ urlpatterns = [
     path('archivos/<path:nombre>', archivo_evidencia, name='archivo_evidencia'),
     path('', include('dashboard.urls')),
 ]
+
+# OWASP A09: los accesos denegados (403) quedan en la traza de auditoría.
+handler403 = 'funcionarios.accesos.acceso_denegado'

@@ -13,4 +13,7 @@ def mensaje_ingreso(sender, request, user, **kwargs):
 def mensaje_salida(sender, request, user, **kwargs):
     # logout() limpia la sesión después de esta señal; el mensaje viaja en su propia cookie.
     if request is not None and hasattr(request, '_messages'):
-        messages.info(request, 'Sesión cerrada correctamente.')
+        if getattr(request, 'cierre_por_seguridad', False):  # se volvió al login con la sesión abierta
+            messages.info(request, 'Por seguridad, se cerró su sesión. Ingrese nuevamente.')
+        else:
+            messages.info(request, 'Sesión cerrada correctamente.')

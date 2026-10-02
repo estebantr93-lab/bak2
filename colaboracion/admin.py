@@ -23,9 +23,9 @@ class AlertaAdmin(admin.ModelAdmin):
 
 @admin.register(AuditLog)
 class TrazaAuditoriaAdmin(admin.ModelAdmin):
-    list_display = ('date', 'user', 'action', 'entity_type', 'entity_id', 'resumen_de_cambios')
-    search_fields = ('action', 'entity_type', 'user__username', 'detail')
-    list_filter = ('action', 'date')
+    list_display = ('date', 'user', 'action', 'entity_type', 'entity_id', 'resumen_de_cambios', 'ip')
+    search_fields = ('action', 'entity_type', 'user__username', 'detail', 'ip')
+    list_filter = ('action', 'entity_type', 'date')
     ordering = ('-date',)
     list_select_related = ('user',)
 
