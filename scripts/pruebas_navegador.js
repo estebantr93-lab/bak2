@@ -5,8 +5,8 @@
 //   SGR_URL=http://127.0.0.1:8000 SGR_USUARIO=admin_sgr SGR_CLAVE='<clave>' node scripts/pruebas_navegador.js
 //
 // Para cada equipo (PC, tablet vertical y horizontal, celular) recorre los listados y revisa que la
-// página no se desplace de lado, que ninguna tabla necesite desplazamiento lateral y que los botones
-// Editar/Eliminar estén a la vista. En todas las páginas cuenta las violaciones de la política de
+// página no se desplace de lado y que los botones de acción de la primera fila estén a la vista sin
+// desplazar nada (una tabla ancha puede desplazarse dentro de su caja con la columna de acciones fija). En todas las páginas cuenta las violaciones de la política de
 // seguridad de contenido (CSP) que informa el navegador. Termina con código 1 si algo falla.
 const { chromium } = require('playwright');
 
@@ -34,20 +34,36 @@ const LISTADOS = ['/dashboard/', '/actividades/', '/actividades/atenciones/', '/
         await pagina.fill('input[name=username]', USUARIO);
         await pagina.fill('input[name=password]', CLAVE);
         await Promise.all([pagina.waitForNavigation(), pagina.click('button[type=submit]')]);
+        // Sin sesión, cada listado redirige al login y las revisiones de abajo pasarían sin revisar nada.
+        if (pagina.url().includes('/accounts/login/')) {
+            console.error(`FALLA ${equipo}: no se pudo iniciar sesión con ${USUARIO} (clave incorrecta o cuenta bloqueada).`);
+            process.exit(2);
+        }
 
         for (const ruta of LISTADOS) {
             await pagina.goto(URL + ruta);
             const r = await pagina.evaluate(() => {
-                const acciones = document.querySelector('td.celda-acciones .btn');
+                // Último botón visible de la primera fila (Eliminar o «⋯»; no los enlaces del menú cerrado).
+                const botones = document.querySelectorAll('tbody tr:first-child td.celda-acciones :is(a, button):not(.dropdown-menu *)');
+                const ultimo = botones[botones.length - 1];
+                const visible = el => {
+                    if (!el) return true;  // fila sin acciones (el rol no puede editar)
+                    const b = el.getBoundingClientRect();
+                    const caja = (el.closest('.table-responsive') || document.body).getBoundingClientRect();
+                    return b.width > 0 && b.left >= 0 && b.right <= innerWidth && b.left >= caja.left - 1 && b.right <= caja.right + 1;
+                };
                 return {
                     pagina: document.documentElement.scrollWidth > innerWidth + 1,
+                    // Las tablas anchas pueden desplazarse dentro de su caja (con la columna de acciones fija);
+                    // se informa, pero lo que se exige es que los botones queden a la vista sin desplazar.
                     tablas: [...document.querySelectorAll('.table-responsive')]
                         .filter(c => c.querySelector('table').scrollWidth > c.clientWidth + 2).length,
-                    botones: !acciones || acciones.getBoundingClientRect().right <= innerWidth,
+                    botones: visible(ultimo),
                 };
             });
-            revisar(!r.pagina && r.tablas === 0 && r.botones,
-                `${equipo} (${ancho}x${alto}) ${ruta}: sin desplazamiento lateral y con los botones a la vista`);
+            revisar(!r.pagina && r.botones,
+                `${equipo} (${ancho}x${alto}) ${ruta}: la página no se desplaza de lado y los botones están a la vista`
+                + (r.tablas ? ' (tabla con desplazamiento interno y columna de acciones fija)' : ''));
         }
         // Los selectores que se envían solos (tamaño de página) deben seguir funcionando con la CSP.
         await pagina.goto(URL + '/actividades/');
