@@ -101,6 +101,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # Páginas con sesión iniciada: no se guardan en la caché del navegador (atrás/adelante tras cerrar sesión).
+    'core.middleware.SinCacheConSesionMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # OWASP A05: política de seguridad de contenido (cabecera Content-Security-Policy, ver SECURE_CSP).

@@ -150,7 +150,8 @@ class A05PoliticaDeContenidoTests(SesionTestMixin, TestCase):
 
     def test_los_scripts_en_linea_propios_llevan_el_nonce_de_la_respuesta(self):
         self.ingresar('admin_sgr')
-        for url in (reverse('login'), reverse('dashboard'), reverse('actividad_list'), '/admin/', '/admin/actividades/activity/'):
+        # El login va al final: abrirlo con la sesión iniciada la cierra (vuelta atrás tras ingresar).
+        for url in (reverse('dashboard'), reverse('actividad_list'), '/admin/', '/admin/actividades/activity/', reverse('login')):
             with self.subTest(url=url):
                 respuesta = self.client.get(url)
                 fuentes = self.politica(respuesta).get('script-src', [])
