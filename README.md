@@ -30,7 +30,7 @@ Esta entrega corresponde a la **Evaluación Formativa – Unidad II (Programaci�
 
 - **Git** instalado.
 - **Python 3.12+** instalado (Django 6.1 no funciona con versiones anteriores).
-- **MySQL 8.4+ o MariaDB 10.11+** en ejecución (local, en Docker o Amazon RDS).
+- **MySQL 8.4+ o MariaDB 10.11+** en ejecución (local, en Docker o Amazon RDS). Para un equipo sin MariaDB (laboratorio) se admite SQLite: `DB_ENGINE=django.db.backends.sqlite3` en el `.env`.
 - Para compilar `mysqlclient` en Linux: `sudo apt install pkg-config libmariadb-dev` (Debian/Ubuntu) o `sudo dnf install python3.12 python3.12-devel gcc pkgconf mariadb1011-devel` (Amazon Linux 2023; si `mariadb1011-devel` no existe en su versión, use `mariadb-connector-c-devel`). En Amazon Linux 2023 `python3` es la 3.9: cree el entorno con `python3.12 -m venv .venv`. En Windows y macOS `pip` descarga una rueda precompilada.
 - Se documentan comandos para **Linux/macOS (bash/zsh)**; para Windows se usan los equivalentes de `venv`/`activate`.
 
@@ -45,7 +45,8 @@ Proyecto_Integrado_SGR/
 ├── funcionarios/    # Employee (perfil), PasswordResetCode, grupos/permisos (security.py), login y recuperación
 ├── actividades/     # Activity, SocialCase + CRUD web protegido (ListView/CreateView/UpdateView/DeleteView + modal)
 ├── evidencias/      # Evidence, Validation + acción "Aprobar evidencias seleccionadas" + carga de archivos validada
-├── agenda/          # Commitment, CommitmentFollowUp + API REST de compromisos (serializers.py, api_views.py, api_urls.py)
+├── agenda/          # Commitment, CommitmentFollowUp
+├── api/             # API REST con JWT: serializers, viewsets, roles, paginación y token (6 recursos)
 ├── medicion/        # Goal, Weighting, Indicator + fórmulas de cálculo (services.py)
 ├── monitoreo/       # DashboardPanel
 ├── dashboard/       # Dashboard de resumen por funcionario y rol (services.py)
@@ -365,42 +366,131 @@ Solo **evidencias** recibe archivos. Actividades, atenciones, compromisos y vali
 Al reemplazar el archivo de una evidencia, el anterior se borra (`evidencias/signals.py`). Al eliminarla, el borrado es lógico y el archivo se conserva; solo `hard_delete()` lo borra del disco.
 SweetAlert2 (`static/js/confirmar.js`) pide confirmación antes de eliminar. La librería (v11.26.25, licencia MIT) se sirve desde `static/vendor/sweetalert2/`, así que la demo no depende de un CDN; si aun así no cargara, se usa la confirmación nativa del navegador y nunca se elimina sin preguntar. Es solo una ayuda visual: Django sigue exigiendo POST, CSRF, login y permisos.
 
-## API REST de compromisos (Unidad 3 · Clase 1)
+## API REST con JWT (Evaluación 3 · Programación Back End)
 
-El mismo modelo y la misma base de datos se publican también como API JSON con **Django REST Framework** (`djangorestframework==3.18.1`, compatible con Django 6.1). Las páginas web siguen igual. El recurso elegido es **Compromisos** (`agenda.Commitment`).
+API JSON con **Django REST Framework 3.18.1** y **Simple JWT 5.5.1** sobre los mismos modelos y la misma base de datos de la web. Todo el código está en la app `api/`.
 
-| Pieza de la clase | En el proyecto |
+| Pieza | Archivo |
 | --- | --- |
-| Modelo | `agenda.models.Commitment` (sin cambios) |
-| Serializer | `agenda/serializers.py` · `CommitmentSerializer`, con campos explícitos: `id`, `title`, `description`, `delegation`, `responsible`, `due_date`, `status`, `status_display`, `notes`, `created_at` y `updated_at`. Los de solo lectura son `id`, `status_display` y las fechas. |
-| ViewSet | `agenda/api_views.py` · `CommitmentViewSet(ModelViewSet)` |
-| Router | `agenda/api_urls.py` · `DefaultRouter`, con `router.register('compromisos', …)` |
-| Ruta | `config/urls.py` · `path('api/', include('agenda.api_urls'))` |
+| Serializers con campos explícitos | `api/serializers.py` |
+| ViewSets (CRUD y solo lectura) | `api/views.py` |
+| Rutas bajo `/api/` (router y token) | `api/urls.py` · montadas en `config/urls.py` |
+| Roles de la API (permiso por defecto) | `api/permisos.py` · `PermisoPorRolAPI` |
+| Paginación | `api/paginacion.py` · `PaginacionSGR` |
+| Token con límite de intentos | `api/autenticacion.py` |
+| Usuarios de prueba de la API | `api/usuarios.py` · comando `crear_usuarios_api` |
+| Configuración | `config/settings.py` · `REST_FRAMEWORK` y `SIMPLE_JWT` |
+| Pruebas automáticas | `api/tests.py` (27 pruebas) |
+| Matriz contra el servidor | `scripts/probar_api.py` |
+| Colección de Apidog | `docs/api/SGR_API_JWT.postman_collection.json` |
 
-| Método y URL | Respuesta |
+### Los seis modelos y sus relaciones
+
+| Tipo | Modelo (tabla) | Recurso | Relaciones | Registros con `--volumen 1000` |
+| --- | --- | --- | --- | --- |
+| Principal | `Activity` (`activity`) | `/api/actividades/` | → `Employee`, `Delegation`, `Period`, `ActivityType`; ← evidencias y atenciones | ≈ 1.008 |
+| Principal | `SocialCase` (`social_case`) | `/api/atenciones/` | → `Activity` (máximo 3 gestiones por actividad social) | ≈ 400 |
+| Principal | `Commitment` (`commitment`) | `/api/compromisos/` | → `Delegation`, `Employee` (responsable); ← seguimientos | ≈ 254 |
+| Principal | `Evidence` (`evidence`) | `/api/evidencias/` | → `Activity`; ← validaciones | ≈ 800 |
+| Operacional | `Validation` (`validation`) | `/api/validaciones/` | → `Evidence`, `User` (verificador) | ≈ 590 |
+| Operacional | `CommitmentFollowUp` (`commitment_follow_up`) | `/api/seguimientos/` | → `Commitment`, `Employee` | ≈ 250 |
+
+Total de los seis modelos: **más de 3.000 registros**. El total exacto lo imprime `seed_data` al terminar.
+
+### Endpoints y métodos
+
+| Método | Ruta | Quién | Respuesta |
+| --- | --- | --- | --- |
+| POST | `/api/token/` | Cualquiera con usuario y clave | 200 `{access, refresh}` · 401 si la clave es incorrecta o el usuario está bloqueado |
+| POST | `/api/token/refresh/` | Quien tenga un `refresh` válido | 200 `{access}` |
+| GET | `/api/<principal>/` y `/api/<principal>/<id>/` | Administrador y operador | 200 · 404 si el id no existe o está eliminado |
+| POST | `/api/<principal>/` | Administrador | 201 · 400 si los datos no cumplen las reglas |
+| PUT / PATCH | `/api/<principal>/<id>/` | Administrador | 200 · 400 |
+| DELETE | `/api/<principal>/<id>/` | Administrador | 204 |
+| GET | `/api/validaciones/`, `/api/seguimientos/` y su detalle | Administrador y operador | 200 · los demás métodos dan 405 |
+
+Los recursos principales son `actividades`, `atenciones`, `compromisos` y `evidencias`.
+
+- **Borrado lógico:** DELETE marca `deleted_at` y responde **204**. Después, el registro ya no aparece en las listas y su detalle responde 404. Los hijos se eliminan con él; por ejemplo, las evidencias y gestiones de una actividad. Es la regla del dominio: un respaldo municipal no se pierde y el administrador general puede restaurarlo desde el Admin. Cada alta, cambio y eliminación queda en la traza de auditoría, con el detalle «API REST».
+- **Filtros por relación:** `?activity=<id>` en atenciones y evidencias; `?employee=`, `?delegation=`, `?period=` y `?activity_type=` en actividades; `?delegation=` y `?responsible=` en compromisos; `?evidence=` en validaciones; `?commitment=` en seguimientos.
+- **Evidencias:** se crean con `multipart/form-data` (`activity`, `description` y `file`, de tipo JPG, PNG o PDF de hasta 2 MB, validado por su contenido real). El estado de una evidencia lo cambia solo la revisión del verificador, así que en la API es de solo lectura.
+
+### Roles (JWT)
+
+| Usuario (normal, no superusuario) | Grupo | Puede |
+| --- | --- | --- |
+| `api_admin` | `API Administrador` | GET, POST, PUT, PATCH y DELETE |
+| `api_operador` | `API Operador` | Solo GET (POST, PUT, PATCH o DELETE responden **403**) |
+| `api_sin_rol` | (ninguno) | Obtiene token, pero cada recurso responde **403** |
+
+- **Sin token**, o con un token inválido o vencido, la respuesta es **401**: `JWTAuthentication` es el primer autenticador. El token se envía como `Authorization: Bearer <access>`.
+- **Duración:** `access` dura 30 minutos y `refresh`, 24 horas (`JWT_ACCESS_MINUTOS` y `JWT_REFRESH_HORAS` en el `.env`).
+- `/api/token/` aplica el mismo bloqueo por intentos que el login web (5 por usuario y 20 por IP en 15 minutos) y la misma respuesta genérica.
+- Los usuarios de la web (`admin_centro`, `verificador_leia`…) no tienen rol de API y reciben 403.
+
+### Validaciones (400)
+
+| Tipo | Ejemplo | Respuesta |
+| --- | --- | --- |
+| De campo | Compromiso con `title` de menos de 5 caracteres | `{"title": ["El título debe tener al menos 5 caracteres."]}` |
+| De campo | Actividad con `date` futura, o `number` repetido | `{"date": [...]}` · `{"number": ["Ya existe una actividad con este número."]}` |
+| Regla de negocio | Compromiso cuyo responsable es de otra delegación | `{"responsible": ["El responsable debe pertenecer a la delegación del compromiso."]}` |
+| Regla de negocio | Actividad en un período cerrado; gestión sobre una actividad que no es de atención social | `{"period": [...]}` · `{"activity": [...]}` |
+| Contenido | Evidencia con un archivo que no es lo que dice su extensión | `{"file": [...]}` |
+
+Las reglas de negocio son las del modelo (`clean()`). La API las ejecuta sobre el registro como quedaría, también en un PATCH, así que rechaza lo mismo que la web. Un id inexistente o eliminado responde **404** con `{"detail": "Registro no encontrado."}`.
+
+### Paginación
+
+Todas las listas devuelven 20 registros por página: `{"count", "next", "previous", "results"}`. Ninguna lista entrega los más de 1.000 registros en una sola respuesta.
+
+- Otra página: `GET /api/actividades/?page=2`.
+- Otro tamaño: `?page_size=50` (máximo 100).
+
+### Preparar y cargar los datos
+
+1. Siga los pasos 1 a 5 de «Cómo levantar el proyecto».
+2. En el `.env`, defina `API_PASSWORD` con la clave de los tres usuarios de la API. Si la deja vacía, se usa `DEMO_PASSWORD`, y si también está vacía, se generan claves al azar y se muestran una sola vez.
+3. Ejecute:
+   ```bash
+   python manage.py migrate
+   python manage.py seed_data --volumen 1000   # demo + más de 3.000 registros de dominio + usuarios api_*
+   python manage.py runserver
+   ```
+   Si solo quiere crear o recrear los usuarios de la API: `python manage.py crear_usuarios_api`.
+
+**Sin MariaDB (por ejemplo, en el laboratorio):** ponga `DB_ENGINE=django.db.backends.sqlite3` en el `.env`. La base queda en `db.sqlite3`, que no se versiona. Igual hay que instalar `requirements.txt`; en Linux, `mysqlclient` necesita `libmariadb-dev` para instalarse.
+
+### Uso de Apidog
+
+1. En Apidog: **Importar → Postman** → `docs/api/SGR_API_JWT.postman_collection.json`.
+2. En las variables de la colección:
+   - `baseUrl`: por defecto `http://127.0.0.1:8000`;
+   - `clave_api`: la clave de los usuarios `api_*`, sin guardarla en la exportación.
+3. Ejecute las carpetas en orden. Cada solicitud verifica su estado esperado, y los ids se toman de las respuestas.
+
+| Carpeta | Contenido |
 | --- | --- |
-| `GET /api/compromisos/` | 200 · lista JSON (solo los de su delegación) |
-| `POST /api/compromisos/` | 201 · compromiso creado; 400 si los datos no cumplen las reglas |
-| `GET /api/compromisos/<id>/` | 200 · detalle; 404 si no existe, está eliminado o es de otra delegación |
-| `PATCH /api/compromisos/<id>/` | 200 · edición parcial; 400 si rompe una regla |
-| `DELETE /api/compromisos/<id>/` | 204 · borrado lógico (`deleted_at`); después, `GET` da 404 |
+| 01 | Token, renovación y clave incorrecta |
+| 02 | Sin token (401) |
+| 03 | Operador (200 y 403) |
+| 04 | Sin rol (403) |
+| 05 | Ids de referencia |
+| 06–09 | CRUD de los 4 recursos principales (201, 200, 200, 204, 404) |
+| 10 | Operacionales |
+| 11 | Errores (400, 400, 404) |
+| 12 | Paginación (dos páginas distintas) |
+| 13 | Limpieza |
 
-**Las reglas del proyecto se conservan** (diapositiva 8):
-- Validaciones iguales a la web: título de al menos 5 caracteres, vencimiento no pasado al crear, responsable de la misma delegación, y «realizado» exige observaciones. En un `PATCH`, la regla se revisa sobre el registro completo.
-- La API **no queda abierta**. La pregunta final de la clase advierte justamente ese riesgo. Hasta agregar JWT (Clase 2), usa la **misma sesión del sitio**:
-  - sin sesión → 403;
-  - permisos del modelo por rol: el funcionario solo consulta (`GET` 200; crear o editar, 403), y el verificador no tiene acceso a compromisos (403);
-  - alcance por delegación: lo de otra delegación responde 404, igual que el CRUD web.
-- Cada creación, edición y eliminación queda en la traza de auditoría, con usuario y campos cambiados (detalle «API REST»).
+4. En «Evidencia: crear», seleccione un archivo JPG, PNG o PDF.
+5. Las capturas no deben mostrar el token ni la clave.
 
-**Cómo probarla:**
-- **En el navegador:** iniciar sesión en el sitio y abrir `/api/compromisos/`. La API navegable de DRF permite `GET`, `POST`, `PATCH` y `DELETE` desde la página.
-- **Secuencia de la clase** (diapositiva 14), con el servidor levantado:
-  ```bash
-  SGR_URL=http://127.0.0.1:8000 SGR_USUARIO=admin_centro SGR_CLAVE='<clave>' python scripts/probar_api.py
-  ```
-  Ejecuta en orden: GET lista (200), POST válido (201), GET detalle (200), PATCH (200), POST inválido (400), DELETE (204) y GET del eliminado (404). Imprime método, URL, cuerpo, estado y un extracto del JSON, listo para la captura.
-- **Pruebas automáticas:** `python manage.py test agenda.tests_api` (14 pruebas).
+Verificación sin Apidog, con el servidor levantado:
+```bash
+SGR_CLAVE_API='<clave de los usuarios api_*>' python scripts/probar_api.py              # 48 casos
+SGR_CLAVE_API='<clave>' python scripts/probar_api.py --markdown > matriz_api.md         # misma matriz en tabla
+python manage.py test api                                                               # 27 pruebas
+```
 
 ## Despliegue en AWS Academy (EC2 + nginx + gunicorn)
 

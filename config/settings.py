@@ -88,8 +88,10 @@ INSTALLED_APPS = [
     'actividades',
     'evidencias',
     'agenda',
-    # Unidad 3: API REST (Django REST Framework) sobre los mismos modelos.
+    # API REST (Django REST Framework) con autenticación JWT (Simple JWT): app api/.
     'rest_framework',
+    'rest_framework_simplejwt',
+    'api',
     'medicion',
     'monitoreo',
     'reportes',
@@ -135,7 +137,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
-# MySQL / MariaDB (en AWS: Amazon RDS). SQLite ya no se usa en este proyecto.
+# MySQL / MariaDB (en AWS: Amazon RDS). Para el laboratorio también se admite SQLite (ver más abajo).
 # Django 6.1 exige MySQL 8.4+ o MariaDB 10.11+ y el driver mysqlclient 2.2.1+.
 DATABASES = {
     'default': {
@@ -164,6 +166,14 @@ DATABASES = {
 # Conexión cifrada a RDS: descargar el bundle de certificados de AWS y apuntar DB_SSL_CA a él.
 if os.getenv('DB_SSL_CA'):
     DATABASES['default']['OPTIONS']['ssl'] = {'ca': os.getenv('DB_SSL_CA')}
+
+# Alternativa para un equipo sin MariaDB (laboratorio): DB_ENGINE=django.db.backends.sqlite3 en el .env.
+# La base queda en un archivo (db.sqlite3 por defecto, fuera del repositorio por .gitignore).
+if DATABASES['default']['ENGINE'].endswith('sqlite3'):
+    DATABASES['default'] = {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / os.getenv('DB_NAME_SQLITE', 'db.sqlite3'),
+    }
 
 
 # Password validation
@@ -293,13 +303,30 @@ EVIDENCIA_TAMANO_MAXIMO_MB = 2
 DATA_UPLOAD_MAX_NUMBER_FILES = 5
 
 
-# API REST (Django REST Framework, Unidad 3). Mientras no se agregue JWT (Clase 2), la API usa la misma
-# sesión del sitio y exige iniciar sesión: nunca queda abierta a usuarios anónimos.
+# API REST (Django REST Framework) con JWT (Simple JWT). Todo vive en la app api/.
+# - JWT va primero: una petición sin token (o con un token vencido) responde 401.
+# - La sesión se mantiene solo para recorrer la API navegable con la sesión del sitio.
+# - Permiso por defecto: rol de la API (api/permisos.py). Administrador lee y escribe, operador solo lee
+#   y cualquier otro usuario autenticado recibe 403.
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework.authentication.SessionAuthentication'],
-    'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': ['api.permisos.PermisoPorRolAPI'],
+    'DEFAULT_PAGINATION_CLASS': 'api.paginacion.PaginacionSGR',
+    'PAGE_SIZE': 20,
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
-        'rest_framework.renderers.BrowsableAPIRenderer',  # para probar en el navegador con la sesión iniciada
+        'rest_framework.renderers.BrowsableAPIRenderer',
     ],
+}
+
+from datetime import timedelta  # noqa: E402
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=int(os.getenv('JWT_ACCESS_MINUTOS', '30'))),
+    'REFRESH_TOKEN_LIFETIME': timedelta(hours=int(os.getenv('JWT_REFRESH_HORAS', '24'))),
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'UPDATE_LAST_LOGIN': False,
 }
