@@ -30,7 +30,7 @@ Esta entrega corresponde a la **Evaluación Formativa – Unidad II (Programaci�
 
 - **Git** instalado.
 - **Python 3.12+** instalado (Django 6.1 no funciona con versiones anteriores).
-- **MySQL 8.4+ o MariaDB 10.11+** en ejecución (local, en Docker o Amazon RDS).
+- **MySQL 8.4+ o MariaDB 10.11+** en ejecución (local, en Docker o Amazon RDS). Para un equipo sin MariaDB (laboratorio) se admite SQLite: `DB_ENGINE=django.db.backends.sqlite3` en el `.env`.
 - Para compilar `mysqlclient` en Linux: `sudo apt install pkg-config libmariadb-dev` (Debian/Ubuntu) o `sudo dnf install python3.12 python3.12-devel gcc pkgconf mariadb1011-devel` (Amazon Linux 2023; si `mariadb1011-devel` no existe en su versión, use `mariadb-connector-c-devel`). En Amazon Linux 2023 `python3` es la 3.9: cree el entorno con `python3.12 -m venv .venv`. En Windows y macOS `pip` descarga una rueda precompilada.
 - Se documentan comandos para **Linux/macOS (bash/zsh)**; para Windows se usan los equivalentes de `venv`/`activate`.
 

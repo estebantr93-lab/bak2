@@ -137,7 +137,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
-# MySQL / MariaDB (en AWS: Amazon RDS). SQLite ya no se usa en este proyecto.
+# MySQL / MariaDB (en AWS: Amazon RDS). Para el laboratorio también se admite SQLite (ver más abajo).
 # Django 6.1 exige MySQL 8.4+ o MariaDB 10.11+ y el driver mysqlclient 2.2.1+.
 DATABASES = {
     'default': {
@@ -166,6 +166,14 @@ DATABASES = {
 # Conexión cifrada a RDS: descargar el bundle de certificados de AWS y apuntar DB_SSL_CA a él.
 if os.getenv('DB_SSL_CA'):
     DATABASES['default']['OPTIONS']['ssl'] = {'ca': os.getenv('DB_SSL_CA')}
+
+# Alternativa para un equipo sin MariaDB (laboratorio): DB_ENGINE=django.db.backends.sqlite3 en el .env.
+# La base queda en un archivo (db.sqlite3 por defecto, fuera del repositorio por .gitignore).
+if DATABASES['default']['ENGINE'].endswith('sqlite3'):
+    DATABASES['default'] = {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / os.getenv('DB_NAME_SQLITE', 'db.sqlite3'),
+    }
 
 
 # Password validation
