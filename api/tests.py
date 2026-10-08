@@ -201,6 +201,65 @@ class CrudTests(ApiTestCase):
                 self.assertEqual(detalle.status_code, 200)
 
 
+class ErroresTests(ApiTestCase):
+    def setUp(self):
+        self.admin = self.cliente('api_admin')
+
+    def test_validacion_de_campo_400(self):
+        respuesta = self.admin.post('/api/compromisos/', {
+            'title': 'abc', 'delegation': Employee.objects.first().delegation_id,
+            'due_date': str(timezone.localdate() + datetime.timedelta(days=3)),
+        }, format='json')
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertEqual(respuesta.json()['title'], ['El título debe tener al menos 5 caracteres.'])
+
+    def test_fecha_futura_400(self):
+        datos = {**self.datos_actividad(), 'date': str(timezone.localdate() + datetime.timedelta(days=5))}
+        respuesta = self.admin.post('/api/actividades/', datos, format='json')
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn('date', respuesta.json())
+
+    def test_regla_de_negocio_responsable_de_otra_delegacion_400(self):
+        responsable = Employee.objects.filter(delegation__name='Delegación Norte').first()
+        centro = Employee.objects.filter(delegation__name='Delegación Centro').first().delegation_id
+        respuesta = self.admin.post('/api/compromisos/', {
+            'title': 'Compromiso con responsable ajeno', 'delegation': centro, 'responsible': responsable.pk,
+            'due_date': str(timezone.localdate() + datetime.timedelta(days=3)),
+        }, format='json')
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn('El responsable debe pertenecer a la delegación del compromiso.', respuesta.json()['responsible'])
+
+    def test_regla_de_negocio_periodo_cerrado_400(self):
+        cerrado = Period.objects.filter(is_closed=True).first()
+        datos = {**self.datos_actividad(), 'period': cerrado.pk, 'date': str(cerrado.start_date)}
+        respuesta = self.admin.post('/api/actividades/', datos, format='json')
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn('period', respuesta.json())
+
+    def test_regla_de_negocio_gestion_solo_en_atencion_social_400(self):
+        actividad = Activity.objects.exclude(activity_type__category='social').filter(period__is_closed=False).first()
+        respuesta = self.admin.post('/api/atenciones/', {
+            'activity': actividad.pk, 'step_number': 1, 'date': str(timezone.localdate()), 'description': 'Gestión',
+        }, format='json')
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn('activity', respuesta.json())
+
+    def test_archivo_falso_400(self):
+        actividad = Activity.objects.filter(period__is_closed=False).first()
+        falso = SimpleUploadedFile('foto.png', b'<html>no soy una imagen</html>', content_type='image/png')
+        respuesta = self.admin.post('/api/evidencias/', {'activity': actividad.pk, 'file': falso}, format='multipart')
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn('file', respuesta.json())
+
+    def test_id_inexistente_404_en_json(self):
+        for recurso in RECURSOS:
+            with self.subTest(recurso=recurso):
+                respuesta = self.admin.get(f'/api/{recurso}/999999/')
+                self.assertEqual(respuesta.status_code, 404)
+                self.assertEqual(respuesta['Content-Type'], 'application/json')
+                self.assertEqual(respuesta.json(), {'detail': 'Registro no encontrado.'})
+
+
 class PaginacionTests(ApiTestCase):
     @classmethod
     def setUpTestData(cls):

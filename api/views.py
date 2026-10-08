@@ -7,8 +7,9 @@
 - Cada alta, cambio y eliminación queda en la traza de auditoría con el usuario y los valores cambiados.
 """
 from django.db.models.deletion import ProtectedError
+from django.http import Http404
 from rest_framework import viewsets
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import NotFound, ValidationError
 
 from actividades.models import Activity, SocialCase
 from agenda.models import Commitment, CommitmentFollowUp
@@ -25,9 +26,16 @@ def _valores(obj, campos):
 
 
 class FiltrosMixin:
-    """Filtros simples por relación: ?activity=12 en atenciones, por ejemplo. Un valor no numérico da 400."""
+    """Filtros simples por relación (?activity=12 en atenciones, por ejemplo; un valor no numérico da 400)
+    y un 404 uniforme: inexistente o eliminado responden lo mismo, sin nombrar el modelo interno."""
 
     filtros = ()
+
+    def get_object(self):
+        try:
+            return super().get_object()
+        except Http404:
+            raise NotFound('Registro no encontrado.')
 
     def get_queryset(self):
         qs = super().get_queryset()
