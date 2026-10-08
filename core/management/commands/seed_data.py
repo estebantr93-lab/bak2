@@ -9,6 +9,7 @@ from colaboracion.data import build_colaboracion
 from colaboracion.models import Alert, Comment, AuditLog
 from core.data import build_core
 from core.models import Position, Delegation, Parameter, Period, ActivityType
+from api.usuarios import USUARIOS_API, crear_usuarios_api
 from core.volume_data import borrar_volumen, build_volumen
 from evidencias.data import build_evidencias
 from evidencias.models import Evidence, Validation
@@ -43,6 +44,9 @@ class Command(BaseCommand):
         build_funcionarios()
         self.stdout.write(self.style.SUCCESS('  funcionarios: grupos, permisos y usuarios de prueba OK'))
 
+        claves_api = crear_usuarios_api()
+        self.stdout.write(self.style.SUCCESS('  api: grupos API Administrador / API Operador y usuarios de la API OK'))
+
         build_actividades()
         self.stdout.write(self.style.SUCCESS('  actividades: registros de actividad y atención social OK'))
 
@@ -72,9 +76,9 @@ class Command(BaseCommand):
 
         # El estado de cada actividad se deriva de sus evidencias (misma regla que en el uso normal).
         sincronizar_estado_actividades(Activity.all_objects.all())
-        self._imprimir_resumen()
+        self._imprimir_resumen(claves_api)
 
-    def _imprimir_resumen(self):
+    def _imprimir_resumen(self, claves_api):
         self.stdout.write('')
         self.stdout.write(self.style.MIGRATE_HEADING('Resumen de conteos:'))
         conteos = [
@@ -117,6 +121,11 @@ class Command(BaseCommand):
         }
         for usuario in USUARIOS_DEMO:
             self.stdout.write(f'  - {usuario} -> {roles[usuario]}')
+        self.stdout.write('')
+        self.stdout.write(self.style.MIGRATE_HEADING('Usuarios de la API (JWT):'))
+        for usuario, _, descripcion in USUARIOS_API:
+            self.stdout.write(f'  - {usuario} -> {descripcion}')
+        CLAVES_GENERADAS.update(claves_api)
         if CLAVES_GENERADAS:
             # Solo ocurre si el .env no define DEMO_PASSWORD: se muestran una única vez.
             self.stdout.write('')
