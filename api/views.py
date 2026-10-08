@@ -11,9 +11,9 @@ from rest_framework import viewsets
 from rest_framework.exceptions import ValidationError
 
 from actividades.models import Activity, SocialCase
-from agenda.models import Commitment
+from agenda.models import Commitment, CommitmentFollowUp
 from core.admin_utils import motivo_no_modificable, registrar_en_auditoria
-from evidencias.models import Evidence
+from evidencias.models import Evidence, Validation
 
 from . import serializers
 
@@ -24,7 +24,24 @@ def _valores(obj, campos):
     return {campo: str(getattr(obj, campo) if getattr(obj, campo) is not None else '') for campo in campos}
 
 
-class CrudAuditadoViewSet(viewsets.ModelViewSet):
+class FiltrosMixin:
+    """Filtros simples por relación: ?activity=12 en atenciones, por ejemplo. Un valor no numérico da 400."""
+
+    filtros = ()
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        for parametro in self.filtros:
+            valor = self.request.query_params.get(parametro)
+            if valor is None:
+                continue
+            if not valor.isdigit():
+                raise ValidationError({parametro: ['Debe ser un id numérico.']})
+            qs = qs.filter(**{parametro: int(valor)})
+        return qs
+
+
+class CrudAuditadoViewSet(FiltrosMixin, viewsets.ModelViewSet):
     """CRUD con traza de auditoría y con las reglas de bloqueo del dominio (período cerrado)."""
 
     def campos_auditados(self):
@@ -63,19 +80,34 @@ class CrudAuditadoViewSet(viewsets.ModelViewSet):
 class ActivityViewSet(CrudAuditadoViewSet):
     queryset = Activity.objects.select_related('employee', 'delegation', 'period', 'activity_type').order_by('id')
     serializer_class = serializers.ActivitySerializer
+    filtros = ('employee', 'delegation', 'period', 'activity_type')
 
 
 class SocialCaseViewSet(CrudAuditadoViewSet):
     queryset = SocialCase.objects.select_related('activity').order_by('id')
     serializer_class = serializers.SocialCaseSerializer
+    filtros = ('activity',)
 
 
 class CommitmentViewSet(CrudAuditadoViewSet):
     queryset = Commitment.objects.select_related('delegation', 'responsible').order_by('id')
     serializer_class = serializers.CommitmentSerializer
+    filtros = ('delegation', 'responsible')
 
 
 class EvidenceViewSet(CrudAuditadoViewSet):
     queryset = Evidence.objects.select_related('activity').order_by('id')
     serializer_class = serializers.EvidenceSerializer
+    filtros = ('activity',)
 
+
+class ValidationViewSet(FiltrosMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = Validation.objects.select_related('evidence', 'reviewer').order_by('id')
+    serializer_class = serializers.ValidationSerializer
+    filtros = ('evidence',)
+
+
+class CommitmentFollowUpViewSet(FiltrosMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = CommitmentFollowUp.objects.select_related('commitment').order_by('id')
+    serializer_class = serializers.CommitmentFollowUpSerializer
+    filtros = ('commitment',)

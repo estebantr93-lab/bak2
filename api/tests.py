@@ -26,7 +26,7 @@ from core.testing import CLAVE_TEST, sembrar_datos_demo
 from funcionarios.models import Employee
 
 PRINCIPALES = ['actividades', 'atenciones', 'compromisos', 'evidencias']
-OPERACIONALES = []  # validaciones y seguimientos: módulo 3
+OPERACIONALES = ['validaciones', 'seguimientos']
 RECURSOS = PRINCIPALES + OPERACIONALES
 
 
@@ -126,6 +126,12 @@ class RolesTests(ApiTestCase):
     def test_usuarios_de_la_web_sin_rol_api_tambien_reciben_403(self):
         self.assertEqual(self.cliente('admin_centro').get('/api/actividades/').status_code, 403)
 
+    def test_operacionales_son_de_solo_lectura_incluso_para_el_administrador(self):
+        admin = self.cliente('api_admin')
+        for recurso in OPERACIONALES:
+            with self.subTest(recurso=recurso):
+                self.assertEqual(admin.post(f'/api/{recurso}/', {}, format='json').status_code, 405)
+
 
 class CrudTests(ApiTestCase):
     def setUp(self):
@@ -186,6 +192,14 @@ class CrudTests(ApiTestCase):
         self.assertEqual(respuesta.status_code, 200, respuesta.content)
         self.assertEqual(respuesta.json()['title'], 'Compromiso reescrito con PUT')
 
+    def test_operacionales_lista_y_detalle(self):
+        for recurso in OPERACIONALES:
+            with self.subTest(recurso=recurso):
+                lista = self.admin.get(f'/api/{recurso}/').json()
+                self.assertGreater(lista['count'], 0)
+                detalle = self.admin.get(f'/api/{recurso}/{lista["results"][0]["id"]}/')
+                self.assertEqual(detalle.status_code, 200)
+
 
 class PaginacionTests(ApiTestCase):
     @classmethod
@@ -204,6 +218,12 @@ class PaginacionTests(ApiTestCase):
         self.assertIsNotNone(primera['next'])
         ids = {fila['id'] for fila in primera['results']}
         self.assertTrue(ids.isdisjoint({fila['id'] for fila in segunda['results']}))
+
+    def test_filtro_por_relacion(self):
+        actividad = Activity.objects.filter(social_cases__isnull=False).first()
+        respuesta = self.cliente('api_operador').get(f'/api/atenciones/?activity={actividad.pk}').json()
+        self.assertEqual(respuesta['count'], actividad.social_cases.count())
+        self.assertEqual(self.cliente('api_operador').get('/api/atenciones/?activity=abc').status_code, 400)
 
     def test_page_size_tiene_tope(self):
         respuesta = self.cliente('api_operador').get('/api/actividades/?page_size=5000').json()

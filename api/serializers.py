@@ -5,9 +5,9 @@ Campos explícitos (nunca '__all__'): solo se publica lo necesario.
 from rest_framework import serializers
 
 from actividades.models import Activity, SocialCase
-from agenda.models import Commitment
+from agenda.models import Commitment, CommitmentFollowUp
 from core.models import ActivityType
-from evidencias.models import Evidence
+from evidencias.models import Evidence, Validation
 from funcionarios.models import Employee
 
 
@@ -80,3 +80,26 @@ class EvidenceSerializer(serializers.ModelSerializer):
         if self.instance is not None:
             campos['file'].required = False  # al actualizar, el archivo se reemplaza solo si se envía uno
         return campos
+
+
+# ---------------------------------------------------------------------------------------------------
+# Modelos operacionales (solo lectura)
+# ---------------------------------------------------------------------------------------------------
+
+class ValidationSerializer(serializers.ModelSerializer):
+    reviewer = serializers.CharField(source='reviewer.username', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = Validation
+        fields = ['id', 'evidence', 'reviewer', 'date', 'status', 'status_display', 'comment']
+        read_only_fields = fields
+
+
+class CommitmentFollowUpSerializer(serializers.ModelSerializer):
+    new_status_display = serializers.CharField(source='get_new_status_display', read_only=True)
+
+    class Meta:
+        model = CommitmentFollowUp
+        fields = ['id', 'commitment', 'date', 'responsible', 'description', 'new_status', 'new_status_display']
+        read_only_fields = fields
