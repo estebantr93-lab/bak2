@@ -1,0 +1,2422 @@
+{
+  "info": {
+    "name": "SGR · API REST con JWT (Evaluación 3)",
+    "_postman_id": "sgr-api-jwt-ev3",
+    "description": "Colección de pruebas de la API del SGR. Importar en Apidog (Importar → Postman). Antes de ejecutar: definir la variable clave_api con la contraseña de los usuarios api_* (la del .env, API_PASSWORD o DEMO_PASSWORD). Ejecutar las carpetas en orden. En «CRUD Evidencia: crear» seleccione un archivo JPG, PNG o PDF de hasta 2 MB.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "clave_api",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "01. JWT",
+      "item": [
+        {
+          "name": "Token api_admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/token/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "token",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"api_admin\",\n  \"password\": \"{{clave_api}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "pm.collectionVariables.set('access_admin', j.access);",
+                  "pm.collectionVariables.set('refresh_access_admin', j.refresh);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Renovar access (refresh)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/token/refresh/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "token",
+                "refresh",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh_access_admin}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  "pm.collectionVariables.set('access_admin', pm.response.json().access);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Token api_operador",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/token/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "token",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"api_operador\",\n  \"password\": \"{{clave_api}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "pm.collectionVariables.set('access_operador', j.access);",
+                  "pm.collectionVariables.set('refresh_access_operador', j.refresh);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Token api_sin_rol",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/token/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "token",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"api_sin_rol\",\n  \"password\": \"{{clave_api}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "pm.collectionVariables.set('access_sin_rol', j.access);",
+                  "pm.collectionVariables.set('refresh_access_sin_rol', j.refresh);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Clave incorrecta (401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/token/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "token",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"api_admin\",\n  \"password\": \"incorrecta\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 401', function () { pm.response.to.have.status(401); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02. Sin token (401)",
+      "item": [
+        {
+          "name": "GET actividades sin token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/actividades/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "actividades",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 401', function () { pm.response.to.have.status(401); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET atenciones sin token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/atenciones/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "atenciones",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 401', function () { pm.response.to.have.status(401); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET compromisos sin token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/compromisos/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "compromisos",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 401', function () { pm.response.to.have.status(401); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET evidencias sin token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/evidencias/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "evidencias",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 401', function () { pm.response.to.have.status(401); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET validaciones sin token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/validaciones/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "validaciones",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 401', function () { pm.response.to.have.status(401); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET seguimientos sin token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/seguimientos/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "seguimientos",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 401', function () { pm.response.to.have.status(401); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03. Operador: solo lectura (200 / 403)",
+      "item": [
+        {
+          "name": "GET actividades",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_operador}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/actividades/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "actividades",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET atenciones",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_operador}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/atenciones/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "atenciones",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET compromisos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_operador}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/compromisos/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "compromisos",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET evidencias",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_operador}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/evidencias/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "evidencias",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET validaciones",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_operador}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/validaciones/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "validaciones",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET seguimientos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_operador}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/seguimientos/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "seguimientos",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST compromisos (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_operador}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/compromisos/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "compromisos",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Intento del operador\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 403', function () { pm.response.to.have.status(403); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04. Sin rol API (403)",
+      "item": [
+        {
+          "name": "GET actividades",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_sin_rol}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/actividades/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "actividades",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 403', function () { pm.response.to.have.status(403); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET atenciones",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_sin_rol}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/atenciones/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "atenciones",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 403', function () { pm.response.to.have.status(403); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET compromisos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_sin_rol}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/compromisos/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "compromisos",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 403', function () { pm.response.to.have.status(403); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET evidencias",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_sin_rol}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/evidencias/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "evidencias",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 403', function () { pm.response.to.have.status(403); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET validaciones",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_sin_rol}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/validaciones/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "validaciones",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 403', function () { pm.response.to.have.status(403); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET seguimientos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_sin_rol}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/seguimientos/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "seguimientos",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 403', function () { pm.response.to.have.status(403); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05. Referencias (ids de la base cargada)",
+      "item": [
+        {
+          "name": "Actividad de un período abierto",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/actividades/?page_size=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "actividades",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "page_size",
+                  "value": "100"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  "var a = pm.response.json().results.find(function (x) { return x.period_is_closed === false; });",
+                  "pm.collectionVariables.set('employee_id', a.employee);",
+                  "pm.collectionVariables.set('period_id', a.period);",
+                  "pm.collectionVariables.set('activity_type_id', a.activity_type);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Atención social existente",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/atenciones/?page_size=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "atenciones",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "page_size",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  "pm.collectionVariables.set('actividad_social_ref', pm.response.json().results[0].activity);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tipo de actividad social",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/actividades/{{actividad_social_ref}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "actividades",
+                "{{actividad_social_ref}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  "pm.collectionVariables.set('tipo_social_id', pm.response.json().activity_type);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delegaciones y responsable",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/compromisos/?page_size=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "compromisos",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "page_size",
+                  "value": "100"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  "var r = pm.response.json().results; var uno = r.find(function (c) { return c.responsible; });",
+                  "var otro = r.find(function (c) { return c.delegation !== uno.delegation; });",
+                  "pm.collectionVariables.set('delegation_id', uno.delegation);",
+                  "pm.collectionVariables.set('responsable_id', uno.responsible);",
+                  "pm.collectionVariables.set('otra_delegacion_id', otro.delegation);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06. CRUD Actividad",
+      "item": [
+        {
+          "name": "Actividad: crear (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/actividades/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "actividades",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"number\": \"{{numero}}\",\n  \"employee\": \"{{employee_id}}\",\n  \"period\": \"{{period_id}}\",\n  \"activity_type\": \"{{activity_type_id}}\",\n  \"date\": \"{{hoy}}\",\n  \"description\": \"Atención registrada desde Apidog\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 201', function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('actividad_id', pm.response.json().id);"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var d = new Date(); var hoy = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);",
+                  "pm.collectionVariables.set('hoy', hoy);",
+                  "pm.collectionVariables.set('numero', 'API-' + Date.now());"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Actividad: detalle (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/actividades/{{actividad_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "actividades",
+                "{{actividad_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Actividad: modificar PATCH (200)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/actividades/{{actividad_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "actividades",
+                "{{actividad_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Descripción corregida desde Apidog\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Actividad: eliminar (204, borrado lógico)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/actividades/{{actividad_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "actividades",
+                "{{actividad_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 204', function () { pm.response.to.have.status(204); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Actividad: ya no figura (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/actividades/{{actividad_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "actividades",
+                "{{actividad_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 404', function () { pm.response.to.have.status(404); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "07. CRUD Atención social",
+      "item": [
+        {
+          "name": "Preparar: actividad social nueva (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/actividades/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "actividades",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"number\": \"{{numero_social}}\",\n  \"employee\": \"{{employee_id}}\",\n  \"period\": \"{{period_id}}\",\n  \"activity_type\": \"{{tipo_social_id}}\",\n  \"date\": \"{{hoy}}\",\n  \"description\": \"Actividad social para probar gestiones\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 201', function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('actividad_social_id', pm.response.json().id);"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var d = new Date(); var hoy = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);",
+                  "pm.collectionVariables.set('hoy', hoy);",
+                  "pm.collectionVariables.set('numero_social', 'API-SOC-' + Date.now());"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Atención social: crear (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/atenciones/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "atenciones",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"activity\": \"{{actividad_social_id}}\",\n  \"step_number\": 1,\n  \"date\": \"{{hoy}}\",\n  \"description\": \"Primera gestión registrada desde Apidog\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 201', function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('atencion_id', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Atención social: detalle (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/atenciones/{{atencion_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "atenciones",
+                "{{atencion_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Atención social: modificar PATCH (200)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/atenciones/{{atencion_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "atenciones",
+                "{{atencion_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"result\": \"Derivado a beneficio municipal\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Atención social: eliminar (204, borrado lógico)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/atenciones/{{atencion_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "atenciones",
+                "{{atencion_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 204', function () { pm.response.to.have.status(204); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Atención social: ya no figura (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/atenciones/{{atencion_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "atenciones",
+                "{{atencion_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 404', function () { pm.response.to.have.status(404); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "08. CRUD Compromiso",
+      "item": [
+        {
+          "name": "Compromiso: crear (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/compromisos/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "compromisos",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Compromiso creado desde Apidog\",\n  \"delegation\": \"{{delegation_id}}\",\n  \"responsible\": \"{{responsable_id}}\",\n  \"due_date\": \"{{vence}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 201', function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('compromiso_id', pm.response.json().id);"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var d = new Date(Date.now() + 15 * 86400000);",
+                  "pm.collectionVariables.set('vence', new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Compromiso: detalle (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/compromisos/{{compromiso_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "compromisos",
+                "{{compromiso_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Compromiso: modificar PATCH (200)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/compromisos/{{compromiso_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "compromisos",
+                "{{compromiso_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"in_progress\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Compromiso: eliminar (204, borrado lógico)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/compromisos/{{compromiso_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "compromisos",
+                "{{compromiso_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 204', function () { pm.response.to.have.status(204); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Compromiso: ya no figura (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/compromisos/{{compromiso_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "compromisos",
+                "{{compromiso_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 404', function () { pm.response.to.have.status(404); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "09. CRUD Evidencia",
+      "item": [
+        {
+          "name": "Evidencia: crear (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/evidencias/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "evidencias",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "activity",
+                  "value": "{{actividad_social_id}}",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Respaldo fotográfico desde Apidog",
+                  "type": "text"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 201', function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('evidencia_id', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Evidencia: detalle (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/evidencias/{{evidencia_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "evidencias",
+                "{{evidencia_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Evidencia: modificar PATCH (200)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/evidencias/{{evidencia_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "evidencias",
+                "{{evidencia_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Respaldo corregido desde Apidog\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Evidencia: eliminar (204, borrado lógico)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/evidencias/{{evidencia_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "evidencias",
+                "{{evidencia_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 204', function () { pm.response.to.have.status(204); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Evidencia: ya no figura (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/evidencias/{{evidencia_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "evidencias",
+                "{{evidencia_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 404', function () { pm.response.to.have.status(404); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "10. Operacionales: lista y detalle",
+      "item": [
+        {
+          "name": "GET validaciones",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_operador}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/validaciones/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "validaciones",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  "pm.collectionVariables.set('validacion_id', pm.response.json().results[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET validación (detalle)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_operador}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/validaciones/{{validacion_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "validaciones",
+                "{{validacion_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET seguimientos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_operador}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/seguimientos/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "seguimientos",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  "pm.collectionVariables.set('seguimiento_id', pm.response.json().results[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET seguimiento (detalle)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_operador}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/seguimientos/{{seguimiento_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "seguimientos",
+                "{{seguimiento_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "11. Errores (400 / 400 / 404)",
+      "item": [
+        {
+          "name": "Validación de campo: título corto (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/compromisos/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "compromisos",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"abc\",\n  \"delegation\": \"{{delegation_id}}\",\n  \"due_date\": \"{{vence}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 400', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Explica el campo title', function () { pm.expect(pm.response.json()).to.have.property('title'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Regla de negocio: responsable de otra delegación (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/compromisos/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "compromisos",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Compromiso con responsable ajeno\",\n  \"delegation\": \"{{otra_delegacion_id}}\",\n  \"responsible\": \"{{responsable_id}}\",\n  \"due_date\": \"{{vence}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 400', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Explica el campo responsible', function () { pm.expect(pm.response.json()).to.have.property('responsible'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Id inexistente (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/actividades/999999/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "actividades",
+                "999999",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 404', function () { pm.response.to.have.status(404); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "12. Paginación",
+      "item": [
+        {
+          "name": "Página 1",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_operador}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/actividades/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "actividades",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "pm.test('20 por página', function () { pm.expect(j.results.length).to.eql(20); });",
+                  "pm.collectionVariables.set('ids_pagina_1', JSON.stringify(j.results.map(function (a) { return a.id; })));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Página 2 (resultados distintos)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_operador}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/actividades/?page=2",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "actividades",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "2"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 200', function () { pm.response.to.have.status(200); });",
+                  "var p1 = JSON.parse(pm.collectionVariables.get('ids_pagina_1'));",
+                  "pm.test('Página 2 distinta de la 1', function () { pm.response.json().results.forEach(function (a) { pm.expect(p1).to.not.include(a.id); }); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "13. Limpieza",
+      "item": [
+        {
+          "name": "Eliminar la actividad social de prueba (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/actividades/{{actividad_social_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "actividades",
+                "{{actividad_social_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Estado 204', function () { pm.response.to.have.status(204); });",
+                  ""
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
